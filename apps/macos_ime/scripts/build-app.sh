@@ -30,6 +30,15 @@ rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RES_DIR"
 cp "$BIN" "$MACOS_DIR/$APP_NAME"
 
+# Icon: sinh từ SVG nếu chưa có, rồi chép .icns + ảnh menu bar vào Resources.
+if [ ! -f "$ROOT/Assets/AppIcon.icns" ]; then
+  echo "    (chưa có icon — chạy build-icons.sh)"
+  bash "$ROOT/scripts/build-icons.sh"
+fi
+cp "$ROOT/Assets/AppIcon.icns"   "$RES_DIR/AppIcon.icns"
+cp "$ROOT/Assets/menubar.png"    "$RES_DIR/menubar.png"
+cp "$ROOT/Assets/menubar@2x.png" "$RES_DIR/menubar@2x.png"
+
 echo "==> 3/4  Viết Info.plist…"
 cat > "$APP_DIR/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -43,6 +52,7 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
     <key>CFBundleShortVersionString</key><string>0.1</string>
     <key>CFBundlePackageType</key>     <string>APPL</string>
     <key>CFBundleExecutable</key>      <string>$APP_NAME</string>
+    <key>CFBundleIconFile</key>        <string>AppIcon</string>
     <key>LSMinimumSystemVersion</key>  <string>14.0</string>
     <!-- App accessory: ẩn khỏi Dock, chỉ có icon menu bar -->
     <key>LSUIElement</key>            <true/>
