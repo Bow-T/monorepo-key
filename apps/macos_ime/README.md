@@ -20,7 +20,12 @@ apps/macos_ime/
 │   ├── KeyCodeMap.swift     # keyCode macOS -> Character
 │   └── Permissions.swift    # xin/kiểm tra quyền Accessibility + Input Monitoring
 ├── Tests/VietEngineTests/   # test: gõ "tieengs" có ra "tiếng" không?
-└── scripts/build-app.sh     # đóng gói .app + code sign
+├── Assets/                  # NGUỒN ICON (vector) — sửa ở đây rồi render lại
+│   ├── app-icon.svg         # logo app (cung + chìa khoá) -> AppIcon.icns
+│   └── menubar-icon.svg     # icon menu bar (template đen/trong suốt)
+└── scripts/
+    ├── build-app.sh         # đóng gói .app + code sign
+    └── build-icons.sh       # SVG -> PNG -> AppIcon.icns + menubar.png
 ```
 
 > **Engine Swift ở đây và engine Dart ở [`packages/viet_engine`](../../packages/viet_engine)

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Bow Key — app icon
+  Concept: an archery "bow" with a nocked arrow; the arrow IS a key whose
+  toothed shaft drives into a key-bow (the round head). One continuous mark:
+  bow on the left, arrow-key flying right into the round key head.
+  Drawn on a 1024 canvas, macOS squircle background.
+-->
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.2" y2="1">
+      <stop offset="0"    stop-color="#FF8A5B"/>
+      <stop offset="0.5"  stop-color="#FB5A6F"/>
+      <stop offset="1"    stop-color="#D63A66"/>
+    </linearGradient>
+
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"   stop-color="#FFFFFF" stop-opacity="0.30"/>
+      <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+
+    <linearGradient id="ivory" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#FFE3D2"/>
+    </linearGradient>
+
+    <filter id="drop" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="16" stdDeviation="22" flood-color="#6E0C28" flood-opacity="0.32"/>
+    </filter>
+
+    <clipPath id="squircle">
+      <path d="M512 36
+               C 196 36 36 196 36 512
+               C 36 828 196 988 512 988
+               C 828 988 988 828 988 512
+               C 988 196 828 36 512 36 Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <g clip-path="url(#squircle)">
+    <rect width="1024" height="1024" fill="url(#bg)"/>
+    <rect width="1024" height="1024" fill="url(#sheen)"/>
+    <path d="M512 36 C 196 36 36 196 36 512 C 36 828 196 988 512 988 C 828 988 988 828 988 512 C 988 196 828 36 512 36 Z"
+          fill="none" stroke="#FFFFFF" stroke-opacity="0.20" stroke-width="6"/>
+  </g>
+
+  <!-- ============ FOREGROUND ============ -->
+  <g filter="url(#drop)" transform="translate(6 6)">
+
+    <!-- BOW limb: a deep recurve C, tips curling back -->
+    <path d="M300 170
+             C 232 250 210 360 248 412
+             C 282 460 282 564 248 612
+             C 210 664 232 774 300 854"
+          fill="none" stroke="url(#ivory)" stroke-width="60" stroke-linecap="round"/>
+
+    <!-- BOW string: straight chord between the two tips (rect: librsvg skips gradient/round lines) -->
+    <rect x="293.5" y="178" width="13" height="668" rx="6.5"
+          fill="#FFFFFF" fill-opacity="0.9"/>
+
+    <!-- ARROW-KEY shaft: thick bar from the string all the way into the key head -->
+    <rect x="300" y="486" width="404" height="52" rx="26" fill="url(#ivory)"/>
+
+    <!-- Nock / fletching at the string end (arrow tail) -->
+    <path d="M300 512 l-70 -58 l32 58 l-32 58 Z" fill="#FFFFFF"/>
+
+    <!-- KEY teeth: cut into the underside of the shaft, near the head -->
+    <rect x="560" y="538" width="30" height="70" rx="11" fill="url(#ivory)"/>
+    <rect x="622" y="538" width="30" height="104" rx="11" fill="url(#ivory)"/>
+
+    <!-- KEY head: round bow of the key (the target the arrow drives into) -->
+    <circle cx="770" cy="512" r="128" fill="url(#ivory)"/>
+    <circle cx="770" cy="512" r="62"  fill="url(#bg)"/>
+
+  </g>
+</svg>

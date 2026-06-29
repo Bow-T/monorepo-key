@@ -83,7 +83,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupMenuBar() {
         let item = NSStatusItem.create()
-        item.button?.title = "VN"
+
+        // Logo Bow Key: ảnh "template" (đen trên nền trong suốt) -> macOS tự tô
+        // màu theo menu bar sáng/tối. Kèm nhãn VN/EN để thấy rõ đang bật hay tắt.
+        if let button = item.button {
+            button.image = Self.menuBarIcon()
+            button.imagePosition = .imageLeading
+            button.title = "VN"
+        }
 
         let menu = NSMenu()
 
@@ -108,7 +115,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func updateMenuTitle() {
         let on = tapController.enabled && Permissions.ready()
-        statusItem?.button?.title = on ? "VN" : "EN"
+        guard let button = statusItem?.button else { return }
+        button.title = on ? "VN" : "EN"
+        // Khi tắt: làm mờ logo để báo trạng thái "không gõ tiếng Việt".
+        button.appearsDisabled = !on
+    }
+
+    /// Nạp logo menu bar từ Resources (menubar.png + @2x), đánh dấu là template
+    /// để macOS tự đổi màu theo light/dark. Trả nil thì button chỉ hiện chữ.
+    private static func menuBarIcon() -> NSImage? {
+        guard let url = Bundle.main.url(forResource: "menubar", withExtension: "png"),
+              let image = NSImage(contentsOf: url) else { return nil }
+        image.isTemplate = true
+        image.size = NSSize(width: 18, height: 18)
+        return image
     }
 
     // MARK: - Hành động menu
