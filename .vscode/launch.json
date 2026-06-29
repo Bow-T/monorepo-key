@@ -1,0 +1,29 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "🧪 viet_engine — test (Dart)",
+      "request": "launch",
+      "type": "dart",
+      "program": "test/",
+      "cwd": "packages/viet_engine",
+      "presentation": { "group": "1-engine", "order": 1 }
+    },
+    {
+      "name": "🧪 viet_engine — test file đang mở",
+      "request": "launch",
+      "type": "dart",
+      "program": "${file}",
+      "cwd": "packages/viet_engine",
+      "presentation": { "group": "1-engine", "order": 2 }
+    },
+    {
+      "name": "🖥️  macOS IME — build & open .app",
+      "request": "launch",
+      "type": "node-terminal",
+      "command": "bash scripts/build-app.sh && open build/BowKey.app",
+      "cwd": "${workspaceFolder}/apps/macos_ime",
+      "presentation": { "group": "2-macos", "order": 1 }
+    }
+  ]
+}
