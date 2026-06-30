@@ -250,8 +250,16 @@ public final class VietEngine {
 
     // MARK: - Thao tác trên âm tiết
 
+    /// Âm tiết hiện tại đã chứa ít nhất một nguyên âm chưa?
+    private var hasVowel: Bool { syllable.letters.contains { $0.base.isVietVowel } }
+
     private func setTone(_ tone: Tone) -> DiacriticResult {
-        guard !syllable.isEmpty else { return .notDiacritic }
+        // Dấu thanh chỉ hợp lệ khi âm tiết ĐÃ CÓ ÍT NHẤT MỘT NGUYÊN ÂM.
+        // Nếu không, phím-dấu (s f r x j z) chỉ là phụ âm thường — ví dụ chữ 'r'
+        // trong "tre"/"trên", chữ 's' trong "sai", 'x' trong "xin".
+        // Không có guard này, gõ "tre" sẽ thành "tẻ" và "trên" thành "tển" vì 'r'
+        // bị nuốt làm dấu hỏi dù âm tiết mới chỉ có phụ âm 't'.
+        guard hasVowel else { return .notDiacritic }
 
         // GÕ LẠI ĐỂ BỎ/ĐỔI DẤU THANH:
         if syllable.tone == tone && tone != .none {
