@@ -3,12 +3,11 @@
 // GÕ TẮT (macro/snippet): gõ một "từ khoá" ngắn (vd "vn") rồi nhấn phím ngắt từ
 // (space, dấu câu) -> bộ gõ thay từ khoá bằng nội dung dài ("Việt Nam").
 //
-// THIẾT KẾ (đối chiếu PHTV, rút gọn cho engine BowKey):
+// THIẾT KẾ (cách làm phổ biến của các bộ gõ, rút gọn cho engine BowKey):
 //   • Khớp theo CHUỖI PHÍM THÔ ASCII người dùng gõ (không theo chữ đã bỏ dấu),
 //     để từ khoá không lẫn với bộ gõ tiếng Việt. Vd từ khoá "vn", "btw", "kb".
 //   • Bung khi gặp PHÍM NGẮT TỪ (space/dấu câu), không bung giữa chừng.
-//   • Nội dung có thể TĨNH ("Việt Nam") hoặc ĐỘNG (ngày/giờ/đếm/ngẫu nhiên) —
-//     phần động học từ EngineMacroSnippetRuntime của PHTV.
+//   • Nội dung có thể TĨNH ("Việt Nam") hoặc ĐỘNG (ngày/giờ/đếm/ngẫu nhiên).
 //
 // Lớp này THUẦN LOGIC (không phụ thuộc AppKit) nên test được bằng `swift test`.
 
@@ -97,7 +96,7 @@ public final class MacroStore {
         }
     }
 
-    /// Bung format ngày giờ kiểu dd/MM/yyyy HH:mm:ss (port từ PHTV).
+    /// Bung format ngày giờ kiểu dd/MM/yyyy HH:mm:ss.
     /// Token lặp: d/M/y/H/m/s; lặp >=2 -> đệm 0; yyyy -> năm đủ 4 số.
     private func formatDateTime(_ format: String) -> String {
         let tokens: Set<Character> = ["d", "M", "y", "H", "m", "s"]

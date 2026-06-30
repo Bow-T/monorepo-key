@@ -92,7 +92,7 @@ class MacroStore {
     }
   }
 
-  /// Bung format ngày giờ dd/MM/yyyy HH:mm:ss (port từ PHTV). Token lặp d/M/y/H/m/s;
+  /// Bung format ngày giờ dd/MM/yyyy HH:mm:ss. Token lặp d/M/y/H/m/s;
   /// lặp >=2 -> đệm 0; yyyy -> năm đủ 4 số.
   String _formatDateTime(String format) {
     const tokens = {'d', 'M', 'y', 'H', 'm', 's'};

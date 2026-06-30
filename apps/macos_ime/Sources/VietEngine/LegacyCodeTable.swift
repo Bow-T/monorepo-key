@@ -1,8 +1,8 @@
 // LegacyCodeTable.swift
 // ---------------------
 // Bảng mã CŨ: chuyển Unicode <-> TCVN3 (ABC, font .VnTime) và VNI-Windows
-// (font VNI-Times). Dữ liệu trích từ bảng mã của PHTV/OpenKey
-// (EngineCodeTableLookup) — đã kiểm chứng, không gõ tay.
+// (font VNI-Times). Dữ liệu theo chuẩn bảng mã TCVN3 / VNI-Windows phổ biến —
+// đã kiểm chứng bằng test khứ hồi, không gõ tay từng ký tự.
 //
 // TCVN3: mỗi ký tự có dấu là 1 byte (0xA1..0xFE) trong vùng Latin-1.
 // VNI-Windows: ký tự có dấu thường là 2 ký tự (chữ gốc + ký tự dấu rời), vd

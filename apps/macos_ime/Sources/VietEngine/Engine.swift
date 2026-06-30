@@ -329,7 +329,7 @@ public final class VietEngine {
     ///   lần ≥4    -> kéo dài thô (KHÔNG tạo lại mũ): aaaa->aaa, ojooo->ọoo
     ///
     /// Riêng họ 'o' khi nguyên âm đã mang dấu thanh vẫn chạy đủ chu kỳ Telex cũ
-    /// (ọ+o->ộ, ộ+o->ọo) — đây là hành vi "legacy o-family" của Telex/PHTV.
+    /// (ọ+o->ộ, ộ+o->ọo) — đây là hành vi "legacy o-family" của Telex truyền thống.
     private func applyCircumflexRepeat(_ lower: Character, raw ch: Character) -> DiacriticResult {
         guard let last = syllable.letters.last,
               Character(last.base.lowercased()) == lower else {

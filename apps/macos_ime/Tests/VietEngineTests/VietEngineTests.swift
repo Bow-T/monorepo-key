@@ -379,7 +379,7 @@ struct VNIBasics {
     }
 }
 
-// Kéo dài nguyên âm (vowel stretching) — đối chiếu engine PHTV.
+// Kéo dài nguyên âm (vowel stretching) — đối chiếu bộ gõ tiếng Việt phổ biến.
 // Khi gõ lặp một nguyên âm để NHẤN MẠNH (vd "khôngggg", "đẹp quáaa"), chu kỳ mũ
 // chỉ áp cho CẶP đầu, sau đó các phím lặp chỉ nối thô; dấu thanh GIỮ NGUYÊN trên
 // nguyên âm gốc, không trôi sang nguyên âm bị kéo dài.

@@ -1,6 +1,6 @@
 // TextConverter.swift
 // -------------------
-// CÔNG CỤ CHUYỂN MÃ / BIẾN ĐỔI VĂN BẢN tiếng Việt (đối chiếu PHTV ConvertTool).
+// CÔNG CỤ CHUYỂN MÃ / BIẾN ĐỔI VĂN BẢN tiếng Việt.
 // Thuần xử lý chuỗi Unicode -> test được bằng `swift test`, không cần AppKit.
 //
 // Hỗ trợ:

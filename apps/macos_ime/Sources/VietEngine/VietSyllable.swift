@@ -8,8 +8,7 @@
 //   • Kiểm tra chính tả: cảnh báo/không áp dấu cho tổ hợp sai.
 //
 // Cấu trúc âm tiết: [phụ âm đầu]? + [vần: (đệm) + nguyên-âm-chính + (kết)].
-// Bảng phụ âm đầu/cuối lấy theo chuẩn (đối chiếu vnConsonantTable/vnEndConsonantTable
-// của PHTV/OpenKey).
+// Bảng phụ âm đầu/cuối + vần lấy theo chuẩn chính tả tiếng Việt.
 
 import Foundation
 

@@ -10,9 +10,13 @@
 
 #include <cstdint>
 #include <iostream>
+#include <optional>
 #include <string>
 
 #include "engine.h"
+#include "macro.h"
+#include "text_converter.h"
+#include "viet_syllable.h"
 
 using namespace bowkey;
 
@@ -188,7 +192,7 @@ int main() {
     Check("a88", "a8", InputMethod::Vni); Check("d99", "d9", InputMethod::Vni);
     Check("a16", "ấ", InputMethod::Vni); Check("a61", "ấ", InputMethod::Vni);
 
-    // ── Kéo dài nguyên âm + chu kỳ mũ (đối chiếu PHTV) ────────────────────
+    // ── Kéo dài nguyên âm + chu kỳ mũ ─────────────────────────────────────
     // Chu kỳ mũ theo số lần gõ nguyên âm, KHÔNG tạo lại mũ sau khi đã gỡ.
     Check("aaa", "aa"); Check("aaaa", "aaa");
     Check("eee", "ee"); Check("ooo", "oo"); Check("cooo", "coo"); Check("theee", "thee");
@@ -196,6 +200,88 @@ int main() {
     Check("baasm", "bấm");            // mũ trước thanh -> giữ mũ
     // Đặt dấu thanh khi nguyên âm bị kéo dài: dấu ở nguyên âm GỐC, không trôi.
     Check("choifiii", "chòiiii"); Check("choiiiif", "chòiiii");
+
+    // ── Âm tiết hợp lệ + khôi phục tiếng Anh + chính tả ───────────────────
+    auto checkEq = [](bool got, bool want, const std::string& msg) {
+        if (got == want) ++g_pass;
+        else { ++g_fail; std::cout << "  FAIL: " << msg << "\n"; }
+    };
+    checkEq(VietSyllable::IsValidToneless(U"tiêng"), true, "tiêng hợp lệ");
+    checkEq(VietSyllable::IsValidToneless(U"nghiêng"), true, "nghiêng hợp lệ");
+    checkEq(VietSyllable::IsValidToneless(U"terminal"), false, "terminal không hợp lệ");
+    checkEq(VietSyllable::IsValidToneless(U"the"), true, "the trùng cấu trúc VN");
+    checkEq(VietSyllable::IsValidDisplay(U"tiếng"), true, "tiếng display hợp lệ");
+    checkEq(VietSyllable::IsValidDisplay(U"terminäl"), false, "terminäl không hợp lệ");
+    checkEq(VietSyllable::StripTone(U"tiếng") == U"tiêng", true, "stripTone tiếng");
+    checkEq(VietSyllable::IsMisspelled(U"tểrn"), true, "tểrn sai chính tả");
+    checkEq(VietSyllable::IsMisspelled(U"tiếng"), false, "tiếng đúng");
+    checkEq(VietSyllable::IsMisspelled(U"terminal"), false, "ascii không đánh dấu sai");
+    {
+        auto bad = VietSyllable::MisspelledWords(U"Tôi viết tểrn rồi");
+        checkEq(bad.size() == 1 && bad[0].word == U"tểrn", true, "tìm từ sai trong câu");
+    }
+    // Tự khôi phục tiếng Anh
+    auto restore = [](const char* keys) -> std::optional<std::u32string> {
+        VietEngine e;
+        std::u32string disp;
+        for (char32_t ch : U8(keys)) disp = e.Process(ch).value_or(U"");
+        return EnglishRestoreKeys(U8(keys), disp);
+    };
+    checkEq(restore("waht").has_value() && restore("waht").value() == U"waht", true,
+            "waht -> khôi phục");
+    checkEq(!restore("tieengs").has_value(), true, "tiếng -> giữ");
+    checkEq(!restore("test").has_value(), true, "test ascii -> giữ");
+
+    // ── Công cụ chuyển mã ─────────────────────────────────────────────────
+    auto checkStr = [](const std::u32string& got, const std::u32string& want,
+                       const std::string& msg) {
+        if (got == want) ++g_pass;
+        else { ++g_fail; std::cout << "  FAIL: " << msg << " = \"" << ToU8(got) << "\"\n"; }
+    };
+    checkStr(TextConverter::RemoveDiacritics(U"Tiếng Việt"), U"Tieng Viet", "bỏ dấu");
+    checkStr(TextConverter::RemoveDiacritics(U"đường"), U"duong", "bỏ dấu đường");
+    checkStr(TextConverter::ChangeCase(U"Tiếng Việt", LetterCase::AllUpper), U"TIẾNG VIỆT",
+             "hoa hết");
+    checkStr(TextConverter::ChangeCase(U"Tiếng Việt", LetterCase::AllLower), U"tiếng việt",
+             "thường hết");
+    checkStr(TextConverter::ChangeCase(U"nguyễn văn an", LetterCase::CapitalizeWords),
+             U"Nguyễn Văn An", "hoa mỗi từ");
+    // TCVN3 / VNI round-trip
+    for (const std::u32string s : {U"tiếng việt", U"đường phố", U"phở bò"}) {
+        auto tcvn = TextConverter::Convert(s, CodeTable::Unicode, CodeTable::Tcvn3);
+        checkStr(TextConverter::Convert(tcvn, CodeTable::Tcvn3, CodeTable::Unicode), s,
+                 "TCVN khứ hồi");
+    }
+    for (const std::u32string s : {std::u32string(U"Tiếng Việt"), std::u32string(U"đường phố")}) {
+        auto vni = TextConverter::Convert(s, CodeTable::Unicode, CodeTable::VniWindows);
+        checkStr(TextConverter::Convert(vni, CodeTable::VniWindows, CodeTable::Unicode), s,
+                 "VNI khứ hồi");
+    }
+    checkStr(TextConverter::Convert(U"đ", CodeTable::Unicode, CodeTable::VniWindows), U"ñ",
+             "đ -> ñ (VNI)");
+
+    // ── Macro ─────────────────────────────────────────────────────────────
+    {
+        MacroStore store({{U"vn", U"Việt Nam"}, {U"kb", U"không biết"}});
+        checkStr(store.Expand(U"vn").value_or(U"?"), U"Việt Nam", "macro vn");
+        checkEq(!store.Expand(U"xx").has_value(), true, "macro không khớp");
+
+        MacroEnvironment env;
+        env.now = [] { return MacroClock{2026, 6, 30, 9, 5, 7}; };
+        MacroStore dyn({{U"td", U"dd/MM/yyyy", MacroSnippetType::Date},
+                        {U"tg", U"HH:mm:ss", MacroSnippetType::Time}}, env);
+        checkStr(dyn.Expand(U"td").value_or(U"?"), U"30/06/2026", "macro ngày");
+        checkStr(dyn.Expand(U"tg").value_or(U"?"), U"09:05:07", "macro giờ");
+
+        MacroStore cnt({{U"no", U"#", MacroSnippetType::Counter}});
+        checkStr(cnt.Expand(U"no").value_or(U"?"), U"#1", "counter 1");
+        checkStr(cnt.Expand(U"no").value_or(U"?"), U"#2", "counter 2");
+
+        MacroEnvironment renv;
+        renv.randomIndex = [](int) { return 1; };
+        MacroStore rnd({{U"rr", U"a, b, c", MacroSnippetType::Random}}, renv);
+        checkStr(rnd.Expand(U"rr").value_or(U"?"), U"b", "random index 1");
+    }
 
     std::cout << "\n" << g_pass << " pass, " << g_fail << " fail.\n";
     return g_fail == 0 ? 0 : 1;

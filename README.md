@@ -94,7 +94,7 @@ Tính năng engine đã có:
 - Đặt dấu chuẩn chính tả: modern (hoà, quý) + old (hòa, qúy)
 - Cụm "ươ" (nướng, được)
 - Gõ lại để bỏ/đổi dấu (hoaff→hoaf, hoafs→hoá)
-- Kéo dài nguyên âm đúng chu kỳ mũ (aaaa→aaa, chòiiii — đối chiếu PHTV)
+- Kéo dài nguyên âm đúng chu kỳ mũ (aaaa→aaa, chòiiii)
 - Backspace bằng cách dựng lại (replay) từ buffer phím thô
 - **Gõ tắt / Macro**: `vn`→Việt Nam; nội dung tĩnh + động (ngày/giờ/đếm/ngẫu nhiên)
 - **Công cụ chuyển mã**: bỏ dấu, hoa/thường (4 kiểu), NFC↔NFD, TCVN3/VNI-Windows

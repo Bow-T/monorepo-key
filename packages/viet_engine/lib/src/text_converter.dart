@@ -18,7 +18,7 @@ enum LetterCase { allUpper, allLower, capitalizeFirst, capitalizeWords }
 class TextConverter {
   TextConverter._();
 
-  /// Unicode -> unicodeToTcvn: 134 ký tự (trích từ bảng mã PHTV/OpenKey).
+  /// Unicode -> unicodeToTcvn: 134 ký tự (chuẩn bảng mã TCVN3).
   static const Map<String, String> unicodeToTcvn = {
     '\u{C0}': '\u{B5}',
     '\u{C1}': '\u{B8}',
@@ -156,7 +156,7 @@ class TextConverter {
     '\u{1EF9}': '\u{FC}',
   };
 
-  /// Unicode -> unicodeToVni: 134 ký tự (trích từ bảng mã PHTV/OpenKey).
+  /// Unicode -> unicodeToVni: 134 ký tự (chuẩn bảng mã VNI-Windows).
   static const Map<String, String> unicodeToVni = {
     '\u{C0}': '\u{41}\u{D8}',
     '\u{C1}': '\u{41}\u{D9}',

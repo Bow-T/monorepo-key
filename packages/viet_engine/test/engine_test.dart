@@ -326,7 +326,7 @@ void main() {
     });
   });
 
-  // Kéo dài nguyên âm (vowel stretching) — đối chiếu engine PHTV.
+  // Kéo dài nguyên âm (vowel stretching) — đối chiếu bộ gõ tiếng Việt phổ biến.
   group('Kéo dài nguyên âm (elongation)', () {
     test('Chu kỳ mũ theo số lần gõ, không tạo lại mũ sau khi gỡ', () {
       expect(type('aa'), 'â');
