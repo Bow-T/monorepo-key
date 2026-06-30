@@ -109,13 +109,42 @@ void main() {
     test('Ba nguyên âm: dấu lên nguyên âm giữa', () {
       expect(type('ngoaif'), 'ngoài'); // ngoài: lên a (giữa, có i cuối)
     });
+
+    // Regression: 'u' sau 'q' và 'i' sau 'g' là phần của phụ âm đầu, KHÔNG nhận
+    // dấu thanh (quy tắc chính tả "gi"/"qu").
+    test('qu-: dấu không lên u (quà, quá, quán)', () {
+      expect(type('quaf'), 'quà'); // KHÔNG phải "qùa"
+      expect(type('quas'), 'quá');
+      expect(type('quans'), 'quán');
+      expect(type('quys'), 'quý'); // u-y: y là nguyên âm chính -> lên y
+    });
+
+    test('gi-: dấu không lên i (già, giá, giò, giúp)', () {
+      expect(type('giaf'), 'già'); // KHÔNG phải "gìa"
+      expect(type('gias'), 'giá');
+      expect(type('giof'), 'giò');
+      expect(type('giups'), 'giúp');
+      expect(type('giuwxa'), 'giữa');
+    });
+
+    test('gi-/qu- khi nguyên âm đó là DUY NHẤT thì vẫn nhận dấu', () {
+      expect(type('gif'), 'gì'); // i duy nhất -> dấu lên i
+      expect(type('gir'), 'gỉ');
+    });
   });
 
   group('Chế độ đặt dấu cũ (old orthography)', () {
     test('Đuôi mở oa/oe/uy: dấu lên nguyên âm đầu', () {
       expect(type('hoaf', toneStyle: ToneStyle.old), 'hòa'); // hòa
-      expect(type('quys', toneStyle: ToneStyle.old), 'qúy'); // qúy
+      // Dùng "uy" THẬT (thùy), không phải "quy" — trong "qu" thì 'u' là bán phụ âm
+      // nên "quý" luôn đặt dấu trên y ở cả hai chế độ (xem group qu-/gi- ở trên).
+      expect(type('thuyf', toneStyle: ToneStyle.old), 'thùy'); // thùy (lên u)
       expect(type('khoer', toneStyle: ToneStyle.old), 'khỏe'); // khỏe
+    });
+
+    test('"quy" đặt dấu trên y ở cả modern lẫn old (u là bán phụ âm)', () {
+      expect(type('quys'), 'quý');
+      expect(type('quys', toneStyle: ToneStyle.old), 'quý');
     });
 
     test('Trường hợp có phụ âm cuối / biến âm: giống modern', () {
@@ -125,8 +154,7 @@ void main() {
   });
 
   // Regression: phím-dấu (s f r x j z) đứng sau phụ âm đầu mà CHƯA có nguyên âm
-  // không được nuốt làm dấu thanh. Bắt nguồn từ commit PHTV 0adc2129
-  // ("prevent initial consonants from being consumed as tone markers").
+  // không được nuốt làm dấu thanh (phụ âm đầu không bị hiểu nhầm là phím-dấu).
   group('Phụ âm-dấu sau phụ âm đầu (chưa có nguyên âm)', () {
     test('tr- không bị nuốt thành dấu hỏi', () {
       expect(type('tre'), 'tre'); // cây tre, KHÔNG phải "tẻ"
@@ -151,6 +179,37 @@ void main() {
     });
   });
 
+  // Gõ tắt 'w': 'w' đơn (không ghép được a/o/u) tạo 'ư'; cụm "ưo" tự thành "ươ"
+  // khi có âm đóng {n,c,i,m,p,t} đứng sau (quy tắc chính tả cụm "ươ").
+  group("Gõ tắt 'w'", () {
+    test("'w' đơn -> ư (sau phụ âm hoặc đầu từ)", () {
+      expect(type('w'), 'ư');
+      expect(type('tw'), 'tư');
+      expect(type('cw'), 'cư');
+      expect(type('qw'), 'qư');
+      expect(type('mwf'), 'mừ');
+      expect(type('dwfng'), 'dừng');
+      expect(type('mwfng'), 'mừng');
+      expect(type('wf'), 'ừ');
+    });
+
+    test('"ưo" -> "ươ" khi có âm đóng kế tiếp', () {
+      expect(type('huwong'), 'hương');
+      expect(type('huwongs'), 'hướng');
+      expect(type('tuwong'), 'tương');
+      expect(type('thuwong'), 'thương');
+      expect(type('nuwocs'), 'nước');
+    });
+
+    test('Không phá cách gõ chuẩn uw / aw / ow / uow', () {
+      expect(type('uw'), 'ư');
+      expect(type('aw'), 'ă');
+      expect(type('ow'), 'ơ');
+      expect(type('huowng'), 'hương');
+      expect(type('huow'), 'hươ'); // gõ dở, chưa âm đóng -> giữ nguyên
+    });
+  });
+
   group('Gõ lại để bỏ/đổi dấu', () {
     test('Gõ lại trùng dấu thanh -> bỏ dấu, trả ký tự thô', () {
       expect(type('hoaf'), 'hoà');
@@ -166,6 +225,7 @@ void main() {
     test('Gõ lại trùng biến âm -> bỏ biến âm', () {
       expect(type('aaa'), 'aa'); // mũ bị huỷ, a hiện ra
       expect(type('oww'), 'ow'); // móc bị huỷ, w hiện ra
+      expect(type('ddd'), 'dd'); // đ bị huỷ, d hiện ra (đối xứng aaa)
     });
 
     test('z là phím xoá dấu thuần (không tự hiện chữ z)', () {
@@ -214,6 +274,20 @@ void main() {
 
     test('Từ hoàn chỉnh VNI: tie61ng -> tiếng', () {
       expect(type('tie61ng', method: InputMethod.vni), 'tiếng');
+    });
+
+    // Regression: gõ lại số-biến-âm trùng -> huỷ biến âm, số hiện ra như ký tự thô
+    // (cơ chế toggle: gỡ dấu rồi chèn phím thô).
+    test('Gõ lại số-biến-âm trùng -> huỷ biến âm + số thô', () {
+      expect(type('a66', method: InputMethod.vni), 'a6'); // huỷ mũ
+      expect(type('o77', method: InputMethod.vni), 'o7'); // huỷ móc
+      expect(type('a88', method: InputMethod.vni), 'a8'); // huỷ trăng
+      expect(type('d99', method: InputMethod.vni), 'd9'); // huỷ đ
+    });
+
+    test('Kết hợp số-thanh + số-biến-âm vẫn đúng', () {
+      expect(type('a16', method: InputMethod.vni), 'ấ'); // sắc rồi mũ -> ấ
+      expect(type('a61', method: InputMethod.vni), 'ấ'); // mũ rồi sắc -> ấ
     });
   });
 }

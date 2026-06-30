@@ -110,7 +110,33 @@ class VietEngine {
 
     // 3) Không phải phím-dấu -> nối như một chữ cái thường.
     _syllable.letters.add(_Letter(ch));
+    _propagateUoHorn();
     return _render();
+  }
+
+  /// Lan móc trên cụm "uo" -> "ươ" khi gặp âm đóng đứng ngay sau.
+  ///
+  /// Tiếng Việt không có âm tiết chứa "ưo"/"uơ" trần — luôn là "ươ". Khi người
+  /// dùng gõ tắt (vd "tw"->tư, rồi "o","n"), ta có "tưon"; lúc này cần đồng bộ
+  /// móc cho cả u và o thành "tươn". Chỉ kích hoạt khi âm đóng kế tiếp thuộc
+  /// {n, c, i, m, p, t} (âm đóng hợp lệ của cụm "ươ") và ĐÚNG MỘT trong u/o đang
+  /// có móc — để không đụng vào "huow"->hươ đang gõ dở (chưa có âm đóng).
+  void _propagateUoHorn() {
+    final letters = _syllable.letters;
+    final n = letters.length;
+    if (n < 3) return;
+    const closers = {'n', 'c', 'i', 'm', 'p', 't'};
+    if (!closers.contains(letters[n - 1].base.toLowerCase())) return;
+    final u = letters[n - 3];
+    final o = letters[n - 2];
+    if (u.base.toLowerCase() != 'u' || o.base.toLowerCase() != 'o') return;
+    final uHorn = u.mark == Mark.horn;
+    final oHorn = o.mark == Mark.horn;
+    if (uHorn != oHorn) {
+      // đúng một cái có móc -> móc cả hai thành "ươ".
+      u.mark = Mark.horn;
+      o.mark = Mark.horn;
+    }
   }
 
   /// Reset thủ công (gọi khi con trỏ nhảy chỗ khác, click chuột, v.v.)
@@ -190,10 +216,13 @@ class VietEngine {
         return _applyHornOrBreve();
       case 'd':
         final last = _syllable.letters.isNotEmpty ? _syllable.letters.last : null;
-        if (last != null &&
-            last.base.toLowerCase() == 'd' &&
-            last.mark == Mark.none) {
-          return _setMarkOnLast(Mark.dyet); // dd -> đ
+        if (last != null && last.base.toLowerCase() == 'd') {
+          if (last.mark == Mark.dyet) {
+            return _removeMarkOnLast(); // đ rồi gõ 'd' nữa -> bỏ gạch (ddd -> dd)
+          }
+          if (last.mark == Mark.none) {
+            return _setMarkOnLast(Mark.dyet); // dd -> đ
+          }
         }
         return _DiacriticResult.notDiacritic;
 
@@ -217,13 +246,13 @@ class VietEngine {
       case '0':
         return _setTone(Tone.none);
       case '6':
-        return _setMarkOnLast(Mark.circumflex); // â/ê/ô
+        return _setMarkOrToggle(Mark.circumflex); // â/ê/ô
       case '7':
-        return _setMarkOnLast(Mark.horn); // ơ/ư
+        return _setMarkOrToggle(Mark.horn); // ơ/ư
       case '8':
-        return _setMarkOnLast(Mark.breve); // ă
+        return _setMarkOrToggle(Mark.breve); // ă
       case '9':
-        return _setMarkOnLast(Mark.dyet); // đ
+        return _setMarkOrToggle(Mark.dyet); // đ
       default:
         return _DiacriticResult.notDiacritic;
     }
@@ -251,21 +280,36 @@ class VietEngine {
       return _DiacriticResult.applied;
     }
 
-    if (_syllable.letters.isEmpty) return _DiacriticResult.notDiacritic;
-    final last = _syllable.letters.last;
-    switch (last.base.toLowerCase()) {
-      case 'a':
-        return last.mark == Mark.breve
-            ? _removeMarkOnLast()
-            : _setMarkOnLast(Mark.breve);
-      case 'o':
-      case 'u':
-        return last.mark == Mark.horn
-            ? _removeMarkOnLast()
-            : _setMarkOnLast(Mark.horn);
-      default:
-        return _DiacriticResult.notDiacritic;
+    if (!_syllable.isEmpty) {
+      final last = _syllable.letters.last;
+      switch (last.base.toLowerCase()) {
+        case 'a':
+          return last.mark == Mark.breve
+              ? _removeMarkOnLast()
+              : _setMarkOnLast(Mark.breve);
+        case 'o':
+        case 'u':
+          return last.mark == Mark.horn
+              ? _removeMarkOnLast()
+              : _setMarkOnLast(Mark.horn);
+      }
     }
+
+    // GÕ TẮT 'w' -> 'ư': khi 'w' không áp được móc/trăng cho chữ cuối (chữ cuối
+    // không phải a/o/u, hoặc âm tiết chưa có nguyên âm), 'w' tự tạo nguyên âm 'ư'.
+    // Ví dụ: "tw"->tư, "mwf"->mừ, "w"->ư. Đây là cách gõ tắt Telex phổ biến.
+    // Ngoại lệ: nếu chữ NGAY TRƯỚC thuộc nhóm không-ghép-được thì 'w' giữ thô.
+    // (Nhóm chữ không ghép 'w': w e y f j k z.)
+    if (!_syllable.isEmpty) {
+      final prev = _syllable.letters.last.base.toLowerCase();
+      const standaloneWBad = {'w', 'e', 'y', 'f', 'j', 'k', 'z'};
+      if (standaloneWBad.contains(prev)) {
+        return _DiacriticResult.notDiacritic;
+      }
+    }
+    // Chèn 'u' mang móc -> hiển thị 'ư'.
+    _syllable.letters.add(_Letter('u', mark: Mark.horn));
+    return _DiacriticResult.applied;
   }
 
   // MARK: - Thao tác trên âm tiết
@@ -301,6 +345,18 @@ class VietEngine {
     }
     last.mark = mark;
     return _DiacriticResult.applied;
+  }
+
+  /// Như [_setMarkOnLast] nhưng nếu chữ cuối ĐÃ mang đúng biến âm đó thì GỠ ra
+  /// và trả ký tự thô — dùng cho VNI khi gõ lại số-biến-âm trùng để hủy.
+  /// Ví dụ a6→â, a66→a6 (mũ bị gỡ, số '6' hiện ra); d9→đ, d99→d9.
+  /// Cơ chế toggle: gõ lại số-biến-âm trùng thì gỡ dấu rồi chèn phím thô.
+  _DiacriticResult _setMarkOrToggle(Mark mark) {
+    if (_syllable.letters.isEmpty) return _DiacriticResult.notDiacritic;
+    if (_syllable.letters.last.mark == mark) {
+      return _removeMarkOnLast(); // gõ lại số-biến-âm trùng -> gỡ + ký tự số thô
+    }
+    return _setMarkOnLast(mark);
   }
 
   /// Gỡ dấu biến âm của chữ cái cuối (dùng khi gõ lại trùng biến âm: aa+a, ow+w...).
@@ -352,6 +408,24 @@ class VietEngine {
       if (_isVietVowel(_syllable.letters[i].base)) vowelIdx.add(i);
     }
     if (vowelIdx.isEmpty) return -1;
+
+    // "qu" và "gi": chữ 'u' sau 'q' và chữ 'i' sau 'g' KHÔNG phải nguyên âm chính
+    // mà là một phần của phụ âm đầu. Loại nó khỏi cụm tính dấu — NHƯNG chỉ khi
+    // cụm còn nguyên âm khác phía sau (vd "quà"->dấu lên a, "già"->lên a). Nếu nó
+    // là nguyên âm DUY NHẤT thì giữ lại để nhận dấu ("gì", "qù").
+    // Quy tắc chính tả: "gi"/"qu" — 'i'/'u' là bán phụ âm của phụ âm đầu.
+    if (vowelIdx.length >= 2) {
+      final first = vowelIdx.first;
+      final firstBase = _syllable.letters[first].base.toLowerCase();
+      final prevBase = first > 0
+          ? _syllable.letters[first - 1].base.toLowerCase()
+          : '';
+      if ((firstBase == 'i' && prevBase == 'g') ||
+          (firstBase == 'u' && prevBase == 'q')) {
+        vowelIdx.removeAt(0);
+      }
+    }
+
     final start = vowelIdx.first;
     final end = vowelIdx.last;
     final count = vowelIdx.length;

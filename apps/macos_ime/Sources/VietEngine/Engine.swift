@@ -110,6 +110,7 @@ public final class VietEngine {
 
         // 3) Không phải phím-dấu -> nối như một chữ cái thường.
         syllable.letters.append(.init(base: ch))
+        propagateUoHorn()
         return render()
     }
 
@@ -189,9 +190,13 @@ public final class VietEngine {
             return applyHornOrBreve()
         case "d":
             if let last = syllable.letters.last,
-               Character(last.base.lowercased()) == "d",
-               last.mark == .none {
-                return setMarkOnLast(.dyet)   // dd -> đ
+               Character(last.base.lowercased()) == "d" {
+                if last.mark == .dyet {
+                    return removeMarkOnLast()   // đ rồi gõ 'd' nữa -> bỏ gạch (ddd -> dd)
+                }
+                if last.mark == .none {
+                    return setMarkOnLast(.dyet) // dd -> đ
+                }
             }
             return .notDiacritic
 
@@ -208,10 +213,10 @@ public final class VietEngine {
         case "4": return setTone(.tilde)
         case "5": return setTone(.dot)
         case "0": return setTone(.none)
-        case "6": return setMarkOnLast(.circumflex)  // â/ê/ô
-        case "7": return setMarkOnLast(.horn)        // ơ/ư
-        case "8": return setMarkOnLast(.breve)       // ă
-        case "9": return setMarkOnLast(.dyet)        // đ
+        case "6": return setMarkOrToggle(.circumflex)  // â/ê/ô
+        case "7": return setMarkOrToggle(.horn)        // ơ/ư
+        case "8": return setMarkOrToggle(.breve)       // ă
+        case "9": return setMarkOrToggle(.dyet)        // đ
         default:  return .notDiacritic
         }
     }
@@ -237,14 +242,50 @@ public final class VietEngine {
             return .applied
         }
 
-        guard let last = syllable.letters.last else { return .notDiacritic }
-        switch Character(last.base.lowercased()) {
-        case "a":
-            return last.mark == .breve ? removeMarkOnLast() : setMarkOnLast(.breve)
-        case "o", "u":
-            return last.mark == .horn ? removeMarkOnLast() : setMarkOnLast(.horn)
-        default:
-            return .notDiacritic
+        if let last = syllable.letters.last {
+            switch Character(last.base.lowercased()) {
+            case "a":
+                return last.mark == .breve ? removeMarkOnLast() : setMarkOnLast(.breve)
+            case "o", "u":
+                return last.mark == .horn ? removeMarkOnLast() : setMarkOnLast(.horn)
+            default:
+                break
+            }
+        }
+
+        // GÕ TẮT 'w' -> 'ư': khi 'w' không áp được móc/trăng cho chữ cuối (chữ cuối
+        // không phải a/o/u, hoặc âm tiết chưa có nguyên âm), 'w' tự tạo nguyên âm 'ư'.
+        // Ví dụ: "tw"->tư, "mwf"->mừ, "w"->ư. Đây là cách gõ tắt Telex phổ biến.
+        // Ngoại lệ: nếu chữ NGAY TRƯỚC thuộc nhóm không-ghép-được thì 'w' giữ thô.
+        // (Nhóm chữ không ghép 'w': w e y f j k z.)
+        if let prev = syllable.letters.last.map({ Character($0.base.lowercased()) }) {
+            let standaloneWBad: Set<Character> = ["w", "e", "y", "f", "j", "k", "z"]
+            if standaloneWBad.contains(prev) { return .notDiacritic }
+        }
+        // Chèn 'u' mang móc -> hiển thị 'ư'.
+        syllable.letters.append(.init(base: "u", mark: .horn))
+        return .applied
+    }
+
+    /// Lan móc trên cụm "uo" -> "ươ" khi gặp âm đóng đứng ngay sau.
+    ///
+    /// Tiếng Việt không có âm tiết chứa "ưo"/"uơ" trần — luôn là "ươ". Khi người
+    /// dùng gõ tắt (vd "tw"->tư, rồi "o","n"), ta có "tưon"; lúc này cần đồng bộ
+    /// móc cho cả u và o thành "tươn". Chỉ kích hoạt khi âm đóng kế tiếp thuộc
+    /// {n, c, i, m, p, t} (âm đóng hợp lệ của cụm "ươ") và ĐÚNG MỘT trong u/o đang
+    /// có móc — để không đụng vào "huow"->hươ đang gõ dở (chưa có âm đóng).
+    private func propagateUoHorn() {
+        let n = syllable.letters.count
+        guard n >= 3 else { return }
+        let closers: Set<Character> = ["n", "c", "i", "m", "p", "t"]
+        guard closers.contains(Character(syllable.letters[n - 1].base.lowercased())) else { return }
+        guard Character(syllable.letters[n - 3].base.lowercased()) == "u",
+              Character(syllable.letters[n - 2].base.lowercased()) == "o" else { return }
+        let uHorn = syllable.letters[n - 3].mark == .horn
+        let oHorn = syllable.letters[n - 2].mark == .horn
+        if uHorn != oHorn {
+            syllable.letters[n - 3].mark = .horn
+            syllable.letters[n - 2].mark = .horn
         }
     }
 
@@ -291,6 +332,17 @@ public final class VietEngine {
         return .cancelled
     }
 
+    /// Như `setMarkOnLast` nhưng nếu chữ cuối ĐÃ mang đúng biến âm đó thì GỠ ra
+    /// và trả ký tự thô — dùng cho VNI khi gõ lại số-biến-âm trùng để hủy.
+    /// Ví dụ a6→â, a66→a6 (mũ bị gỡ, số '6' hiện ra); d9→đ, d99→d9.
+    /// Cơ chế toggle: gõ lại số-biến-âm trùng thì gỡ dấu rồi chèn phím thô.
+    private func setMarkOrToggle(_ mark: Mark) -> DiacriticResult {
+        if let last = syllable.letters.last, last.mark == mark {
+            return removeMarkOnLast()   // gõ lại số-biến-âm trùng -> gỡ + ký tự số thô
+        }
+        return setMarkOnLast(mark)
+    }
+
     // MARK: - Render
 
     /// Dựng chuỗi hiển thị của âm tiết, đặt dấu thanh lên nguyên âm phù hợp.
@@ -335,7 +387,23 @@ public final class VietEngine {
         }
 
         // Tìm cụm nguyên âm liên tiếp [start...end].
-        let vowelIdx = syllable.letters.indices.filter { syllable.letters[$0].base.isVietVowel }
+        var vowelIdx = syllable.letters.indices.filter { syllable.letters[$0].base.isVietVowel }
+
+        // "qu" và "gi": chữ 'u' sau 'q' và chữ 'i' sau 'g' KHÔNG phải nguyên âm chính
+        // mà là một phần của phụ âm đầu. Loại nó khỏi cụm tính dấu — NHƯNG chỉ khi
+        // cụm còn nguyên âm khác phía sau (vd "quà"->dấu lên a, "già"->lên a). Nếu nó
+        // là nguyên âm DUY NHẤT thì giữ lại để nhận dấu ("gì", "qù").
+        // Quy tắc chính tả: "gi"/"qu" — 'i'/'u' là bán phụ âm của phụ âm đầu.
+        if vowelIdx.count >= 2, let first = vowelIdx.first {
+            let firstBase = Character(syllable.letters[first].base.lowercased())
+            let prevBase = first > 0
+                ? Character(syllable.letters[first - 1].base.lowercased())
+                : Character(" ")
+            if (firstBase == "i" && prevBase == "g") || (firstBase == "u" && prevBase == "q") {
+                vowelIdx.removeFirst()
+            }
+        }
+
         guard let start = vowelIdx.first, let end = vowelIdx.last else { return -1 }
         let count = vowelIdx.count
 
