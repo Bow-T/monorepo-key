@@ -62,8 +62,10 @@ private:
 
     DiacriticResult SetTone(Tone tone);
     DiacriticResult SetMarkOnLast(Mark mark);
+    DiacriticResult SetMarkOrToggle(Mark mark);
     DiacriticResult RemoveMarkOnLast();
 
+    void PropagateUoHorn();
     bool HasVowel() const;
     std::u32string Render() const;
     int ToneTargetIndex() const;

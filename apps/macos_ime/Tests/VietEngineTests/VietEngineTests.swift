@@ -110,6 +110,31 @@ struct ToneePlacement {
     func threeVowels() {
         #expect(type("ngoaif") == "ngoài")  // ngoài: lên a (giữa, có i cuối)
     }
+
+    // Regression: 'u' sau 'q' và 'i' sau 'g' là phần của phụ âm đầu, KHÔNG nhận
+    // dấu thanh (quy tắc chính tả "gi"/"qu").
+    @Test("qu-: dấu không lên u (quà, quá, quán)")
+    func quCluster() {
+        #expect(type("quaf") == "quà")     // KHÔNG phải "qùa"
+        #expect(type("quas") == "quá")
+        #expect(type("quans") == "quán")
+        #expect(type("quys") == "quý")     // u-y: y là nguyên âm chính -> lên y
+    }
+
+    @Test("gi-: dấu không lên i (già, giá, giò, giúp)")
+    func giCluster() {
+        #expect(type("giaf") == "già")     // KHÔNG phải "gìa"
+        #expect(type("gias") == "giá")
+        #expect(type("giof") == "giò")
+        #expect(type("giups") == "giúp")
+        #expect(type("giuwxa") == "giữa")
+    }
+
+    @Test("gi-/qu- khi nguyên âm đó là DUY NHẤT thì vẫn nhận dấu")
+    func giQuSingleVowel() {
+        #expect(type("gif") == "gì")       // i duy nhất -> dấu lên i
+        #expect(type("gir") == "gỉ")
+    }
 }
 
 @Suite("Chế độ đặt dấu cũ (old orthography)")
@@ -118,8 +143,16 @@ struct OldToneStyle {
     @Test("Đuôi mở oa/oe/uy: dấu lên nguyên âm đầu")
     func openTailOld() {
         #expect(type("hoaf", toneStyle: .old) == "hòa")   // hòa (không phải hoà)
-        #expect(type("quys", toneStyle: .old) == "qúy")   // qúy
+        // Dùng "uy" THẬT (thùy), không phải "quy" — trong "qu" thì 'u' là bán phụ âm
+        // nên "quý" luôn đặt dấu trên y ở cả hai chế độ (xem suite qu-/gi- ở trên).
+        #expect(type("thuyf", toneStyle: .old) == "thùy") // thùy (lên u)
         #expect(type("khoer", toneStyle: .old) == "khỏe") // khỏe
+    }
+
+    @Test("\"quy\" đặt dấu trên y ở cả modern lẫn old (u là bán phụ âm)")
+    func quyAlwaysOnY() {
+        #expect(type("quys") == "quý")
+        #expect(type("quys", toneStyle: .old) == "quý")
     }
 
     @Test("Trường hợp có phụ âm cuối / biến âm: giống modern")
@@ -129,9 +162,44 @@ struct OldToneStyle {
     }
 }
 
+// Gõ tắt 'w': 'w' đơn (không ghép được a/o/u) tạo 'ư'; cụm "ưo" tự thành "ươ"
+// khi có âm đóng {n,c,i,m,p,t} đứng sau (quy tắc chính tả cụm "ươ").
+@Suite("Gõ tắt 'w'")
+struct WShortcut {
+
+    @Test("'w' đơn -> ư (sau phụ âm hoặc đầu từ)")
+    func standaloneW() {
+        #expect(type("w") == "ư")
+        #expect(type("tw") == "tư")
+        #expect(type("cw") == "cư")
+        #expect(type("qw") == "qư")
+        #expect(type("mwf") == "mừ")
+        #expect(type("dwfng") == "dừng")
+        #expect(type("mwfng") == "mừng")
+        #expect(type("wf") == "ừ")
+    }
+
+    @Test("\"ưo\" -> \"ươ\" khi có âm đóng kế tiếp")
+    func uoHornPropagation() {
+        #expect(type("huwong") == "hương")
+        #expect(type("huwongs") == "hướng")
+        #expect(type("tuwong") == "tương")
+        #expect(type("thuwong") == "thương")
+        #expect(type("nuwocs") == "nước")
+    }
+
+    @Test("Không phá cách gõ chuẩn uw / aw / ow / uow")
+    func standardStillWorks() {
+        #expect(type("uw") == "ư")
+        #expect(type("aw") == "ă")
+        #expect(type("ow") == "ơ")
+        #expect(type("huowng") == "hương")
+        #expect(type("huow") == "hươ")   // gõ dở, chưa âm đóng -> giữ nguyên
+    }
+}
+
 // Regression: phím-dấu (s f r x j z) đứng sau phụ âm đầu mà CHƯA có nguyên âm
-// không được nuốt làm dấu thanh. Đối chiếu commit PHTV 0adc2129
-// ("prevent initial consonants from being consumed as tone markers").
+// không được nuốt làm dấu thanh (phụ âm đầu không bị hiểu nhầm là phím-dấu).
 @Suite("Phụ âm-dấu sau phụ âm đầu (chưa có nguyên âm)")
 struct LeadingConsonantToneKey {
 
@@ -181,6 +249,7 @@ struct ReTyping {
     func cancelMark() {
         #expect(type("aaa") == "aa")       // mũ bị huỷ, a hiện ra
         #expect(type("oww") == "ow")       // móc bị huỷ, w hiện ra
+        #expect(type("ddd") == "dd")       // đ bị huỷ, d hiện ra (đối xứng aaa)
     }
 
     @Test("z là phím xoá dấu thuần (không tự hiện chữ z)")
@@ -251,5 +320,21 @@ struct VNIBasics {
     @Test("Từ hoàn chỉnh VNI: tie61ng -> tiếng")
     func word() {
         #expect(type("tie61ng", method: .vni) == "tiếng")
+    }
+
+    // Regression: gõ lại số-biến-âm trùng -> huỷ biến âm, số hiện ra như ký tự thô
+    // (cơ chế toggle: gỡ dấu rồi chèn phím thô).
+    @Test("Gõ lại số-biến-âm trùng -> huỷ biến âm + số thô")
+    func toggleMarkDigit() {
+        #expect(type("a66", method: .vni) == "a6")  // huỷ mũ
+        #expect(type("o77", method: .vni) == "o7")  // huỷ móc
+        #expect(type("a88", method: .vni) == "a8")  // huỷ trăng
+        #expect(type("d99", method: .vni) == "d9")  // huỷ đ
+    }
+
+    @Test("Kết hợp số-thanh + số-biến-âm vẫn đúng")
+    func toneThenMark() {
+        #expect(type("a16", method: .vni) == "ấ")   // sắc rồi mũ -> ấ
+        #expect(type("a61", method: .vni) == "ấ")   // mũ rồi sắc -> ấ
     }
 }

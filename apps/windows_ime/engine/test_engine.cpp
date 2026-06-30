@@ -157,10 +157,18 @@ int main() {
     Check("sai", "sai"); Check("xin", "xin"); Check("rum", "rum");
     Check("fan", "fan"); Check("zap", "zap");
 
+    // ── Gõ tắt 'w' ────────────────────────────────────────────────────────
+    Check("w", "ư"); Check("tw", "tư"); Check("cw", "cư"); Check("qw", "qư");
+    Check("mwf", "mừ"); Check("dwfng", "dừng"); Check("mwfng", "mừng");
+    Check("wf", "ừ");
+    Check("huwong", "hương"); Check("huwongs", "hướng"); Check("tuwong", "tương");
+    Check("thuwong", "thương"); Check("nuwocs", "nước");
+    Check("uw", "ư"); Check("huowng", "hương"); Check("huow", "hươ");
+
     // ── Gõ lại để bỏ/đổi dấu ──────────────────────────────────────────────
     Check("hoaf", "hoà"); Check("hoaff", "hoaf"); Check("ass", "as");
     Check("hoafs", "hoá"); Check("asx", "ã");
-    Check("aaa", "aa"); Check("oww", "ow");
+    Check("aaa", "aa"); Check("oww", "ow"); Check("ddd", "dd");
     Check("asz", "a"); Check("azz", "a");
 
     // ── Backspace ─────────────────────────────────────────────────────────
@@ -175,6 +183,10 @@ int main() {
     Check("a6", "â", InputMethod::Vni); Check("o7", "ơ", InputMethod::Vni);
     Check("a8", "ă", InputMethod::Vni); Check("d9", "đ", InputMethod::Vni);
     Check("tie61ng", "tiếng", InputMethod::Vni);
+    // Toggle số-biến-âm trùng -> huỷ + số thô
+    Check("a66", "a6", InputMethod::Vni); Check("o77", "o7", InputMethod::Vni);
+    Check("a88", "a8", InputMethod::Vni); Check("d99", "d9", InputMethod::Vni);
+    Check("a16", "ấ", InputMethod::Vni); Check("a61", "ấ", InputMethod::Vni);
 
     std::cout << "\n" << g_pass << " pass, " << g_fail << " fail.\n";
     return g_fail == 0 ? 0 : 1;

@@ -84,6 +84,7 @@ std::optional<std::u32string> VietEngine::Step(char32_t ch) {
 
     // 3) Không phải phím-dấu -> nối như chữ thường.
     letters_.push_back({ch, Mark::None});
+    PropagateUoHorn();
     return Render();
 }
 
@@ -135,9 +136,13 @@ VietEngine::DiacriticResult VietEngine::ApplyTelex(char32_t ch) {
         case U'w':
             return ApplyHornOrBreve();
         case U'd':
-            if (!letters_.empty() && ToLower(letters_.back().base) == U'd' &&
-                letters_.back().mark == Mark::None) {
-                return SetMarkOnLast(Mark::Dyet);  // dd -> đ
+            if (!letters_.empty() && ToLower(letters_.back().base) == U'd') {
+                if (letters_.back().mark == Mark::Dyet) {
+                    return RemoveMarkOnLast();  // đ rồi gõ 'd' nữa -> bỏ gạch (ddd -> dd)
+                }
+                if (letters_.back().mark == Mark::None) {
+                    return SetMarkOnLast(Mark::Dyet);  // dd -> đ
+                }
             }
             return DiacriticResult::NotDiacritic;
 
@@ -154,10 +159,10 @@ VietEngine::DiacriticResult VietEngine::ApplyVni(char32_t ch) {
         case U'4': return SetTone(Tone::Tilde);
         case U'5': return SetTone(Tone::Dot);
         case U'0': return SetTone(Tone::None);
-        case U'6': return SetMarkOnLast(Mark::Circumflex);
-        case U'7': return SetMarkOnLast(Mark::Horn);
-        case U'8': return SetMarkOnLast(Mark::Breve);
-        case U'9': return SetMarkOnLast(Mark::Dyet);
+        case U'6': return SetMarkOrToggle(Mark::Circumflex);
+        case U'7': return SetMarkOrToggle(Mark::Horn);
+        case U'8': return SetMarkOrToggle(Mark::Breve);
+        case U'9': return SetMarkOrToggle(Mark::Dyet);
         default:   return DiacriticResult::NotDiacritic;
     }
 }
@@ -178,17 +183,55 @@ VietEngine::DiacriticResult VietEngine::ApplyHornOrBreve() {
         return DiacriticResult::Applied;
     }
 
-    if (letters_.empty()) return DiacriticResult::NotDiacritic;
-    char32_t last = ToLower(letters_.back().base);
-    if (last == U'a') {
-        return letters_.back().mark == Mark::Breve ? RemoveMarkOnLast()
-                                                   : SetMarkOnLast(Mark::Breve);
+    if (!letters_.empty()) {
+        char32_t last = ToLower(letters_.back().base);
+        if (last == U'a') {
+            return letters_.back().mark == Mark::Breve ? RemoveMarkOnLast()
+                                                       : SetMarkOnLast(Mark::Breve);
+        }
+        if (last == U'o' || last == U'u') {
+            return letters_.back().mark == Mark::Horn ? RemoveMarkOnLast()
+                                                      : SetMarkOnLast(Mark::Horn);
+        }
     }
-    if (last == U'o' || last == U'u') {
-        return letters_.back().mark == Mark::Horn ? RemoveMarkOnLast()
-                                                  : SetMarkOnLast(Mark::Horn);
+
+    // GÕ TẮT 'w' -> 'ư': khi 'w' không áp được móc/trăng cho chữ cuối (chữ cuối
+    // không phải a/o/u, hoặc âm tiết chưa có nguyên âm), 'w' tự tạo nguyên âm 'ư'.
+    // Ví dụ: "tw"->tư, "mwf"->mừ, "w"->ư. Cách gõ tắt Telex phổ biến.
+    // Ngoại lệ: nếu chữ NGAY TRƯỚC thuộc nhóm không-ghép-được thì 'w' giữ thô.
+    // (Nhóm chữ không ghép 'w': w e y f j k z.)
+    if (!letters_.empty()) {
+        char32_t prev = ToLower(letters_.back().base);
+        if (prev == U'w' || prev == U'e' || prev == U'y' || prev == U'f' ||
+            prev == U'j' || prev == U'k' || prev == U'z') {
+            return DiacriticResult::NotDiacritic;
+        }
     }
-    return DiacriticResult::NotDiacritic;
+    // Chèn 'u' mang móc -> hiển thị 'ư'.
+    letters_.push_back({U'u', Mark::Horn});
+    return DiacriticResult::Applied;
+}
+
+// Lan móc trên cụm "uo" -> "ươ" khi gặp âm đóng {n,c,i,m,p,t} đứng ngay sau.
+// Tiếng Việt không có âm tiết chứa "ưo"/"uơ" trần — luôn là "ươ". Chỉ kích hoạt
+// khi ĐÚNG MỘT trong u/o đang có móc (để không đụng "huow"->hươ đang gõ dở).
+void VietEngine::PropagateUoHorn() {
+    const size_t n = letters_.size();
+    if (n < 3) return;
+    char32_t closer = ToLower(letters_[n - 1].base);
+    if (closer != U'n' && closer != U'c' && closer != U'i' && closer != U'm' &&
+        closer != U'p' && closer != U't') {
+        return;
+    }
+    if (ToLower(letters_[n - 3].base) != U'u' || ToLower(letters_[n - 2].base) != U'o') {
+        return;
+    }
+    bool u_horn = letters_[n - 3].mark == Mark::Horn;
+    bool o_horn = letters_[n - 2].mark == Mark::Horn;
+    if (u_horn != o_horn) {
+        letters_[n - 3].mark = Mark::Horn;
+        letters_[n - 2].mark = Mark::Horn;
+    }
 }
 
 // MARK: - Thao tác trên âm tiết
@@ -221,6 +264,17 @@ VietEngine::DiacriticResult VietEngine::SetMarkOnLast(Mark mark) {
     }
     last.mark = mark;
     return DiacriticResult::Applied;
+}
+
+// Như SetMarkOnLast nhưng nếu chữ cuối ĐÃ mang đúng biến âm đó thì GỠ ra và trả
+// ký tự thô — dùng cho VNI khi gõ lại số-biến-âm trùng để hủy (a6->â, a66->a6;
+// d9->đ, d99->d9). Cơ chế toggle: gỡ dấu rồi chèn phím thô.
+VietEngine::DiacriticResult VietEngine::SetMarkOrToggle(Mark mark) {
+    if (letters_.empty()) return DiacriticResult::NotDiacritic;
+    if (letters_.back().mark == mark) {
+        return RemoveMarkOnLast();  // gõ lại số-biến-âm trùng -> gỡ + ký tự số thô
+    }
+    return SetMarkOnLast(mark);
 }
 
 VietEngine::DiacriticResult VietEngine::RemoveMarkOnLast() {
