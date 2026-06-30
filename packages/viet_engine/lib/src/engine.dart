@@ -21,6 +21,7 @@
 
 import 'viet_model.dart';
 import 'viet_table.dart';
+import 'viet_syllable.dart';
 
 /// Một chữ cái trong âm tiết: chữ gốc + dấu biến âm riêng.
 class _Letter {
@@ -59,6 +60,20 @@ class VietEngine {
   final List<String> _rawKeys = [];
 
   VietEngine({this.method = InputMethod.telex, this.toneStyle = ToneStyle.modern});
+
+  /// TỰ KHÔI PHỤC TIẾNG ANH (thuần, không trạng thái) — port từ Engine.swift.
+  /// Trả `rawKeys` để khôi phục, hoặc null nếu nên giữ nguyên dạng tiếng Việt.
+  ///   - rawKeys: chuỗi phím thô ASCII của cả từ (vd "terminal").
+  ///   - display: chuỗi đang hiển thị (có thể đã bị biến dạng, vd "terminäl").
+  ///
+  /// Luật: chỉ khôi phục khi từ ĐÃ biến dạng VÀ không phải âm tiết tiếng Việt
+  /// hợp lệ. Ưu tiên tiếng Việt: dạng hợp lệ thì giữ (tránh phá "thế", "bạn").
+  static String? englishRestoreKeys({required String rawKeys, required String display}) {
+    if (rawKeys.isEmpty) return null;
+    if (display.toLowerCase() == rawKeys.toLowerCase()) return null; // không biến dạng
+    if (VietSyllable.isValidDisplay(display)) return null; // vẫn hợp lệ VN -> giữ
+    return rawKeys;
+  }
 
   /// Nhận một ký tự người dùng gõ, trả về chuỗi văn bản hiện tại của âm tiết
   /// (cái mà ô nhập liệu nên hiển thị cho âm tiết đang gõ).

@@ -60,7 +60,7 @@ fvm dart test packages/viet_engine   # 25 ca test chuẩn
 
 ```bash
 cd apps/macos_ime
-swift test                       # 25 test engine Swift (khớp bản Dart)
+swift test                       # 84 test engine Swift (khớp bản Dart)
 bash scripts/build-app.sh        # build + ký -> build/BowKey.app
 open build/BowKey.app
 ```
@@ -86,8 +86,8 @@ thay đổi **auto-save** ra file JSON dùng chung; bộ gõ Swift đọc & áp 
 
 `packages/viet_engine` là nguồn chân lý cho logic gõ. Mỗi bộ gõ native (Swift/C++/Kotlin)
 **phải vượt qua cùng một bộ ca test** (vd `tieengs → tiếng`, `hoaf → hoà`, `quys → quý`)
-để đảm bảo gõ giống hệt nhau trên mọi nền tảng. Hiện engine Dart và engine Swift (macOS)
-đều xanh 25/25 trên cùng bộ ca này.
+để đảm bảo gõ giống hệt nhau trên mọi nền tảng. Hiện engine Dart (74 test), engine
+Swift macOS (84 test) và engine C++ Windows (114 test) đều xanh trên cùng bộ ca này.
 
 Tính năng engine đã có:
 - Telex + VNI: dấu thanh, mũ, móc, trăng, đ
@@ -108,9 +108,9 @@ Tính năng engine đã có:
 
 | Phần | Công nghệ | Trạng thái |
 |---|---|---|
-| Engine gõ | Dart (`viet_engine`) | ✅ 25 test xanh |
-| macOS IME | Swift + CGEvent tap | ✅ Chạy được |
-| Windows IME | C++ + TSF | 🟨 Engine C++ xong (81 test xanh); TSF text service mới ở skeleton |
+| Engine gõ | Dart (`viet_engine`) | ✅ 74 test xanh (gõ + macro + chuyển mã + chính tả) |
+| macOS IME | Swift + CGEvent tap | ✅ Chạy được (84 test engine) |
+| Windows IME | C++ + TSF | 🟨 Engine C++ xong (114 test xanh); TSF text service mới ở skeleton |
 | Android IME | Kotlin + InputMethodService | ⬜ Chưa làm |
 | iOS keyboard | Swift + Keyboard Extension | ⬜ Chưa làm |
 | UI cài đặt | Flutter (`settings_ui`) | ✅ Chạy được (macOS), pixel UI |
