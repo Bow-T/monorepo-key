@@ -94,7 +94,13 @@ Tính năng engine đã có:
 - Đặt dấu chuẩn chính tả: modern (hoà, quý) + old (hòa, qúy)
 - Cụm "ươ" (nướng, được)
 - Gõ lại để bỏ/đổi dấu (hoaff→hoaf, hoafs→hoá)
+- Kéo dài nguyên âm đúng chu kỳ mũ (aaaa→aaa, chòiiii — đối chiếu PHTV)
 - Backspace bằng cách dựng lại (replay) từ buffer phím thô
+- **Gõ tắt / Macro**: `vn`→Việt Nam; nội dung tĩnh + động (ngày/giờ/đếm/ngẫu nhiên)
+- **Công cụ chuyển mã**: bỏ dấu, hoa/thường (4 kiểu), NFC↔NFD, TCVN3/VNI-Windows
+- **Tự khôi phục tiếng Anh** (heuristic, không từ điển): từ biến dạng & không hợp
+  lệ tiếng Việt → trả phím thô (vd "terminäl"→"terminal")
+- **Kiểm tra chính tả** tiếng Việt theo luật âm tiết (gạch chân từ sai)
 
 ---
 
@@ -123,9 +129,23 @@ file JSON làm "hợp đồng":
   "enabled": true, "method": "telex", "toneStyle": "modern",
   "hotkeyKeyCode": 49, "hotkeyModifiers": ["control","option"],
   "toggleHotkey": "⌃⌥ Space",
-  "smartSwitch": false, "perApp": { "com.apple.Terminal": false }
+  "smartSwitch": false, "perApp": { "com.apple.Terminal": false },
+
+  "autoRestoreEnglish": false,
+  "macroEnabled": true,
+  "macros": [
+    { "keyword": "vn", "content": "Việt Nam" },
+    { "keyword": "email", "content": "ban@example.com" },
+    { "keyword": "td", "content": "dd/MM/yyyy", "type": "date" }
+  ]
 }
 ```
+
+- **`macros`** — gõ tắt: gõ `keyword` (phím thô ASCII) + space/return/tab → thay bằng
+  `content`. `type`: `staticText` (mặc định) · `date` · `time` · `dateTime` · `random`
+  (content = "a, b, c") · `counter` (content = tiền tố). Tắt toàn bộ bằng `macroEnabled:false`.
+- **`autoRestoreEnglish`** — bật để từ bị biến dạng & không hợp lệ tiếng Việt tự trả về
+  phím thô khi chốt từ (heuristic theo luật âm tiết, không cần từ điển).
 
 - **Flutter GHI** (auto-save mỗi khi đổi cài đặt) — `settings_ui/lib/src/models/settings.dart`.
 - **Swift ĐỌC + watch file** (`DispatchSource`) → áp ngay không cần restart — `macos_ime/App/SettingsStore.swift`.

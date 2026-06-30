@@ -6,3 +6,4 @@ library;
 
 export 'src/viet_model.dart';
 export 'src/engine.dart' show VietEngine;
+export 'src/text_converter.dart' show TextConverter, CodeTable, LetterCase;

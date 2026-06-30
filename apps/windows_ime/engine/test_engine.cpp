@@ -188,6 +188,15 @@ int main() {
     Check("a88", "a8", InputMethod::Vni); Check("d99", "d9", InputMethod::Vni);
     Check("a16", "ấ", InputMethod::Vni); Check("a61", "ấ", InputMethod::Vni);
 
+    // ── Kéo dài nguyên âm + chu kỳ mũ (đối chiếu PHTV) ────────────────────
+    // Chu kỳ mũ theo số lần gõ nguyên âm, KHÔNG tạo lại mũ sau khi đã gỡ.
+    Check("aaa", "aa"); Check("aaaa", "aaa");
+    Check("eee", "ee"); Check("ooo", "oo"); Check("cooo", "coo"); Check("theee", "thee");
+    Check("these", "thế");            // 1 e thừa sau thé -> tạo mũ -> thế
+    Check("baasm", "bấm");            // mũ trước thanh -> giữ mũ
+    // Đặt dấu thanh khi nguyên âm bị kéo dài: dấu ở nguyên âm GỐC, không trôi.
+    Check("choifiii", "chòiiii"); Check("choiiiif", "chòiiii");
+
     std::cout << "\n" << g_pass << " pass, " << g_fail << " fail.\n";
     return g_fail == 0 ? 0 : 1;
 }

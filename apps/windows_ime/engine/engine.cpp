@@ -123,15 +123,7 @@ VietEngine::DiacriticResult VietEngine::ApplyTelex(char32_t ch) {
         case U'a':
         case U'e':
         case U'o':
-            if (!letters_.empty() && ToLower(letters_.back().base) == lower) {
-                if (letters_.back().mark == Mark::Circumflex) {
-                    return RemoveMarkOnLast();   // aa rồi a nữa -> bỏ mũ
-                }
-                if (letters_.back().mark == Mark::None) {
-                    return SetMarkOnLast(Mark::Circumflex);
-                }
-            }
-            return DiacriticResult::NotDiacritic;
+            return ApplyCircumflexRepeat(lower);
 
         case U'w':
             return ApplyHornOrBreve();
@@ -149,6 +141,49 @@ VietEngine::DiacriticResult VietEngine::ApplyTelex(char32_t ch) {
         default:
             return DiacriticResult::NotDiacritic;
     }
+}
+
+// Lặp nguyên âm a/e/o trong Telex: tạo mũ (aa->â) hoặc KÉO DÀI nguyên âm.
+// CHU KỲ MŨ tính theo SỐ LẦN gõ nguyên âm đó trong "run" cuối (đếm cả khi có
+// phím-thanh xen giữa — vd "casa" == "caas" == cấ). Dấu thanh "ăn theo", không
+// phá chu kỳ:
+//   lần 2 gõ -> tạo mũ (aa->â, asa->ấ, these->thế)
+//   lần 3 gõ -> gỡ mũ (aaa->aa, asaa->áaa)
+//   lần >=4  -> kéo dài thô, KHÔNG tạo lại mũ (aaaa->aaa, ojooo->ọoo)
+VietEngine::DiacriticResult VietEngine::ApplyCircumflexRepeat(char32_t lower) {
+    if (letters_.empty() || ToLower(letters_.back().base) != lower) {
+        return DiacriticResult::NotDiacritic;  // 'a/e/o' đơn -> nối như chữ thường
+    }
+
+    const int press_count = TrailingVowelPressCount(lower);
+
+    if (letters_.back().mark == Mark::Circumflex) {
+        return RemoveMarkOnLast();  // â/ê/ô + gõ thêm -> gỡ mũ (chu kỳ lần 3)
+    }
+    if (letters_.back().mark == Mark::None) {
+        if (press_count == 2 &&
+            VietTable::Compose(letters_.back().base, Mark::Circumflex, Tone::None) != 0) {
+            return SetMarkOnLast(Mark::Circumflex);  // aa -> â
+        }
+        return DiacriticResult::NotDiacritic;  // kéo dài thô (aaaa->aaa, áaa...)
+    }
+    return DiacriticResult::NotDiacritic;
+}
+
+// Đếm số lần phím nguyên âm `lower` được gõ trong "run" nguyên âm cuối của
+// raw_keys_ — bỏ qua phím-thanh (s f r x j z) xen giữa, dừng khi gặp nguyên âm
+// KHÁC hoặc phụ âm. Vd "casa" -> 2; "asaa" -> 3.
+int VietEngine::TrailingVowelPressCount(char32_t lower) const {
+    int n = 0;
+    for (auto it = raw_keys_.rbegin(); it != raw_keys_.rend(); ++it) {
+        char32_t k = ToLower(*it);
+        if (k == lower) { ++n; continue; }
+        if (k == U's' || k == U'f' || k == U'r' || k == U'x' || k == U'j' || k == U'z') {
+            continue;  // phím-thanh không phá run
+        }
+        break;  // nguyên âm khác / phụ âm -> dừng
+    }
+    return n;
 }
 
 VietEngine::DiacriticResult VietEngine::ApplyVni(char32_t ch) {
@@ -309,6 +344,22 @@ int VietEngine::ToneTargetIndex() const {
     std::vector<int> vowel_idx;
     for (int i = 0; i < static_cast<int>(letters_.size()); ++i) {
         if (IsVietVowel(letters_[i].base)) vowel_idx.push_back(i);
+    }
+
+    // KÉO DÀI NGUYÊN ÂM: gộp các nguyên âm TRÙNG nhau liên tiếp về một đại diện
+    // (giữ ký tự ĐẦU — dấu thuộc về nguyên âm gốc). Nhờ vậy "oiii" tính như "oi"
+    // khi đặt dấu (chòiiii, không phải choìiii); diphthong thật (oa, uy, ươ) không
+    // bị ảnh hưởng vì các chữ khác nhau.
+    if (vowel_idx.size() >= 2) {
+        std::vector<int> collapsed;
+        for (int idx : vowel_idx) {
+            if (!collapsed.empty() &&
+                ToLower(letters_[collapsed.back()].base) == ToLower(letters_[idx].base)) {
+                continue;  // cùng nguyên âm với cái trước -> bỏ (kéo dài)
+            }
+            collapsed.push_back(idx);
+        }
+        vowel_idx = collapsed;
     }
 
     // "qu"/"gi": loại nguyên âm đầu nếu nó là 'u' sau 'q' hoặc 'i' sau 'g', và còn

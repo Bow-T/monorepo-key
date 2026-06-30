@@ -59,6 +59,8 @@ private:
     DiacriticResult ApplyTelex(char32_t ch);
     DiacriticResult ApplyVni(char32_t ch);
     DiacriticResult ApplyHornOrBreve();
+    DiacriticResult ApplyCircumflexRepeat(char32_t lower);
+    int TrailingVowelPressCount(char32_t lower) const;
 
     DiacriticResult SetTone(Tone tone);
     DiacriticResult SetMarkOnLast(Mark mark);

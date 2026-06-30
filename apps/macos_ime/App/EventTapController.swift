@@ -54,6 +54,15 @@ final class EventTapController {
     /// gửi bao nhiêu Backspace khi gõ thay. Mỗi phím chữ ta nuốt+thay sẽ +1.
     private var committedLength = 0
 
+    /// Phím thô (ASCII) của CẢ TỪ đang gõ — để khớp macro/gõ tắt. Reset khi ngắt từ.
+    private var wordRawKeys: [Character] = []
+
+    /// Chuỗi HIỂN THỊ hiện tại của từ (kết quả render cuối) — để tự khôi phục tiếng Anh.
+    private var currentDisplay = ""
+
+    /// Bật tự khôi phục tiếng Anh (đồng bộ từ config).
+    private var autoRestoreEnglish = false
+
     // MARK: - Vòng đời tap
 
     /// Tạo và bật event tap. Trả false nếu thất bại (thường do thiếu quyền).
@@ -130,17 +139,27 @@ final class EventTapController {
         toneStyle = config.toneStyle
         hotkeyKeyCode = config.hotkeyKeyCode
         hotkeyModifiers = config.hotkeyModifiers
+        macroStore = (config.macroEnabled && !config.macros.isEmpty)
+            ? MacroStore(config.macros)
+            : nil
+        autoRestoreEnglish = config.autoRestoreEnglish
         rebuildEngine()
     }
 
+    /// Kho macro hiện hành (nil = tắt gõ tắt). Tái tạo engine khi đổi.
+    private var macroStore: MacroStore?
+
     private func rebuildEngine() {
-        engine = VietEngine(method: method, toneStyle: toneStyle)
+        engine = VietEngine(method: method, toneStyle: toneStyle,
+                            macros: macroStore, autoRestoreEnglish: autoRestoreEnglish)
         resetSyllable()
     }
 
     private func resetSyllable() {
         engine.clear()
         committedLength = 0
+        wordRawKeys.removeAll()
+        currentDisplay = ""
     }
 
     /// Sự kiện này có khớp phím tắt bật/tắt do người dùng đặt không?
@@ -262,6 +281,7 @@ final class EventTapController {
 
         // Backspace: lùi trong engine, đồng bộ committedLength.
         if keyCode == KeyCodeMap.delete {
+            if !wordRawKeys.isEmpty { wordRawKeys.removeLast() }
             if let rebuilt = engine.backspace() {
                 // Engine đã dựng lại âm tiết. Cho phím Backspace gốc đi qua (xoá 1 ký
                 // tự trên màn), rồi để committedLength khớp độ dài mới.
@@ -275,6 +295,38 @@ final class EventTapController {
 
         // Phím ngắt âm tiết (space, return, tab, esc) -> chốt từ.
         if KeyCodeMap.isWordBreak(keyCode) {
+            // GÕ TẮT: trước khi chốt, thử khớp macro theo phím thô của cả từ.
+            // Chỉ bung với phím ngắt thực sự chèn ký tự (space/return/tab), không esc.
+            let macroBreak = keyCode == KeyCodeMap.space
+                || keyCode == KeyCodeMap.return || keyCode == KeyCodeMap.tab
+            if macroBreak, let store = macroStore, !wordRawKeys.isEmpty,
+               let content = store.expand(keyword: String(wordRawKeys)) {
+                let backspaces = committedLength      // xoá từ khoá đã hiển thị
+                let breakChar = KeyCodeMap.wordBreakCharacter(for: keyCode)
+                resetSyllable()
+                wordRawKeys.removeAll()
+                DispatchQueue.main.async {
+                    // Xoá từ khoá, gõ nội dung macro, rồi gõ chính phím ngắt từ.
+                    KeyOutput.replace(backspaces: backspaces,
+                                      with: content + String(breakChar))
+                }
+                return nil  // nuốt phím ngắt gốc (ta đã tự gõ nó)
+            }
+
+            // TỰ KHÔI PHỤC TIẾNG ANH: nếu từ bị biến dạng và không phải âm tiết
+            // tiếng Việt hợp lệ -> gõ lại phím thô (vd "terminäl" -> "terminal").
+            if autoRestoreEnglish, !wordRawKeys.isEmpty,
+               let raw = VietEngine.englishRestoreKeys(
+                   rawKeys: String(wordRawKeys), display: currentDisplay) {
+                let backspaces = committedLength
+                let breakChar = KeyCodeMap.wordBreakCharacter(for: keyCode)
+                resetSyllable()
+                DispatchQueue.main.async {
+                    KeyOutput.replace(backspaces: backspaces, with: raw + String(breakChar))
+                }
+                return nil  // nuốt phím ngắt gốc (ta đã tự gõ nó kèm từ khôi phục)
+            }
+
             resetSyllable()
             return Unmanaged.passUnretained(event)
         }
@@ -297,10 +349,17 @@ final class EventTapController {
             return Unmanaged.passUnretained(event)
         }
 
+        // Ghi phím thô của từ (cho macro + tự khôi phục tiếng Anh). Chỉ chữ/số ASCII.
+        if (macroStore != nil || autoRestoreEnglish), ch.isLetter || ch.isNumber {
+            wordRawKeys.append(ch)
+        }
+
         // Đưa vào engine.
         guard let rendered = engine.process(ch) else {
             // Engine bảo đây là ngắt từ -> cho đi qua.
             committedLength = 0
+            wordRawKeys.removeAll()
+            currentDisplay = ""
             return Unmanaged.passUnretained(event)
         }
 
@@ -309,6 +368,7 @@ final class EventTapController {
         //   - gõ chuỗi rendered mới
         let backspaces = committedLength
         committedLength = rendered.count
+        currentDisplay = rendered
 
         DispatchQueue.main.async {
             KeyOutput.replace(backspaces: backspaces, with: rendered)

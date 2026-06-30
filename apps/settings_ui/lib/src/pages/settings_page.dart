@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../models/settings.dart';
 import '../services/preview_engine.dart';
+import 'convert_tool_page.dart';
 import '../services/settings_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/hotkey_recorder.dart';
@@ -165,8 +166,45 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     const SizedBox(height: AppSpacing.md),
 
-                    // ── Nhóm 6: Gõ thử ────────────────────────────────────
+                    // ── Nhóm 6: Tự khôi phục tiếng Anh ────────────────────
+                    _panelWithTitle(
+                      context,
+                      'TỰ KHÔI PHỤC TIẾNG ANH',
+                      SettingRow(
+                        title: 'KHÔI PHỤC TỪ ANH',
+                        subtitle: s.autoRestoreEnglish
+                            ? 'Từ biến dạng & không phải tiếng Việt → trả phím gốc'
+                            : 'Bật để gõ "terminal", "google"… không bị biến dạng',
+                        control: PixelSwitch(
+                          value: s.autoRestoreEnglish,
+                          onChanged: (v) =>
+                              _save(s.copyWith(autoRestoreEnglish: v)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+
+                    // ── Nhóm 7: Gõ tắt / Macro ────────────────────────────
+                    _macroPanel(context),
+                    const SizedBox(height: AppSpacing.md),
+
+                    // ── Nhóm 8: Gõ thử ────────────────────────────────────
                     _testBox(context),
+                    const SizedBox(height: AppSpacing.md),
+
+                    // ── Nhóm 9: Công cụ chuyển mã ─────────────────────────
+                    PixelButton(
+                      label: 'CÔNG CỤ CHUYỂN MÃ',
+                      icon: Icons.swap_horiz_rounded,
+                      color: AppColors.cyan,
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const ConvertToolPage(),
+                          ),
+                        );
+                      },
+                    ),
                     const SizedBox(height: AppSpacing.lg),
 
                     _footer(context),
@@ -316,6 +354,217 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // ── Gõ tắt / Macro ──────────────────────────────────────────────────────
+
+  Widget _macroPanel(BuildContext context) {
+    final t = context.tokens;
+    return PixelPanel(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('GÕ TẮT',
+              style: Theme.of(context)
+                  .textTheme
+                  .labelSmall
+                  ?.copyWith(color: t.textSecondary)),
+          const SizedBox(height: AppSpacing.sm),
+          SettingRow(
+            title: 'BẬT GÕ TẮT',
+            subtitle: s.macroEnabled
+                ? 'Gõ từ khoá + dấu cách → bung nội dung (${s.macros.length} mục)'
+                : 'Bật để dùng gõ tắt (vd "vn" → Việt Nam)',
+            control: PixelSwitch(
+              value: s.macroEnabled,
+              onChanged: (v) => _save(s.copyWith(macroEnabled: v)),
+            ),
+          ),
+          if (s.macroEnabled) ...[
+            const SizedBox(height: AppSpacing.sm),
+            for (var i = 0; i < s.macros.length; i++) _macroRow(context, i),
+            const SizedBox(height: AppSpacing.sm),
+            PixelButton(
+              label: 'THÊM GÕ TẮT',
+              icon: Icons.add_rounded,
+              color: AppColors.green,
+              small: true,
+              onPressed: () => _editMacro(context, null),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _macroRow(BuildContext context, int index) {
+    final t = context.tokens;
+    final m = s.macros[index];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      child: Container(
+        decoration: BoxDecoration(
+          color: t.inset,
+          border: Border.all(color: t.outline, width: AppBorders.thin),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Row(
+          children: [
+            // Từ khoá (badge)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              color: AppColors.green.withValues(alpha: 0.18),
+              child: Text(
+                m.keyword,
+                style: TextStyle(
+                    fontFamily: AppFonts.body,
+                    fontSize: 16,
+                    color: t.textPrimary),
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.arrow_forward_rounded, size: 16),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                m.type == 'staticText' ? m.content : '${m.content}  (${m.type})',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontFamily: AppFonts.body,
+                    fontSize: 16,
+                    color: t.textSecondary),
+              ),
+            ),
+            PixelIconButton(
+              icon: Icons.edit_rounded,
+              iconSize: 15,
+              size: 32,
+              tooltip: 'Sửa',
+              onPressed: () => _editMacro(context, index),
+            ),
+            const SizedBox(width: 4),
+            PixelIconButton(
+              icon: Icons.delete_outline_rounded,
+              iconSize: 15,
+              size: 32,
+              tooltip: 'Xoá',
+              color: AppColors.red,
+              onPressed: () {
+                final next = [...s.macros]..removeAt(index);
+                _save(s.copyWith(macros: next));
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Mở hộp thoại thêm/sửa macro. `index` null = thêm mới.
+  Future<void> _editMacro(BuildContext context, int? index) async {
+    final existing = index != null ? s.macros[index] : null;
+    final keywordCtrl = TextEditingController(text: existing?.keyword ?? '');
+    final contentCtrl = TextEditingController(text: existing?.content ?? '');
+
+    final result = await showDialog<MacroEntry>(
+      context: context,
+      builder: (ctx) {
+        final t = ctx.tokens;
+        return AlertDialog(
+          backgroundColor: t.panel,
+          shape: RoundedRectangleBorder(
+            side: BorderSide(color: t.outline, width: AppBorders.thin),
+            borderRadius: BorderRadius.zero,
+          ),
+          title: Text(index == null ? 'THÊM GÕ TẮT' : 'SỬA GÕ TẮT',
+              style: Theme.of(ctx).textTheme.labelSmall),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('TỪ KHOÁ (vd: vn)',
+                  style: Theme.of(ctx)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: t.textMuted, fontSize: 13)),
+              const SizedBox(height: 4),
+              _dialogField(ctx, keywordCtrl, 'vn'),
+              const SizedBox(height: 12),
+              Text('NỘI DUNG (vd: Việt Nam)',
+                  style: Theme.of(ctx)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: t.textMuted, fontSize: 13)),
+              const SizedBox(height: 4),
+              _dialogField(ctx, contentCtrl, 'Việt Nam'),
+            ],
+          ),
+          actions: [
+            PixelButton(
+              label: 'HUỶ',
+              color: AppColors.stone,
+              small: true,
+              expand: false,
+              onPressed: () => Navigator.pop(ctx),
+            ),
+            PixelButton(
+              label: 'LƯU',
+              color: AppColors.green,
+              small: true,
+              expand: false,
+              onPressed: () {
+                final kw = keywordCtrl.text.trim();
+                final ct = contentCtrl.text;
+                if (kw.isEmpty) return;
+                Navigator.pop(
+                    ctx, MacroEntry(keyword: kw, content: ct));
+              },
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == null) return;
+    final next = [...s.macros];
+    // Bỏ macro trùng từ khoá (giữ bản mới).
+    next.removeWhere((m) => m.keyword == result.keyword &&
+        (index == null || s.macros[index].keyword != result.keyword));
+    if (index != null) {
+      next[index] = result;
+    } else {
+      next.add(result);
+    }
+    _save(s.copyWith(macros: next));
+  }
+
+  Widget _dialogField(
+      BuildContext context, TextEditingController ctrl, String hint) {
+    final t = context.tokens;
+    return Container(
+      decoration: BoxDecoration(
+        color: t.inset,
+        border: Border.all(color: t.outline, width: AppBorders.thin),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: TextField(
+        controller: ctrl,
+        cursorColor: AppColors.green,
+        cursorWidth: 3,
+        style: TextStyle(
+            fontFamily: AppFonts.body, fontSize: 18, color: t.textPrimary),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle:
+              TextStyle(fontFamily: AppFonts.body, color: t.textMuted),
+          border: InputBorder.none,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        ),
       ),
     );
   }

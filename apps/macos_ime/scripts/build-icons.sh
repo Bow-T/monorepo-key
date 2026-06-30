@@ -21,7 +21,7 @@ ICNS="$ASSETS/AppIcon.icns"
 
 command -v rsvg-convert >/dev/null || { echo "❌ Thiếu rsvg-convert (brew install librsvg)"; exit 1; }
 
-echo "==> 1/3  Render app icon -> .iconset…"
+echo "==> 1/4  Render app icon -> .iconset…"
 rm -rf "$ICONSET"
 mkdir -p "$ICONSET"
 # macOS iconset cần đủ các cặp size @1x/@2x từ 16 tới 512.
@@ -34,15 +34,29 @@ for pair in "16 icon_16x16" "32 icon_16x16@2x" \
   rsvg-convert -w "$1" -h "$1" "$SRC" -o "$ICONSET/$2.png"
 done
 
-echo "==> 2/3  Đóng gói -> AppIcon.icns…"
+echo "==> 2/4  Đóng gói -> AppIcon.icns…"
 iconutil -c icns "$ICONSET" -o "$ICNS"
 
-echo "==> 3/3  Render menu-bar template (@1x/@2x)…"
+echo "==> 3/4  Render menu-bar template (@1x/@2x)…"
 # Template image: đen trên nền trong suốt; macOS tự tô màu theo light/dark.
 rsvg-convert -w 18 -h 18 "$MENUBAR_SRC" -o "$ASSETS/menubar.png"
 rsvg-convert -w 36 -h 36 "$MENUBAR_SRC" -o "$ASSETS/menubar@2x.png"
+
+echo "==> 4/4  Render icon cho app UI cài đặt (Flutter settings_ui)…"
+# App Flutter dùng cùng logo BowKey (thay icon Flutter mặc định). Asset catalog
+# của nó cần các PNG rời theo size; sinh thẳng từ cùng nguồn SVG để luôn đồng bộ.
+FLUTTER_ICONSET="$ROOT/../settings_ui/macos/Runner/Assets.xcassets/AppIcon.appiconset"
+if [ -d "$FLUTTER_ICONSET" ]; then
+  for sz in 16 32 64 128 256 512 1024; do
+    rsvg-convert -w "$sz" -h "$sz" "$SRC" -o "$FLUTTER_ICONSET/app_icon_$sz.png"
+  done
+  echo "    ✓ $FLUTTER_ICONSET/app_icon_*.png"
+else
+  echo "    (bỏ qua: không thấy $FLUTTER_ICONSET)"
+fi
 
 echo ""
 echo "✅ Xong:"
 echo "   $ICNS"
 echo "   $ASSETS/menubar.png  +  menubar@2x.png"
+echo "   Flutter settings_ui app_icon_*.png"

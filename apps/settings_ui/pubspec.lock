@@ -368,6 +368,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.0"
+  viet_engine:
+    dependency: "direct main"
+    description:
+      path: "../../packages/viet_engine"
+      relative: true
+    source: path
+    version: "0.1.0"
   vm_service:
     dependency: transitive
     description:

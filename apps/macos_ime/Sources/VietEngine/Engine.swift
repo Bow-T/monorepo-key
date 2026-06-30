@@ -48,9 +48,21 @@ public final class VietEngine {
     public enum ToneStyle { case modern, old }
     private let toneStyle: ToneStyle
 
-    public init(method: InputMethod = .telex, toneStyle: ToneStyle = .modern) {
+    /// Kho macro/gõ tắt (tuỳ chọn). Nếu nil -> không có macro.
+    private let macros: MacroStore?
+
+    /// Tự khôi phục tiếng Anh: nếu chuỗi đã gõ bị biến dạng và KHÔNG phải âm tiết
+    /// tiếng Việt hợp lệ thì khôi phục phím thô khi chốt từ. Mặc định tắt.
+    private let autoRestoreEnglish: Bool
+
+    public init(method: InputMethod = .telex,
+                toneStyle: ToneStyle = .modern,
+                macros: MacroStore? = nil,
+                autoRestoreEnglish: Bool = false) {
         self.method = method
         self.toneStyle = toneStyle
+        self.macros = macros
+        self.autoRestoreEnglish = autoRestoreEnglish
     }
 
     // MARK: - Buffer phím thô (giữ lịch sử phím gốc người dùng gõ)
@@ -58,6 +70,25 @@ public final class VietEngine {
     /// Đúng dãy phím người dùng đã gõ cho âm tiết hiện tại (vd "tieengs").
     /// Giữ buffer này để có thể DỰNG LẠI (replay) âm tiết — cần cho backspace, ESC.
     private var rawKeys: [Character] = []
+
+    /// Phím thô của CẢ TỪ đang gõ (qua nhiều âm tiết), chỉ gồm chữ cái/chữ số.
+    /// Reset khi gặp phím ngắt từ. Dùng để khớp macro/gõ tắt theo phím thô ASCII.
+    private var wordRawKeys: [Character] = []
+
+    /// Tổng số ký tự HIỂN THỊ của từ đang gõ (cộng dồn qua các âm tiết đã chốt +
+    /// âm tiết hiện tại). Cần để biết phải xoá bao nhiêu ký tự khi bung macro.
+    private var committedWordLength = 0   // độ dài các âm tiết đã chốt trong từ
+
+    /// Kết quả xử lý một phím khi BẬT macro (API mới, không phá `process` cũ).
+    public enum KeyResult: Equatable {
+        /// Phím thuộc âm tiết -> chuỗi hiển thị mới của âm tiết hiện tại.
+        case syllable(String)
+        /// Phím ngắt từ thường -> caller xuất `breakChar` nguyên bản, bắt đầu từ mới.
+        case wordBreak(Character)
+        /// Macro khớp -> caller XOÁ `deleteCount` ký tự đã hiển thị (cả từ khoá),
+        /// rồi CHÈN `insert` + `breakChar`. (breakChar là phím ngắt vừa gõ.)
+        case macro(deleteCount: Int, insert: String, breakChar: Character)
+    }
 
     /// Nhận một ký tự người dùng gõ, trả về chuỗi văn bản hiện tại của âm tiết
     /// (cái mà ô nhập liệu nên hiển thị cho âm tiết đang gõ).
@@ -76,6 +107,82 @@ public final class VietEngine {
             rawKeys.append(ch)
         }
         return step(ch)
+    }
+
+    /// API mới CÓ MACRO: xử lý một phím và phân biệt rõ 3 tình huống (xem `KeyResult`).
+    ///
+    /// Khác `process`: khi gặp phím ngắt từ, nếu `wordRawKeys` khớp một macro thì
+    /// trả `.macro(...)` để caller xoá từ khoá và chèn nội dung. Nếu không có macro
+    /// (hoặc không khớp) thì hành vi gõ tiếng Việt y hệt `process`.
+    public func processKey(_ ch: Character) -> KeyResult {
+        let isWordChar = ch.isLetter || ((method == .vni) && ch.isNumber && !syllable.isEmpty)
+
+        if isWordChar {
+            // Phím thuộc từ: cập nhật cả buffer âm tiết lẫn buffer từ.
+            rawKeys.append(ch)
+            wordRawKeys.append(ch)
+            let rendered = step(ch) ?? ""
+            return .syllable(rendered)
+        }
+
+        // Phím NGẮT TỪ. Trước khi chốt, thử khớp macro theo phím thô của cả từ.
+        if let macros, !wordRawKeys.isEmpty {
+            let keyword = String(wordRawKeys)
+            if let content = macros.expand(keyword: keyword) {
+                let deleteCount = currentWordDisplayLength()
+                resetWord()
+                return .macro(deleteCount: deleteCount, insert: content, breakChar: ch)
+            }
+        }
+
+        resetWord()
+        return .wordBreak(ch)
+    }
+
+    /// Độ dài (số ký tự) phần đang hiển thị của TỪ hiện tại = các âm tiết đã chốt
+    /// + âm tiết đang gõ dở.
+    private func currentWordDisplayLength() -> Int {
+        committedWordLength + render().count
+    }
+
+    /// Kiểm tra TỰ KHÔI PHỤC TIẾNG ANH tại thời điểm chốt từ.
+    ///
+    /// Trả về chuỗi PHÍM THÔ để khôi phục (caller xoá phần đã hiển thị, gõ lại
+    /// chuỗi này) nếu: bật autoRestoreEnglish, engine ĐÃ biến dạng từ, và dạng
+    /// biến dạng KHÔNG phải âm tiết tiếng Việt hợp lệ. Ngược lại trả nil (giữ nguyên).
+    ///
+    /// Quy tắc ưu tiên tiếng Việt: nếu chuỗi hiển thị vẫn là âm tiết tiếng Việt
+    /// hợp lệ thì KHÔNG khôi phục (tránh phá từ tiếng Việt thật như "thế", "bạn").
+    public func englishRestoreOnWordBreak() -> String? {
+        guard autoRestoreEnglish, !wordRawKeys.isEmpty else { return nil }
+        return Self.englishRestoreKeys(rawKeys: String(wordRawKeys), display: render())
+    }
+
+    /// Quyết định khôi phục (thuần, không trạng thái) — caller tự giữ buffer.
+    /// Trả `rawKeys` để khôi phục, hoặc nil nếu nên giữ nguyên dạng tiếng Việt.
+    ///   - rawKeys: chuỗi phím thô ASCII của cả từ (vd "terminal").
+    ///   - display: chuỗi đang hiển thị (có thể đã bị biến dạng, vd "terminäl").
+    public static func englishRestoreKeys(rawKeys: String, display: String) -> String? {
+        guard !rawKeys.isEmpty else { return nil }
+        // Engine có thực sự biến dạng không? Hiển thị trùng phím thô -> không
+        // có gì để khôi phục ("test" giữ "test").
+        guard display.lowercased() != rawKeys.lowercased() else { return nil }
+        // Hiển thị vẫn là âm tiết tiếng Việt hợp lệ -> giữ (ưu tiên tiếng Việt).
+        if VietSyllable.isValidDisplay(display) { return nil }
+        // Biến dạng + không hợp lệ tiếng Việt -> khôi phục phím thô.
+        return rawKeys
+    }
+
+    /// Số ký tự đang hiển thị cho từ hiện tại (caller cần để biết xoá bao nhiêu khi
+    /// khôi phục).
+    public var currentWordLength: Int { currentWordDisplayLength() }
+
+    /// Reset trạng thái cấp TỪ (gọi khi ngắt từ hoặc bung macro).
+    private func resetWord() {
+        syllable.reset()
+        rawKeys.removeAll()
+        wordRawKeys.removeAll()
+        committedWordLength = 0
     }
 
     /// Một bước xử lý thuần (không đụng rawKeys) — để replay dùng lại được.
@@ -174,19 +281,26 @@ public final class VietEngine {
 
         // Dấu biến âm bằng cách lặp chữ: aa, ee, oo
         case "a", "e", "o":
-            if let last = syllable.letters.last,
-               Character(last.base.lowercased()) == lower {
-                if last.mark == .circumflex {
-                    return removeMarkOnLast()        // aa rồi a nữa -> bỏ mũ
-                }
-                if last.mark == .none {
-                    return setMarkOnLast(.circumflex)
-                }
-            }
-            return .notDiacritic  // 'a/e/o' đơn -> để bước 3 nối như chữ thường
+            return applyCircumflexRepeat(lower, raw: ch)
 
         // w: ă/ơ/ư tuỳ chữ cái cuối; dd -> đ
         case "w":
+            // Xử lý ww -> w: nếu phím trước là w và không có nguyên âm trước w đó
+            let rawLen = rawKeys.count
+            let isConsecutiveW = rawLen >= 2 && Character(rawKeys[rawLen - 2].lowercased()) == "w"
+            if isConsecutiveW {
+                let hasVowelBeforePrevW = rawLen >= 3 && "uoa".contains(Character(rawKeys[rawLen - 3].lowercased()))
+                if !hasVowelBeforePrevW {
+                    if var last = syllable.letters.last, last.mark == .horn, "uU".contains(last.base) {
+                        last.base = ch
+                        last.mark = .none
+                        syllable.letters[syllable.letters.count - 1] = last
+                        return .applied
+                    }
+                } else {
+                    return .notDiacritic
+                }
+            }
             return applyHornOrBreve()
         case "d":
             if let last = syllable.letters.last,
@@ -205,6 +319,58 @@ public final class VietEngine {
         }
     }
 
+    /// Lặp nguyên âm a/e/o trong Telex: tạo mũ (aa->â) hoặc KÉO DÀI nguyên âm.
+    ///
+    /// CHU KỲ MŨ tính theo SỐ LẦN gõ nguyên âm đó trong "run" cuối (đếm cả khi có
+    /// phím-thanh xen giữa — vd "casa" == "caas" == cấ). Dấu thanh đi kèm "ăn theo",
+    /// KHÔNG phá chu kỳ; vị trí dấu do toneTargetIndex() quyết định:
+    ///   lần 2 gõ  -> tạo mũ:   aa->â,  asa->ấ,  these->thế
+    ///   lần 3 gõ  -> gỡ mũ:    aaa->aa, asaa->áaa, nhesee->nhéee
+    ///   lần ≥4    -> kéo dài thô (KHÔNG tạo lại mũ): aaaa->aaa, ojooo->ọoo
+    ///
+    /// Riêng họ 'o' khi nguyên âm đã mang dấu thanh vẫn chạy đủ chu kỳ Telex cũ
+    /// (ọ+o->ộ, ộ+o->ọo) — đây là hành vi "legacy o-family" của Telex/PHTV.
+    private func applyCircumflexRepeat(_ lower: Character, raw ch: Character) -> DiacriticResult {
+        guard let last = syllable.letters.last,
+              Character(last.base.lowercased()) == lower else {
+            return .notDiacritic   // 'a/e/o' đơn -> để bước 3 nối như chữ thường
+        }
+
+        // Đếm số lần gõ nguyên âm này trong "run" cuối (gồm cả lần đang gõ).
+        // Đếm trên rawKeys để bắt được cả phím-thanh xen giữa (casa, asaa...).
+        let pressCount = trailingVowelPressCount(lower)
+
+        if last.mark == .circumflex {
+            // Đang là â/ê/ô -> gõ thêm nguyên âm đó: GỠ mũ (chu kỳ lần 3).
+            return removeMarkOnLast()
+        }
+
+        if last.mark == .none {
+            // pressCount == 2 (lần thứ 2 trong run) -> tạo mũ.
+            // pressCount >= 3 (đã qua chu kỳ gỡ mũ) -> chỉ kéo dài thô.
+            if pressCount == 2, VietTable.compose(base: last.base, mark: .circumflex, tone: .none) != nil {
+                return setMarkOnLast(.circumflex)
+            }
+            return .notDiacritic        // kéo dài thô (aaaa->aaa, áaa...)
+        }
+        return .notDiacritic
+    }
+
+    /// Đếm số lần phím nguyên âm `lower` được gõ trong "run" nguyên âm cuối của
+    /// rawKeys — bỏ qua các phím-thanh (s f r x j z) xen giữa, dừng khi gặp một
+    /// nguyên âm KHÁC hoặc phụ âm. Vd "casa" -> 'a' đếm 2 lần; "asaa" -> 3 lần.
+    private func trailingVowelPressCount(_ lower: Character) -> Int {
+        let toneKeys: Set<Character> = ["s", "f", "r", "x", "j", "z"]
+        var n = 0
+        for key in rawKeys.reversed() {
+            let k = Character(key.lowercased())
+            if k == lower { n += 1; continue }
+            if toneKeys.contains(k) { continue }   // phím-thanh không phá run
+            break                                  // nguyên âm khác / phụ âm -> dừng
+        }
+        return n
+    }
+
     private func applyVNI(_ ch: Character) -> DiacriticResult {
         switch ch {
         case "1": return setTone(.acute)
@@ -214,7 +380,7 @@ public final class VietEngine {
         case "5": return setTone(.dot)
         case "0": return setTone(.none)
         case "6": return setMarkOrToggle(.circumflex)  // â/ê/ô
-        case "7": return setMarkOrToggle(.horn)        // ơ/ư
+        case "7": return applyHornVNI()                // VNI horn: ơ/ư/ươ/ưa
         case "8": return setMarkOrToggle(.breve)       // ă
         case "9": return setMarkOrToggle(.dyet)        // đ
         default:  return .notDiacritic
@@ -231,15 +397,46 @@ public final class VietEngine {
         if n >= 2,
            Character(syllable.letters[n - 2].base.lowercased()) == "u",
            Character(syllable.letters[n - 1].base.lowercased()) == "o" {
-            // Gõ lại w khi đã là "ươ" -> bỏ móc cả hai.
-            if syllable.letters[n - 1].mark == .horn && syllable.letters[n - 2].mark == .horn {
-                syllable.letters[n - 2].mark = .none
-                syllable.letters[n - 1].mark = .none
-                return .cancelled
+            let isPartOfQu = n >= 3 && Character(syllable.letters[n - 3].base.lowercased()) == "q"
+            if !isPartOfQu {
+                let isThuo = n >= 4 &&
+                    Character(syllable.letters[n - 4].base.lowercased()) == "t" &&
+                    Character(syllable.letters[n - 3].base.lowercased()) == "h"
+                if isThuo {
+                    if syllable.letters[n - 1].mark == .horn {
+                        syllable.letters[n - 1].mark = .none
+                        return .cancelled
+                    }
+                    syllable.letters[n - 1].mark = .horn
+                    return .applied
+                }
+
+                // Gõ lại w khi đã là "ươ" -> bỏ móc cả hai.
+                if syllable.letters[n - 1].mark == .horn && syllable.letters[n - 2].mark == .horn {
+                    syllable.letters[n - 2].mark = .none
+                    syllable.letters[n - 1].mark = .none
+                    return .cancelled
+                }
+                syllable.letters[n - 2].mark = .horn
+                syllable.letters[n - 1].mark = .horn
+                return .applied
             }
-            syllable.letters[n - 2].mark = .horn
-            syllable.letters[n - 1].mark = .horn
-            return .applied
+        }
+
+        // "ua" + w -> "ưa": áp móc cho u.
+        if n >= 2,
+           Character(syllable.letters[n - 2].base.lowercased()) == "u",
+           Character(syllable.letters[n - 1].base.lowercased()) == "a" {
+            let isPartOfQu = n >= 3 && Character(syllable.letters[n - 3].base.lowercased()) == "q"
+            if !isPartOfQu {
+                // Gõ lại w khi đã là "ưa" -> bỏ móc u.
+                if syllable.letters[n - 2].mark == .horn {
+                    syllable.letters[n - 2].mark = .none
+                    return .cancelled
+                }
+                syllable.letters[n - 2].mark = .horn
+                return .applied
+            }
         }
 
         if let last = syllable.letters.last {
@@ -265,6 +462,68 @@ public final class VietEngine {
         // Chèn 'u' mang móc -> hiển thị 'ư'.
         syllable.letters.append(.init(base: "u", mark: .horn))
         return .applied
+    }
+
+    /// 7 trong VNI: o->ơ, u->ư.
+    /// Trường hợp đặc biệt: cụm "uo" -> "ươ" — móc CẢ HAI nguyên âm,
+    /// và cụm "ua" -> "ưa" — móc u.
+    private func applyHornVNI() -> DiacriticResult {
+        let n = syllable.letters.count
+
+        // "uo" + 7 -> "ươ": áp móc cho cả u và o.
+        if n >= 2,
+           Character(syllable.letters[n - 2].base.lowercased()) == "u",
+           Character(syllable.letters[n - 1].base.lowercased()) == "o" {
+            let isPartOfQu = n >= 3 && Character(syllable.letters[n - 3].base.lowercased()) == "q"
+            if !isPartOfQu {
+                let isThuo = n >= 4 &&
+                    Character(syllable.letters[n - 4].base.lowercased()) == "t" &&
+                    Character(syllable.letters[n - 3].base.lowercased()) == "h"
+                if isThuo {
+                    if syllable.letters[n - 1].mark == .horn {
+                        syllable.letters[n - 1].mark = .none
+                        return .cancelled
+                    }
+                    syllable.letters[n - 1].mark = .horn
+                    return .applied
+                }
+
+                if syllable.letters[n - 1].mark == .horn && syllable.letters[n - 2].mark == .horn {
+                    syllable.letters[n - 2].mark = .none
+                    syllable.letters[n - 1].mark = .none
+                    return .cancelled
+                }
+                syllable.letters[n - 2].mark = .horn
+                syllable.letters[n - 1].mark = .horn
+                return .applied
+            }
+        }
+
+        // "ua" + 7 -> "ưa": áp móc cho u.
+        if n >= 2,
+           Character(syllable.letters[n - 2].base.lowercased()) == "u",
+           Character(syllable.letters[n - 1].base.lowercased()) == "a" {
+            let isPartOfQu = n >= 3 && Character(syllable.letters[n - 3].base.lowercased()) == "q"
+            if !isPartOfQu {
+                if syllable.letters[n - 2].mark == .horn {
+                    syllable.letters[n - 2].mark = .none
+                    return .cancelled
+                }
+                syllable.letters[n - 2].mark = .horn
+                return .applied
+            }
+        }
+
+        if let last = syllable.letters.last {
+            switch Character(last.base.lowercased()) {
+            case "o", "u":
+                return last.mark == .horn ? removeMarkOnLast() : setMarkOnLast(.horn)
+            default:
+                break
+            }
+        }
+
+        return .notDiacritic
     }
 
     /// Lan móc trên cụm "uo" -> "ươ" khi gặp âm đóng đứng ngay sau.
@@ -388,6 +647,23 @@ public final class VietEngine {
 
         // Tìm cụm nguyên âm liên tiếp [start...end].
         var vowelIdx = syllable.letters.indices.filter { syllable.letters[$0].base.isVietVowel }
+
+        // KÉO DÀI NGUYÊN ÂM: gộp các nguyên âm TRÙNG nhau liên tiếp về một đại diện
+        // (giữ ký tự ĐẦU của chuỗi trùng — dấu thuộc về nguyên âm gốc). Nhờ vậy
+        // "oiii" được tính như "oi" khi đặt dấu (chòiiii, không phải choìiii), còn
+        // diphthong thật (oa, uy, ươ) không bị ảnh hưởng vì chữ khác nhau.
+        if vowelIdx.count >= 2 {
+            var collapsed: [Int] = []
+            for idx in vowelIdx {
+                if let prev = collapsed.last,
+                   Character(syllable.letters[prev].base.lowercased())
+                     == Character(syllable.letters[idx].base.lowercased()) {
+                    continue   // cùng nguyên âm với cái trước -> bỏ (kéo dài)
+                }
+                collapsed.append(idx)
+            }
+            vowelIdx = collapsed
+        }
 
         // "qu" và "gi": chữ 'u' sau 'q' và chữ 'i' sau 'g' KHÔNG phải nguyên âm chính
         // mà là một phần của phụ âm đầu. Loại nó khỏi cụm tính dấu — NHƯNG chỉ khi

@@ -32,6 +32,17 @@ struct BowConfig: Equatable {
     /// Trạng thái đã nhớ cho từng app: bundleId -> enabled. Chỉ dùng khi smartSwitch.
     var perApp: [String: Bool] = [:]
 
+    /// Bật/tắt gõ tắt (macro). Mặc định bật.
+    var macroEnabled: Bool = true
+
+    /// Tự khôi phục tiếng Anh: từ biến dạng & không hợp lệ tiếng Việt -> trả phím
+    /// thô khi chốt từ. Mặc định tắt (heuristic, không từ điển).
+    var autoRestoreEnglish: Bool = false
+
+    /// Định nghĩa macro: từ khoá thô -> nội dung. Loại tĩnh.
+    /// JSON: "macros": [ {"keyword":"vn","content":"Việt Nam"}, ... ]
+    var macros: [MacroDefinition] = []
+
     static func decode(_ data: Data) -> BowConfig? {
         guard
             let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -47,7 +58,28 @@ struct BowConfig: Equatable {
         }
         if let s = obj["smartSwitch"] as? Bool { cfg.smartSwitch = s }
         if let p = obj["perApp"] as? [String: Bool] { cfg.perApp = p }
+        if let me = obj["macroEnabled"] as? Bool { cfg.macroEnabled = me }
+        if let ar = obj["autoRestoreEnglish"] as? Bool { cfg.autoRestoreEnglish = ar }
+        if let arr = obj["macros"] as? [[String: Any]] {
+            cfg.macros = arr.compactMap { item in
+                guard let kw = item["keyword"] as? String, !kw.isEmpty,
+                      let content = item["content"] as? String else { return nil }
+                let type = parseMacroType(item["type"] as? String)
+                return MacroDefinition(keyword: kw, content: content, type: type)
+            }
+        }
         return cfg
+    }
+
+    private static func parseMacroType(_ s: String?) -> MacroSnippetType {
+        switch s {
+        case "date":     return .date
+        case "time":     return .time
+        case "dateTime": return .dateTime
+        case "random":   return .random
+        case "counter":  return .counter
+        default:         return .staticText
+        }
     }
 }
 
