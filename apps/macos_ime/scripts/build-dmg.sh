@@ -1,7 +1,7 @@
 #!/bin/bash
 # build-dmg.sh
 # ------------
-# Đóng gói BowKey.app thành file .dmg cài đặt — mở ra, KÉO app vào Applications.
+# Đóng gói Bow Go.app thành file .dmg cài đặt — mở ra, KÉO app vào Applications.
 # Giống cách phát hành chuẩn của app macOS: 1 file .dmg duy nhất.
 #
 # Vì sao .dmg thay vì .zip?
@@ -19,7 +19,7 @@ APP_NAME="Bow Go"
 APP_DIR="$ROOT/build/$APP_NAME.app"
 
 # Lấy version từ Info.plist nếu app đã build; mặc định 0.1.
-VERSION="1.0.0"
+VERSION="1.0.1"
 
 # Kiến trúc máy hiện tại -> tên file (arm64 / intel) cho giống bản phát hành chuẩn.
 ARCH="$(uname -m)"

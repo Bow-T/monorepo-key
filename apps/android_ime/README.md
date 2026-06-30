@@ -1,4 +1,4 @@
-# android_ime — Bộ gõ Bow Key cho Android (chưa làm)
+# android_ime — Bộ gõ Bow Go cho Android (chưa làm)
 
 Bộ gõ trên Android là một **`InputMethodService`** viết bằng **Kotlin/Java**. Đây là
 API Android cho bàn phím ảo / bộ gõ; nó hiển thị bàn phím và đẩy ký tự vào ô nhập của

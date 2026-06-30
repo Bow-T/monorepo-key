@@ -3,7 +3,7 @@
 // GÕ TẮT (macro/snippet): gõ một "từ khoá" ngắn (vd "vn") rồi nhấn phím ngắt từ
 // (space, dấu câu) -> bộ gõ thay từ khoá bằng nội dung dài ("Việt Nam").
 //
-// THIẾT KẾ (cách làm phổ biến của các bộ gõ, rút gọn cho engine BowKey):
+// THIẾT KẾ (cách làm phổ biến của các bộ gõ, rút gọn cho engine Bow Go):
 //   • Khớp theo CHUỖI PHÍM THÔ ASCII người dùng gõ (không theo chữ đã bỏ dấu),
 //     để từ khoá không lẫn với bộ gõ tiếng Việt. Vd từ khoá "vn", "btw", "kb".
 //   • Bung khi gặp PHÍM NGẮT TỪ (space/dấu câu), không bung giữa chừng.

@@ -8,7 +8,7 @@
 
 #include "viet_model.h"
 
-namespace bowkey {
+namespace bowgo {
 
 class VietTable {
 public:
@@ -17,4 +17,4 @@ public:
     static char32_t Compose(char32_t base, Mark mark, Tone tone);
 };
 
-}  // namespace bowkey
+}  // namespace bowgo

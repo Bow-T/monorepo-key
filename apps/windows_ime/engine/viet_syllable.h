@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-namespace bowkey {
+namespace bowgo {
 
 class VietSyllable {
 public:
@@ -42,4 +42,4 @@ public:
 std::optional<std::u32string> EnglishRestoreKeys(const std::u32string& rawKeys,
                                                  const std::u32string& display);
 
-}  // namespace bowkey
+}  // namespace bowgo

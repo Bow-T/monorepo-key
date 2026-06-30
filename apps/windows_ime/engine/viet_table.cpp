@@ -5,7 +5,7 @@
 
 #include "viet_table.h"
 
-namespace bowkey {
+namespace bowgo {
 
 namespace {
 
@@ -100,4 +100,4 @@ char32_t VietTable::Compose(char32_t base, Mark mark, Tone tone) {
     return 0;  // không hợp lệ
 }
 
-}  // namespace bowkey
+}  // namespace bowgo

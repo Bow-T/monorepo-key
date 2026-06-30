@@ -6,7 +6,7 @@
 
 #include <ctime>
 
-namespace bowkey {
+namespace bowgo {
 
 namespace {
 
@@ -159,4 +159,4 @@ std::u32string MacroStore::CounterValue(const std::u32string& prefix) {
     return prefix + ToU32(next);
 }
 
-}  // namespace bowkey
+}  // namespace bowgo

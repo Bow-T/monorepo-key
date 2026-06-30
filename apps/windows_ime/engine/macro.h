@@ -11,7 +11,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace bowkey {
+namespace bowgo {
 
 enum class MacroSnippetType { StaticText, Date, Time, DateTime, Random, Counter };
 
@@ -57,4 +57,4 @@ private:
     MacroEnvironment env_;
 };
 
-}  // namespace bowkey
+}  // namespace bowgo

@@ -27,20 +27,40 @@ enum Permissions {
 
     /// Cả hai quyền đã sẵn sàng để tạo event tap?
     static func ready() -> Bool {
+        hasAccessibility() && hasInputMonitoring()
+    }
+
+    /// Ghi trạng thái quyền ra file dùng chung để app UI (Flutter) đọc & hiển thị.
+    /// File riêng (status.json) — KHÔNG đụng settings.json mà UI làm chủ, để khỏi
+    /// kích hoạt vòng watch cấu hình. Chỉ ghi khi trạng thái đổi (tránh I/O thừa).
+    static func writeStatus() {
         let acc = hasAccessibility()
         let im = hasInputMonitoring()
-        let logMsg = "[\(Date())] ready() check: Accessibility=\(acc), InputMonitoring=\(im)\n"
-        let logPath = "/Users/tuannguyen/.gemini/antigravity-ide/scratch/bowkey_permission_log.txt"
-        if let data = logMsg.data(using: .utf8) {
-            if let fileHandle = FileHandle(forWritingAtPath: logPath) {
-                fileHandle.seekToEndOfFile()
-                fileHandle.write(data)
-                fileHandle.closeFile()
-            } else {
-                try? logMsg.write(toFile: logPath, atomically: true, encoding: .utf8)
-            }
-        }
-        return acc && im
+        let obj: [String: Any] = [
+            "accessibility": acc,
+            "inputMonitoring": im,
+            "ready": acc && im,
+        ]
+        let url = statusFileURL
+        guard let out = try? JSONSerialization.data(
+            withJSONObject: obj, options: [.prettyPrinted, .sortedKeys]
+        ) else { return }
+        // Bỏ qua nếu nội dung không đổi.
+        if let old = try? Data(contentsOf: url), old == out { return }
+        try? FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(), withIntermediateDirectories: true
+        )
+        try? out.write(to: url, options: .atomic)
+    }
+
+    /// ~/Library/Application Support/BowGo/status.json (cùng thư mục settings.json).
+    static var statusFileURL: URL {
+        let appSupport = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask
+        ).first!
+        return appSupport
+            .appendingPathComponent("BowGo", isDirectory: true)
+            .appendingPathComponent("status.json")
     }
 
     /// Hiện prompt xin Accessibility (mở được hộp thoại dẫn tới System Settings).

@@ -7,7 +7,7 @@
 
 #include "viet_table.h"
 
-namespace bowkey {
+namespace bowgo {
 
 namespace {
 
@@ -403,4 +403,4 @@ int VietEngine::ToneTargetIndex() const {
     return vowel_idx[1];
 }
 
-}  // namespace bowkey
+}  // namespace bowgo

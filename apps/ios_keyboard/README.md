@@ -1,4 +1,4 @@
-# ios_keyboard — Bàn phím Bow Key cho iOS (chưa làm)
+# ios_keyboard — Bàn phím Bow Go cho iOS (chưa làm)
 
 Bộ gõ trên iOS là một **Custom Keyboard Extension** viết bằng **Swift** (target App
 Extension đi kèm một app chủ). iOS không cho app chặn phím toàn hệ thống như macOS;

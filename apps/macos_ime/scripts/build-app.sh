@@ -1,7 +1,7 @@
 #!/bin/bash
 # build-app.sh
 # ------------
-# Build Bow Key thành một .app bundle macOS hoàn chỉnh, rồi ký (code sign).
+# Build Bow Go thành một .app bundle macOS hoàn chỉnh, rồi ký (code sign).
 #
 # Vì sao cần đóng gói thành .app thay vì chạy binary trần?
 #   - macOS gắn quyền Accessibility/Input Monitoring theo "bundle identifier".
@@ -53,8 +53,8 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
     <key>CFBundleName</key>            <string>$APP_NAME</string>
     <key>CFBundleDisplayName</key>     <string>Bow Go — Bộ gõ tiếng Việt</string>
     <key>CFBundleIdentifier</key>      <string>$BUNDLE_ID</string>
-    <key>CFBundleVersion</key>         <string>1.0.0</string>
-    <key>CFBundleShortVersionString</key><string>1.0.0</string>
+    <key>CFBundleVersion</key>         <string>1.0.1</string>
+    <key>CFBundleShortVersionString</key><string>1.0.1</string>
     <key>CFBundlePackageType</key>     <string>APPL</string>
     <key>CFBundleExecutable</key>      <string>$APP_NAME</string>
     <key>CFBundleIconFile</key>        <string>AppIcon</string>

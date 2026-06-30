@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<!-- KHÔNG bật app-sandbox: app cài đặt cần ghi
-	     ~/Library/Application Support/BowKey/settings.json để bộ gõ Swift
+	     ~/Library/Application Support/BowGo/settings.json để bộ gõ Swift
 	     (cũng không sandbox) đọc cùng file. App nội bộ, không qua App Store. -->
 	<key>com.apple.security.cs.allow-jit</key>
 	<true/>

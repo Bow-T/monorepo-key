@@ -10,7 +10,7 @@
 #include <msctf.h>
 #include <windows.h>
 
-#include "BowKeyTextService.h"
+#include "BowGoTextService.h"
 
 static HINSTANCE g_instance = nullptr;
 static LONG g_dll_ref = 0;
@@ -18,10 +18,10 @@ static LONG g_dll_ref = 0;
 void DllAddRef() { InterlockedIncrement(&g_dll_ref); }
 void DllRelease() { InterlockedDecrement(&g_dll_ref); }
 
-// Class factory tạo BowKeyTextService.
-class BowKeyClassFactory : public IClassFactory {
+// Class factory tạo BowGoTextService.
+class BowGoClassFactory : public IClassFactory {
 public:
-    BowKeyClassFactory() : ref_(1) {}
+    BowGoClassFactory() : ref_(1) {}
 
     STDMETHODIMP QueryInterface(REFIID riid, void** ppv) override {
         if (IsEqualIID(riid, IID_IUnknown) || IsEqualIID(riid, IID_IClassFactory)) {
@@ -41,7 +41,7 @@ public:
 
     STDMETHODIMP CreateInstance(IUnknown* outer, REFIID riid, void** ppv) override {
         if (outer) return CLASS_E_NOAGGREGATION;
-        BowKeyTextService* svc = new (std::nothrow) BowKeyTextService();
+        BowGoTextService* svc = new (std::nothrow) BowGoTextService();
         if (!svc) return E_OUTOFMEMORY;
         HRESULT hr = svc->QueryInterface(riid, ppv);
         svc->Release();
@@ -65,8 +65,8 @@ BOOL APIENTRY DllMain(HINSTANCE instance, DWORD reason, LPVOID) {
 }
 
 STDAPI DllGetClassObject(REFCLSID rclsid, REFIID riid, void** ppv) {
-    if (IsEqualCLSID(rclsid, kBowKeyClsid)) {
-        BowKeyClassFactory* factory = new (std::nothrow) BowKeyClassFactory();
+    if (IsEqualCLSID(rclsid, kBowGoClsid)) {
+        BowGoClassFactory* factory = new (std::nothrow) BowGoClassFactory();
         if (!factory) return E_OUTOFMEMORY;
         HRESULT hr = factory->QueryInterface(riid, ppv);
         factory->Release();

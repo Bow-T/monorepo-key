@@ -1,6 +1,6 @@
-// BowKeyTextService.h
+// BowGoTextService.h
 // -------------------
-// Skeleton TSF text service cho bộ gõ Bow Key trên Windows.
+// Skeleton TSF text service cho bộ gõ Bow Go trên Windows.
 //
 // ⚠️  CHƯA KIỂM CHỨNG: file này chỉ build được trên Windows (cần Windows SDK +
 //     msctf.h). KHÔNG biên dịch/chạy được trên macOS. Đây là khung cấu trúc để
@@ -26,16 +26,16 @@
 
 // CLSID & profile GUID của text service (sinh mới bằng guidgen; đây là chỗ giữ chỗ).
 // Phải đăng ký trong registry + qua ITfInputProcessorProfiles khi cài.
-extern const CLSID kBowKeyClsid;
-extern const GUID kBowKeyProfileGuid;
-extern const GUID kBowKeyLangBarGuid;
+extern const CLSID kBowGoClsid;
+extern const GUID kBowGoProfileGuid;
+extern const GUID kBowGoLangBarGuid;
 
 // Text service: hiện thực các interface TSF tối thiểu để nhận phím và sửa văn bản.
-class BowKeyTextService : public ITfTextInputProcessor,
+class BowGoTextService : public ITfTextInputProcessor,
                           public ITfThreadMgrEventSink,
                           public ITfKeyEventSink {
 public:
-    BowKeyTextService();
+    BowGoTextService();
 
     // IUnknown
     STDMETHODIMP QueryInterface(REFIID riid, void** ppv) override;
@@ -73,7 +73,7 @@ public:
     }
 
 private:
-    ~BowKeyTextService();
+    ~BowGoTextService();
 
     // Quyết định một phím có thuộc bộ gõ không, và xử lý nó qua engine. Trả true
     // nếu engine "nuốt" phím (đã thay văn bản); false nếu để phím đi qua.
@@ -88,7 +88,7 @@ private:
     TfClientId client_id_;
     DWORD thread_mgr_cookie_;
 
-    bowkey::VietEngine engine_;
+    bowgo::VietEngine engine_;
     int committed_length_;  // số ký tự thô đã hiện cho âm tiết hiện tại
 };
 

@@ -1,4 +1,4 @@
-# macos_ime — Bộ gõ Bow Key cho macOS (Swift)
+# macos_ime — Bộ gõ Bow Go cho macOS (Swift)
 
 Bộ gõ macOS dùng **CGEvent tap** để chặn phím toàn hệ thống, đưa qua engine tiếng Việt,
 rồi "gõ thay" kết quả vào ứng dụng đang focus. Viết bằng **Swift + AppKit**, chạy dạng
@@ -45,8 +45,8 @@ swift test          # 25 test — KHÔNG cần Xcode, KHÔNG cần quyền macOS
 
 ```bash
 cd apps/macos_ime
-bash scripts/build-app.sh        # build + ký -> build/BowKey.app
-open build/BowKey.app
+bash scripts/build-app.sh        # build + ký -> "build/Bow Go.app"
+open "build/Bow Go.app"
 ```
 
 Lần đầu chạy, app sẽ xin **2 quyền** (bắt buộc của mọi bộ gõ macOS):
@@ -54,13 +54,13 @@ Lần đầu chạy, app sẽ xin **2 quyền** (bắt buộc của mọi bộ g
 1. **Accessibility** (Trợ năng) — để gõ thay ký tự vào app khác.
 2. **Input Monitoring** (Giám sát đầu vào) — để đọc phím bạn gõ.
 
-→ Mở **System Settings → Privacy & Security**, tìm mục **Bow Key** ở cả hai phần trên,
+→ Mở **System Settings → Privacy & Security**, tìm mục **Bow Go** ở cả hai phần trên,
 bật lên, rồi **mở lại app**. Khi icon menu bar hiện **VN** là đã gõ được.
 Bấm icon để bật/tắt, đổi Telex/VNI, hoặc thoát.
 
 > **Build lại mà gõ không được (icon hiện EN)?** Chữ ký ad-hoc đổi cdhash mỗi lần
 > build → macOS có thể thu hồi quyền dù công tắc vẫn xanh. Khắc phục: vào System
-> Settings → Privacy & Security, **xoá hẳn** entry BowKey (dấu –) ở *cả* Accessibility
+> Settings → Privacy & Security, **xoá hẳn** entry Bow Go (dấu –) ở *cả* Accessibility
 > *và* Input Monitoring, thoát app, mở lại để cấp quyền mới. (Bản build hiện đã bỏ
 > `--options runtime` để giảm tình trạng này; Developer ID + notarize sẽ dứt điểm.)
 

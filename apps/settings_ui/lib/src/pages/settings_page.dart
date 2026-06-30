@@ -1,6 +1,6 @@
 // settings_page.dart
 // ------------------
-// Màn hình cài đặt chính của Bow Key, phong cách pixel/8-bit RPG (như Stardew Valley).
+// Màn hình cài đặt chính của Bow Go, phong cách pixel/8-bit RPG (như Stardew Valley).
 // Bố cục dual-pane: Sidebar bên trái, nội dung cài đặt cuộn bên phải.
 // Tự động lưu cấu hình xuống file JSON để bộ gõ Swift đồng bộ.
 
@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:viet_engine/viet_engine.dart' hide InputMethod, ToneStyle;
 
 import '../models/settings.dart';
+import '../services/permission_status_service.dart';
 import '../services/preview_engine.dart';
 import '../services/settings_service.dart';
 import '../theme/app_theme.dart';
@@ -36,6 +37,7 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   final _service = SettingsService.instance;
+  final _permStatus = PermissionStatusService.instance;
   final _testController = TextEditingController();
   String _preview = '';
 
@@ -54,6 +56,7 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
     _service.addListener(_onSettings);
+    _permStatus.addListener(_onPermStatus);
     _testController.addListener(_recomputePreview);
     _input.addListener(() => setState(() {}));
   }
@@ -61,9 +64,14 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   void dispose() {
     _service.removeListener(_onSettings);
+    _permStatus.removeListener(_onPermStatus);
     _testController.dispose();
     _input.dispose();
     super.dispose();
+  }
+
+  void _onPermStatus() {
+    if (mounted) setState(() {});
   }
 
   void _onSettings() {
@@ -176,7 +184,7 @@ class _SettingsPageState extends State<SettingsPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('BOW KEY',
+              Text('BOW GO',
                   style: Theme.of(context).textTheme.displaySmall?.copyWith(fontSize: 16)),
               const SizedBox(height: 2),
               Text('CÀI ĐẶT BỘ GÕ · RETRO RPG EDITION',
@@ -857,6 +865,12 @@ class _SettingsPageState extends State<SettingsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // ── Trạng thái quyền ──────────────────────────────────────────────
+        _tabSectionTitle('TRẠNG THÁI QUYỀN'),
+        const SizedBox(height: AppSpacing.sm),
+        _buildPermissionStatus(context),
+        _tabDivider(),
+
         _tabSectionTitle('KHI GÕ KHÔNG ĐƯỢC TIẾNG VIỆT'),
         const SizedBox(height: AppSpacing.sm),
         PixelPanel(
@@ -935,6 +949,165 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ],
     );
+  }
+
+  /// Khối "Trạng thái quyền": cho biết quyền nào đã/chưa cấp, ngay trong app.
+  /// Dữ liệu do bộ gõ Swift ghi ra status.json, cập nhật mỗi vài giây.
+  Widget _buildPermissionStatus(BuildContext context) {
+    final t = context.tokens;
+    final st = _permStatus.value;
+
+    if (!st.known) {
+      // Chưa đọc được status (bộ gõ chưa chạy lần nào trên máy này).
+      return PixelPanel(
+        padding: const EdgeInsets.all(14),
+        fill: t.inset,
+        shadowOffset: AppBorders.shadowSm,
+        borderWidth: AppBorders.thin,
+        child: Text(
+          'Chưa rõ trạng thái quyền — hãy mở bộ gõ Bow Go ít nhất một lần. '
+          'Sau khi bộ gõ chạy, mục này sẽ hiện quyền nào đã/chưa cấp.',
+          style: TextStyle(
+            fontFamily: AppFonts.body,
+            fontSize: 14,
+            height: 1.2,
+            color: t.textMuted,
+          ),
+        ),
+      );
+    }
+
+    return PixelPanel(
+      padding: const EdgeInsets.all(16),
+      fill: t.panel,
+      shadowOffset: AppBorders.shadowSm,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (st.ready)
+            _permSummaryLine(
+              context,
+              ok: true,
+              text: 'Đã cấp đủ quyền — bộ gõ sẵn sàng hoạt động.',
+            )
+          else
+            _permSummaryLine(
+              context,
+              ok: false,
+              text: 'Còn thiếu quyền — bộ gõ chưa gõ được tiếng Việt.',
+            ),
+          const SizedBox(height: AppSpacing.sm),
+          _permissionRow(
+            context,
+            label: 'Accessibility (Trợ năng)',
+            sub: 'Để gõ thay ký tự vào ứng dụng khác',
+            granted: st.accessibility,
+            settingsUrl:
+                'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _permissionRow(
+            context,
+            label: 'Input Monitoring (Giám sát đầu vào)',
+            sub: 'Để đọc phím bạn gõ',
+            granted: st.inputMonitoring,
+            settingsUrl:
+                'x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent',
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Dòng tóm tắt trên cùng (đủ quyền / thiếu quyền).
+  Widget _permSummaryLine(BuildContext context,
+      {required bool ok, required String text}) {
+    return Row(
+      children: [
+        Icon(
+          ok ? Icons.check_circle_rounded : Icons.error_rounded,
+          color: ok ? AppColors.green : AppColors.red,
+          size: 20,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontFamily: AppFonts.body,
+              fontSize: 15,
+              height: 1.2,
+              color: context.tokens.textPrimary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Một dòng quyền: trạng thái đã/chưa cấp + nút mở trang Settings tương ứng.
+  Widget _permissionRow(
+    BuildContext context, {
+    required String label,
+    required String sub,
+    required bool granted,
+    required String settingsUrl,
+  }) {
+    final t = context.tokens;
+    return Row(
+      children: [
+        Icon(
+          granted ? Icons.check_circle_rounded : Icons.cancel_rounded,
+          color: granted ? AppColors.green : AppColors.red,
+          size: 18,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: AppFonts.body,
+                  fontSize: 14,
+                  color: t.textPrimary,
+                ),
+              ),
+              Text(
+                granted ? 'Đã cấp' : sub,
+                style: TextStyle(
+                  fontFamily: AppFonts.body,
+                  fontSize: 12,
+                  color: granted ? AppColors.green : t.textMuted,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (!granted)
+          PixelButton(
+            label: 'CẤP',
+            icon: Icons.open_in_new_rounded,
+            color: AppColors.blue,
+            small: true,
+            expand: false,
+            height: 32,
+            onPressed: () => _openSettingsUrl(settingsUrl),
+          ),
+      ],
+    );
+  }
+
+  /// Mở một trang con trong System Settings.
+  Future<void> _openSettingsUrl(String url) async {
+    try {
+      await Process.run('open', [url]);
+      // Đọc lại trạng thái sớm để UI cập nhật ngay sau khi người dùng bật quyền.
+      await _permStatus.refresh();
+    } catch (_) {
+      if (mounted) _showSnack('Không mở được Cài đặt.');
+    }
   }
 
   /// Bước 1 — nhẹ: bảo bộ gõ Swift tự khởi động lại qua menu/relaunch.
@@ -1063,7 +1236,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _tabSectionTitle('VỀ BOW KEY'),
+        _tabSectionTitle('VỀ BOW GO'),
         const SizedBox(height: AppSpacing.sm),
         PixelPanel(
           padding: const EdgeInsets.all(16),
@@ -1073,7 +1246,7 @@ class _SettingsPageState extends State<SettingsPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'BOW KEY',
+                'BOW GO',
                 style: TextStyle(
                   fontFamily: AppFonts.head,
                   fontSize: 16,
@@ -1082,7 +1255,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Phiên bản v1.0.0',
+                'Phiên bản v1.0.1',
                 style: TextStyle(
                   fontFamily: AppFonts.body,
                   fontSize: 15,

@@ -1,8 +1,8 @@
 name: bow_settings
-description: "Bow Key — UI cài đặt bộ gõ tiếng Việt (phong cách pixel)."
+description: "Bow Go — UI cài đặt bộ gõ tiếng Việt (phong cách pixel)."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.1+1
 
 environment:
   sdk: ^3.11.1

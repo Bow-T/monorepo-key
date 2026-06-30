@@ -74,6 +74,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         settingsStore.startWatching()
 
+        // Ghi trạng thái quyền ra file để app UI (Flutter) hiển thị.
+        Permissions.writeStatus()
+
         if Permissions.ready() {
             startTyping()
         } else {
@@ -87,6 +90,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         healthCheckTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
+                // Cập nhật trạng thái quyền cho app UI (Flutter) đọc.
+                Permissions.writeStatus()
                 if self.tapController.isStarted {
                     self.tapController.ensureAlive()
                 } else if Permissions.ready() {
@@ -138,31 +143,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func promptForPermissions() {
-        let alert = NSAlert()
-        alert.messageText = "Cần cấp quyền để bộ gõ hoạt động"
-        alert.informativeText = """
-        Bow Key cần 2 quyền trong System Settings:
-          • Accessibility (Trợ năng)
-          • Input Monitoring (Giám sát đầu vào)
-
-        Bấm nút bên dưới để mở cài đặt, bật Bow Key ở cả hai mục, rồi khởi động lại app.
-        """
-        alert.addButton(withTitle: "Mở Accessibility")
-        alert.addButton(withTitle: "Mở Input Monitoring")
-        alert.addButton(withTitle: "Để sau")
-
-        // Gọi prompt hệ thống trước (đăng ký app vào danh sách TCC).
-        Permissions.requestAccessibility()
-        Permissions.requestInputMonitoring()
-
-        switch alert.runModal() {
-        case .alertFirstButtonReturn:
-            Permissions.openSettings(.accessibility)
-        case .alertSecondButtonReturn:
-            Permissions.openSettings(.inputMonitoring)
-        default:
-            break
-        }
+        // KHÔNG dùng NSAlert modal tự nhảy lên (trải nghiệm tệ). Thay vào đó mở
+        // app Cài đặt (Flutter) — nó có màn onboarding liệt kê 2 quyền và tự đổi
+        // sang ✓ theo realtime khi người dùng bật quyền (đọc status.json). Bộ gõ
+        // ghi status.json ngầm mỗi 5s; khi đủ quyền, health-check tự relaunch.
+        Permissions.writeStatus()
+        openSettingsApp()
     }
 
     // MARK: - Menu bar
@@ -273,7 +259,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
 
         // 6. ⓘ Về Bow Go
-        let aboutItem = NSMenuItem(title: "ⓘ  Về Bow Go v1.0.0", action: nil, keyEquivalent: "")
+        let aboutItem = NSMenuItem(title: "ⓘ  Về Bow Go v1.0.1", action: nil, keyEquivalent: "")
         aboutItem.isEnabled = false
         menu.addItem(aboutItem)
 

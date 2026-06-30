@@ -15,7 +15,7 @@
 
 #include "viet_model.h"
 
-namespace bowkey {
+namespace bowgo {
 
 class VietEngine {
 public:
@@ -73,4 +73,4 @@ private:
     int ToneTargetIndex() const;
 };
 
-}  // namespace bowkey
+}  // namespace bowgo

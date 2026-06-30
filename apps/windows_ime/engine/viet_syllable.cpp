@@ -8,7 +8,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-namespace bowkey {
+namespace bowgo {
 
 namespace {
 
@@ -200,4 +200,4 @@ std::optional<std::u32string> EnglishRestoreKeys(const std::u32string& rawKeys,
     return rawKeys;
 }
 
-}  // namespace bowkey
+}  // namespace bowgo

@@ -7,7 +7,7 @@ let package = Package(
         .macOS(.v14)
     ],
     products: [
-        .executable(name: "BowGo", targets: ["BowKeyApp"]),
+        .executable(name: "BowGo", targets: ["BowGoApp"]),
     ],
     targets: [
         // ENGINE thuần: chỉ chứa logic gõ tiếng Việt, KHÔNG import AppKit/CGEvent.
@@ -23,7 +23,7 @@ let package = Package(
         // APP macOS: CGEvent tap + menu bar. Link engine vào.
         // Nguồn nằm ở App/ (ngoài Sources/) nên khai báo path tường minh.
         .executableTarget(
-            name: "BowKeyApp",
+            name: "BowGoApp",
             dependencies: ["VietEngine"],
             path: "App"
         ),

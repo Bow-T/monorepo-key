@@ -21,7 +21,7 @@
       "name": "🖥️  macOS IME — build & open .app",
       "request": "launch",
       "type": "node-terminal",
-      "command": "bash scripts/build-app.sh && open build/BowKey.app",
+      "command": "bash scripts/build-app.sh && open 'build/Bow Go.app'",
       "cwd": "${workspaceFolder}/apps/macos_ime",
       "presentation": { "group": "2-macos", "order": 1 }
     }

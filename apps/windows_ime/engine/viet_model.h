@@ -8,7 +8,7 @@
 
 #pragma once
 
-namespace bowkey {
+namespace bowgo {
 
 // Dấu thanh (5 dấu + thanh ngang). Thứ tự khớp index trong bảng tra.
 enum class Tone {
@@ -41,4 +41,4 @@ enum class ToneStyle {
     Old,
 };
 
-}  // namespace bowkey
+}  // namespace bowgo

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Bow Key — menu-bar template icon
+  Bow Go — menu-bar template icon
   Pure black on transparent (a macOS "template image"): the system recolors it
   for light/dark menu bars. Simplified bow + arrow-key so it stays legible at
   ~18px. Drawn on a 36x36 grid (2x of an 18pt status item).

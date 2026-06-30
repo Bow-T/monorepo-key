@@ -6,7 +6,7 @@
 
 #include <unordered_map>
 
-namespace bowkey {
+namespace bowgo {
 
 namespace {
 
@@ -574,4 +574,4 @@ std::u32string TextConverter::Convert(const std::u32string& text, CodeTable from
   return FromUnicode(ToUnicode(text, from), to);
 }
 
-}  // namespace bowkey
+}  // namespace bowgo

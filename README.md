@@ -1,4 +1,4 @@
-# 🏹 Bow Key — Bộ gõ tiếng Việt đa nền tảng
+# 🏹 Bow Go — Bộ gõ tiếng Việt đa nền tảng
 
 Một monorepo cho bộ gõ tiếng Việt (Telex/VNI) chạy trên **macOS, Windows, Android, iOS**.
 
@@ -61,12 +61,12 @@ fvm dart test packages/viet_engine   # 25 ca test chuẩn
 ```bash
 cd apps/macos_ime
 swift test                       # 84 test engine Swift (khớp bản Dart)
-bash scripts/build-app.sh        # build + ký -> build/BowKey.app
-open build/BowKey.app
+bash scripts/build-app.sh        # build + ký -> "build/Bow Go.app"
+open "build/Bow Go.app"
 ```
 
 Lần đầu cần cấp **Accessibility** + **Input Monitoring** trong System Settings cho
-mục **Bow Key**, rồi mở lại app. Phím tắt **⌃⌥ Space** bật/tắt nhanh.
+mục **Bow Go**, rồi mở lại app. Phím tắt **⌃⌥ Space** bật/tắt nhanh.
 Chi tiết: [apps/macos_ime/README.md](apps/macos_ime/README.md).
 
 ### 3. UI cài đặt (Flutter) — giao diện pixel
@@ -124,7 +124,7 @@ App UI Flutter và bộ gõ Swift **không gọi nhau trực tiếp** — chúng
 file JSON làm "hợp đồng":
 
 ```
-~/Library/Application Support/BowKey/settings.json
+~/Library/Application Support/BowGo/settings.json
 {
   "enabled": true, "method": "telex", "toneStyle": "modern",
   "hotkeyKeyCode": 49, "hotkeyModifiers": ["control","option"],

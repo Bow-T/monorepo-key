@@ -260,8 +260,46 @@ public final class VietEngine {
         case notDiacritic   // không phải phím-dấu -> nối như chữ thường
     }
 
+    /// Tổ hợp PHỤ ÂM ĐẦU không tồn tại trong tiếng Việt (có trong tiếng Anh/thuật
+    /// ngữ: blue, brown, clear, drop, flag, print, string, swift...). Tiếng Việt
+    /// KHÔNG có âm tiết nào bắt đầu bằng các cụm này, nên khi âm tiết đang gõ mở đầu
+    /// bằng một trong số đó, ta CHẮC CHẮN người dùng đang gõ từ phi-Việt -> KHÔNG coi
+    /// phím nào là phím-dấu (tránh "clear"->"clẻa", "printf"->"prìnt"). Đây cũng là
+    /// cách nhận diện sớm để không phá lệnh terminal.
+    /// LƯU Ý: KHÔNG đưa cụm chứa 'w' (sw, tw, wr) vào đây — trong Telex 'w' là phím
+    /// gõ tắt: "tw"->tư, "sw"->sư, "w"->ư. Chặn chúng sẽ phá tính năng gõ tắt. Từ
+    /// tiếng Anh như "swift"/"twin" để cơ chế tự-khôi-phục-tiếng-Anh xử lý khi chốt từ.
+    private static let nonVietInitialClusters: Set<String> = [
+        "bl", "br", "cl", "cr", "dr", "fl", "fr", "gl", "gr", "pl", "pr",
+        "sc", "sk", "sl", "sm", "sn", "sp", "st",
+    ]
+
+    /// Âm tiết hiện tại có mở đầu bằng tổ hợp phụ âm đầu phi-Việt không, KHI xét
+    /// thêm phím `ch` sắp gõ? Hai trường hợp:
+    ///   • Đã có ≥2 chữ và 2 chữ GỐC đầu là cụm phi-Việt (vd đã gõ "st" của "strings").
+    ///   • Mới có ĐÚNG 1 phụ âm, và phụ âm đó + `ch` tạo cụm phi-Việt (vd "s"+"w"->"sw",
+    ///     "t"+"w"->"tw") — cần xét sớm vì phím thứ 2 ('w') chính là phím gõ-tắt/biến-âm,
+    ///     sẽ bị áp NGAY nếu không chặn trước.
+    private func startsWithNonVietCluster(adding ch: Character) -> Bool {
+        let letters = syllable.letters
+        if letters.count >= 2 {
+            let a = Character(letters[0].base.lowercased())
+            let b = Character(letters[1].base.lowercased())
+            return Self.nonVietInitialClusters.contains("\(a)\(b)")
+        }
+        if letters.count == 1 {
+            let a = Character(letters[0].base.lowercased())
+            let b = Character(ch.lowercased())
+            return Self.nonVietInitialClusters.contains("\(a)\(b)")
+        }
+        return false
+    }
+
     /// Thử coi `ch` là phím-dấu của phương thức gõ hiện tại.
     private func applyAsDiacritic(_ ch: Character) -> DiacriticResult {
+        // Âm tiết mở đầu bằng tổ hợp phụ âm phi-Việt (str, cl, pr, sw, tw...) -> đây
+        // là từ tiếng Anh/lệnh, không phải tiếng Việt. Giữ mọi phím nguyên bản.
+        if startsWithNonVietCluster(adding: ch) { return .notDiacritic }
         switch method {
         case .telex: return applyTelex(ch)
         case .vni:   return applyVNI(ch)

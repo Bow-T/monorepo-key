@@ -8,7 +8,7 @@
 
 #include <string>
 
-namespace bowkey {
+namespace bowgo {
 
 enum class CodeTable { Unicode, Tcvn3, VniWindows };
 enum class LetterCase { AllUpper, AllLower, CapitalizeFirst, CapitalizeWords };
@@ -25,4 +25,4 @@ public:
     static std::u32string Convert(const std::u32string& text, CodeTable from, CodeTable to);
 };
 
-}  // namespace bowkey
+}  // namespace bowgo

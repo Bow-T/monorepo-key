@@ -18,7 +18,7 @@
 #include "text_converter.h"
 #include "viet_syllable.h"
 
-using namespace bowkey;
+using namespace bowgo;
 
 namespace {
 

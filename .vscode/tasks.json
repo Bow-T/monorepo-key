@@ -42,7 +42,7 @@
     {
       "label": "macOS: build & open .app",
       "type": "shell",
-      "command": "bash scripts/build-app.sh && open build/BowKey.app",
+      "command": "bash scripts/build-app.sh && open 'build/Bow Go.app'",
       "options": { "cwd": "${workspaceFolder}/apps/macos_ime" },
       "group": "build",
       "problemMatcher": []

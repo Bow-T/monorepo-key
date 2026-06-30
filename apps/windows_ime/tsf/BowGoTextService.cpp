@@ -1,4 +1,4 @@
-// BowKeyTextService.cpp
+// BowGoTextService.cpp
 // ---------------------
 // ⚠️  CHƯA KIỂM CHỨNG — chỉ build trên Windows (Windows SDK). Xem header.
 //
@@ -8,14 +8,14 @@
 
 #if defined(_WIN32)
 
-#include "BowKeyTextService.h"
+#include "BowGoTextService.h"
 
 // GUID giữ chỗ — PHẢI sinh mới (guidgen.exe) cho bản phát hành thật.
-const CLSID kBowKeyClsid =
+const CLSID kBowGoClsid =
     {0x00000000, 0x0000, 0x0000, {0,0,0,0,0,0,0,0}};
-const GUID kBowKeyProfileGuid =
+const GUID kBowGoProfileGuid =
     {0x00000000, 0x0000, 0x0000, {0,0,0,0,0,0,0,1}};
-const GUID kBowKeyLangBarGuid =
+const GUID kBowGoLangBarGuid =
     {0x00000000, 0x0000, 0x0000, {0,0,0,0,0,0,0,2}};
 
 namespace {
@@ -40,19 +40,19 @@ bool IsWordBreakVk(WPARAM vk) {
 
 }  // namespace
 
-BowKeyTextService::BowKeyTextService()
+BowGoTextService::BowGoTextService()
     : ref_count_(1),
       thread_mgr_(nullptr),
       client_id_(TF_CLIENTID_NULL),
       thread_mgr_cookie_(TF_INVALID_COOKIE),
-      engine_(bowkey::InputMethod::Telex, bowkey::ToneStyle::Modern),
+      engine_(bowgo::InputMethod::Telex, bowgo::ToneStyle::Modern),
       committed_length_(0) {}
 
-BowKeyTextService::~BowKeyTextService() {}
+BowGoTextService::~BowGoTextService() {}
 
 // ── IUnknown ───────────────────────────────────────────────────────────────
 
-STDMETHODIMP BowKeyTextService::QueryInterface(REFIID riid, void** ppv) {
+STDMETHODIMP BowGoTextService::QueryInterface(REFIID riid, void** ppv) {
     if (!ppv) return E_INVALIDARG;
     *ppv = nullptr;
     if (IsEqualIID(riid, IID_IUnknown) ||
@@ -70,11 +70,11 @@ STDMETHODIMP BowKeyTextService::QueryInterface(REFIID riid, void** ppv) {
     return E_NOINTERFACE;
 }
 
-STDMETHODIMP_(ULONG) BowKeyTextService::AddRef() {
+STDMETHODIMP_(ULONG) BowGoTextService::AddRef() {
     return InterlockedIncrement(&ref_count_);
 }
 
-STDMETHODIMP_(ULONG) BowKeyTextService::Release() {
+STDMETHODIMP_(ULONG) BowGoTextService::Release() {
     LONG c = InterlockedDecrement(&ref_count_);
     if (c == 0) delete this;
     return c;
@@ -82,7 +82,7 @@ STDMETHODIMP_(ULONG) BowKeyTextService::Release() {
 
 // ── ITfTextInputProcessor: vòng đời ──────────────────────────────────────────
 
-STDMETHODIMP BowKeyTextService::Activate(ITfThreadMgr* thread_mgr,
+STDMETHODIMP BowGoTextService::Activate(ITfThreadMgr* thread_mgr,
                                          TfClientId client_id) {
     thread_mgr_ = thread_mgr;
     thread_mgr_->AddRef();
@@ -93,7 +93,7 @@ STDMETHODIMP BowKeyTextService::Activate(ITfThreadMgr* thread_mgr,
     return S_OK;
 }
 
-STDMETHODIMP BowKeyTextService::Deactivate() {
+STDMETHODIMP BowGoTextService::Deactivate() {
     // TODO(windows): gỡ các sink đã gắn (UnadviseSink / UnadviseKeyEventSink).
     if (thread_mgr_) {
         thread_mgr_->Release();
@@ -103,7 +103,7 @@ STDMETHODIMP BowKeyTextService::Deactivate() {
     return S_OK;
 }
 
-STDMETHODIMP BowKeyTextService::OnSetFocus(ITfDocumentMgr*, ITfDocumentMgr*) {
+STDMETHODIMP BowGoTextService::OnSetFocus(ITfDocumentMgr*, ITfDocumentMgr*) {
     // Đổi tài liệu/ô nhập -> chốt âm tiết đang gõ.
     engine_.Clear();
     committed_length_ = 0;
@@ -112,9 +112,9 @@ STDMETHODIMP BowKeyTextService::OnSetFocus(ITfDocumentMgr*, ITfDocumentMgr*) {
 
 // ── ITfKeyEventSink ──────────────────────────────────────────────────────────
 
-STDMETHODIMP BowKeyTextService::OnSetFocus(BOOL) { return S_OK; }
+STDMETHODIMP BowGoTextService::OnSetFocus(BOOL) { return S_OK; }
 
-STDMETHODIMP BowKeyTextService::OnTestKeyDown(ITfContext*, WPARAM wparam,
+STDMETHODIMP BowGoTextService::OnTestKeyDown(ITfContext*, WPARAM wparam,
                                               LPARAM, BOOL* eaten) {
     // "Test" = hỏi trước xem ta CÓ định xử lý phím này không (không được sửa văn
     // bản ở đây). Coi là ăn nếu là chữ/số ta dịch được hoặc phím backspace.
@@ -124,14 +124,14 @@ STDMETHODIMP BowKeyTextService::OnTestKeyDown(ITfContext*, WPARAM wparam,
     return S_OK;
 }
 
-STDMETHODIMP BowKeyTextService::OnKeyDown(ITfContext* ctx, WPARAM wparam,
+STDMETHODIMP BowGoTextService::OnKeyDown(ITfContext* ctx, WPARAM wparam,
                                           LPARAM, BOOL* eaten) {
     return HandleKey(ctx, wparam, reinterpret_cast<bool*>(eaten)) ? S_OK : S_OK;
 }
 
 // ── Cầu nối phím -> engine (bám EventTapController.handle bên macOS) ──────────
 
-bool BowKeyTextService::HandleKey(ITfContext* ctx, WPARAM wparam, bool* out_eaten) {
+bool BowGoTextService::HandleKey(ITfContext* ctx, WPARAM wparam, bool* out_eaten) {
     BOOL* eaten = reinterpret_cast<BOOL*>(out_eaten);
     *eaten = FALSE;
 
@@ -181,7 +181,7 @@ bool BowKeyTextService::HandleKey(ITfContext* ctx, WPARAM wparam, bool* out_eate
     return true;
 }
 
-void BowKeyTextService::ReplaceText(ITfContext* /*ctx*/, int /*backspaces*/,
+void BowGoTextService::ReplaceText(ITfContext* /*ctx*/, int /*backspaces*/,
                                     const std::u32string& /*text*/) {
     // TODO(windows): hiện thực qua ITfEditSession:
     //   1. ctx->RequestEditSession(client_id_, session, TF_ES_READWRITE|TF_ES_SYNC, &hr)

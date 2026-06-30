@@ -8,12 +8,20 @@
 //   2. Bỏ qua nếu là sự kiện do CHÍNH TA tạo (đánh dấu marker) -> tránh vòng lặp.
 //   3. Bỏ qua nếu bộ gõ đang tắt, hoặc có phím điều khiển (Cmd/Ctrl/Option).
 //   4. Dịch keyCode -> Character, đưa vào engine.
-//   5. Nếu engine biến đổi chuỗi: "nuốt" phím gốc (trả nil) và gõ thay kết quả.
+//   5. Nếu engine biến đổi chuỗi: "nuốt" phím gốc (trả nil) và gõ thay kết quả
+//      ĐỒNG BỘ qua proxy của tap (KeyOutput.replace) — không dùng async.
 //      Nếu không: để phím đi qua bình thường.
 //
 // Dùng .cgSessionEventTap + .headInsertEventTap, gắn vào main run loop,
 // và CƠ CHẾ PHỤC HỒI khi macOS tự tắt tap (timeout / user input) — phần này cực
 // quan trọng, thiếu nó app sẽ "đột nhiên ngừng gõ được".
+//
+// VÌ SAO POST ĐỒNG BỘ QUA PROXY (không DispatchQueue.async)? Post bất đồng bộ qua
+// .cghidEventTap khiến sự kiện gõ-thay tới SAU phím người dùng đã được ứng dụng xử
+// lý. Ở ô có autocomplete xử lý phím tức thì (thanh địa chỉ trình duyệt, Spotlight),
+// phím gốc kịp lọt qua trước rồi sự kiện async gõ thêm -> nhân đôi ký tự
+// ("des" -> "ddé"). tapPostEvent(proxy) đẩy sự kiện trở lại ĐÚNG vị trí trong chuỗi
+// tap, đồng bộ, giữ nguyên thứ tự.
 
 import AppKit
 import CoreGraphics
@@ -75,6 +83,24 @@ final class EventTapController {
 
     /// Bật tự khôi phục tiếng Anh (đồng bộ từ config).
     private var autoRestoreEnglish = false
+
+    /// CACHE quyền Accessibility — để guard "mất quyền giữa chừng" mà KHÔNG gọi
+    /// AXIsProcessTrusted() mỗi phím (tốn CPU). Kiểm tra lại sau mỗi `accessTTL`.
+    private var accessOK = true
+    private var accessCheckedAt: CFTimeInterval = 0
+    private let accessTTL: CFTimeInterval = 2.0
+
+    /// Còn quyền "gõ thay" (Accessibility) không? Có cache theo thời gian.
+    /// Mất quyền giữa chừng -> ta KHÔNG được nuốt phím (sẽ gõ thay thất bại, người
+    /// dùng mất phím hoàn toàn). Khi đó để mọi phím đi qua nguyên bản.
+    private func accessibilityReady() -> Bool {
+        let now = CACurrentMediaTime()
+        if now - accessCheckedAt >= accessTTL {
+            accessOK = Permissions.hasAccessibility()
+            accessCheckedAt = now
+        }
+        return accessOK
+    }
 
     // MARK: - Vòng đời tap
 
@@ -305,15 +331,15 @@ final class EventTapController {
 
     // MARK: - Callback C (static, không bắt được self -> lấy qua refcon)
 
-    private static let callback: CGEventTapCallBack = { _, type, event, refcon in
+    private static let callback: CGEventTapCallBack = { proxy, type, event, refcon in
         guard let refcon else { return Unmanaged.passUnretained(event) }
         let controller = Unmanaged<EventTapController>.fromOpaque(refcon).takeUnretainedValue()
-        return controller.handle(type: type, event: event)
+        return controller.handle(proxy: proxy, type: type, event: event)
     }
 
     // MARK: - Xử lý sự kiện
 
-    private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+    private func handle(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         // PHỤC HỒI: macOS tự tắt tap -> bật lại ngay.
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
@@ -322,6 +348,16 @@ final class EventTapController {
 
         // Bỏ qua sự kiện do CHÍNH TA tạo (chống vòng lặp vô tận).
         if event.getIntegerValueField(.eventSourceUserData) == KeyOutput.marker {
+            return Unmanaged.passUnretained(event)
+        }
+
+        // GUARD MẤT QUYỀN: nếu Accessibility bị thu hồi giữa chừng, ta KHÔNG gõ thay
+        // được nữa. Lúc này tuyệt đối không nuốt phím (return nil) — sẽ khiến người
+        // dùng mất hẳn ký tự. Reset trạng thái dở dang và cho MỌI phím đi qua nguyên
+        // bản, để gõ tiếng Anh/thao tác vẫn dùng được bình thường cho tới khi cấp lại
+        // quyền.
+        if (type == .keyDown || type == .keyUp) && !accessibilityReady() {
+            if committedLength != 0 || !wordRawKeys.isEmpty { resetSyllable() }
             return Unmanaged.passUnretained(event)
         }
 
@@ -400,11 +436,9 @@ final class EventTapController {
                 let breakChar = KeyCodeMap.wordBreakCharacter(for: keyCode)
                 resetSyllable()
                 wordRawKeys.removeAll()
-                DispatchQueue.main.async {
-                    // Xoá từ khoá, gõ nội dung macro, rồi gõ chính phím ngắt từ.
-                    KeyOutput.replace(backspaces: backspaces,
-                                      with: content + String(breakChar))
-                }
+                // Xoá từ khoá, gõ nội dung macro, rồi gõ chính phím ngắt từ.
+                KeyOutput.replace(backspaces: backspaces,
+                                  with: content + String(breakChar), proxy: proxy)
                 return nil  // nuốt phím ngắt gốc (ta đã tự gõ nó)
             }
 
@@ -416,9 +450,7 @@ final class EventTapController {
                 let backspaces = committedLength
                 let breakChar = KeyCodeMap.wordBreakCharacter(for: keyCode)
                 resetSyllable()
-                DispatchQueue.main.async {
-                    KeyOutput.replace(backspaces: backspaces, with: raw + String(breakChar))
-                }
+                KeyOutput.replace(backspaces: backspaces, with: raw + String(breakChar), proxy: proxy)
                 return nil  // nuốt phím ngắt gốc (ta đã tự gõ nó kèm từ khôi phục)
             }
 
@@ -458,16 +490,29 @@ final class EventTapController {
             return Unmanaged.passUnretained(event)
         }
 
-        // Engine trả chuỗi âm tiết mới. Ta NUỐT phím gốc và gõ thay:
+        // PHÍM KHÔNG BIẾN ĐỔI -> ĐỂ ĐI QUA TỰ NHIÊN (không nuốt-rồi-gõ-lại).
+        //
+        // Nếu engine chỉ NỐI THÊM đúng ký tự gốc vào cuối (không đặt dấu/mũ/móc/đ),
+        // thì việc nuốt phím rồi tự gõ lại CHÍNH ký tự đó là dư thừa. Để phím thường
+        // đi qua thẳng (ít sự kiện tổng hợp hơn, hành vi tự nhiên nhất); ta chỉ can
+        // thiệp khi engine THỰC SỰ biến đổi chuỗi đã hiển thị.
+        if rendered == currentDisplay + String(ch) {
+            committedLength = rendered.count
+            currentDisplay = rendered
+            return Unmanaged.passUnretained(event)
+        }
+
+        // Engine ĐÃ biến đổi chuỗi. Ta NUỐT phím gốc và gõ thay ĐỒNG BỘ qua proxy:
         //   - xoá committedLength ký tự cũ đã hiện
         //   - gõ chuỗi rendered mới
+        // Post đồng bộ (tapPostEvent) ngay trong callback giữ ĐÚNG THỨ TỰ so với phím
+        // người dùng, tránh race với ô có autocomplete (thanh địa chỉ trình duyệt,
+        // Spotlight) từng gây nhân đôi ký tự khi còn dùng DispatchQueue.main.async.
         let backspaces = committedLength
         committedLength = rendered.count
         currentDisplay = rendered
 
-        DispatchQueue.main.async {
-            KeyOutput.replace(backspaces: backspaces, with: rendered)
-        }
+        KeyOutput.replace(backspaces: backspaces, with: rendered, proxy: proxy)
         // Trả nil = "nuốt" phím gốc, không cho hệ thống nhận ký tự thô.
         return nil
     }

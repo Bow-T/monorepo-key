@@ -1,7 +1,7 @@
 #!/bin/bash
 # build-icons.sh
 # --------------
-# Sinh icon cho Bow Key từ nguồn SVG (vector) -> PNG -> AppIcon.icns.
+# Sinh icon cho Bow Go từ nguồn SVG (vector) -> PNG -> AppIcon.icns.
 #
 # Vì sao tách riêng khỏi build-app.sh?
 #   - Icon hiếm khi đổi; render lại mỗi lần build app là phí.
