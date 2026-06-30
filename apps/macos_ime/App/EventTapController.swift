@@ -61,6 +61,12 @@ final class EventTapController {
         let mask: CGEventMask =
             (1 << CGEventType.keyDown.rawValue) |
             (1 << CGEventType.flagsChanged.rawValue) |
+            // Click chuột: để RESET âm tiết. Nếu không, gõ dở "tieng" rồi click chỗ
+            // khác và gõ tiếp sẽ khiến engine gửi nhầm Backspace -> xoá ký tự ở vị
+            // trí mới. Bắt cả 3 nút để con trỏ nhảy chỗ nào cũng chốt từ.
+            (1 << CGEventType.leftMouseDown.rawValue) |
+            (1 << CGEventType.rightMouseDown.rawValue) |
+            (1 << CGEventType.otherMouseDown.rawValue) |
             (1 << CGEventType.tapDisabledByTimeout.rawValue) |
             (1 << CGEventType.tapDisabledByUserInput.rawValue)
 
@@ -174,6 +180,14 @@ final class EventTapController {
             return Unmanaged.passUnretained(event)
         }
 
+        // CLICK CHUỘT -> con trỏ nhảy chỗ khác -> chốt âm tiết đang gõ dở. Không
+        // reset thì lần gõ kế tiếp sẽ gửi Backspace dựa trên committedLength cũ và
+        // xoá nhầm ký tự ở vị trí mới. Cho event đi qua nguyên vẹn.
+        if type == .leftMouseDown || type == .rightMouseDown || type == .otherMouseDown {
+            resetSyllable()
+            return Unmanaged.passUnretained(event)
+        }
+
         // PHÍM TẮT bật/tắt: ⌃⌥ Space (Control+Option+Space). Kiểm tra TRƯỚC cổng
         // `enabled` để vẫn bật lại được khi bộ gõ đang tắt. Nuốt phím (trả nil) để
         // Space không lọt vào ứng dụng.
@@ -223,7 +237,15 @@ final class EventTapController {
 
         // Dịch keyCode -> Character theo layout thật; lùi về bảng tĩnh QWERTY nếu
         // UCKeyTranslate không cho kết quả dùng được.
-        let shift = flags.contains(.maskShift)
+        //
+        // CHỮ HOA = Shift HOẶC CapsLock. CapsLock chỉ đảo hoa/thường với CHỮ CÁI
+        // (không tác động số/ký hiệu), và Shift+CapsLock thì triệt tiêu -> ra
+        // thường. Với phím không phải chữ cái, chỉ Shift quyết định.
+        // Thiếu xét CapsLock thì gõ khi bật Caps sẽ ra chữ thường ("VIỆT" -> "việt").
+        let shiftDown = flags.contains(.maskShift)
+        let capsOn = flags.contains(.maskAlphaShift)
+        let isLetterKey = KeyCodeMap.character(for: keyCode, shift: false)?.isLetter ?? false
+        let shift = isLetterKey ? (shiftDown != capsOn) : shiftDown
         guard let ch = layout.character(for: keyCode, shift: shift)
                 ?? KeyCodeMap.character(for: keyCode, shift: shift) else {
             // Phím ta không xử lý -> chốt từ, cho đi qua.
