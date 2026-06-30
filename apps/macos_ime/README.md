@@ -55,8 +55,11 @@ Lần đầu chạy, app sẽ xin **2 quyền** (bắt buộc của mọi bộ g
 bật lên, rồi **mở lại app**. Khi icon menu bar hiện **VN** là đã gõ được.
 Bấm icon để bật/tắt, đổi Telex/VNI, hoặc thoát.
 
-> Mỗi lần `build-app.sh` chạy lại, nếu macOS quên quyền thì bật lại trong System Settings.
-> Ký Developer ID + notarize (giai đoạn sau) sẽ khắc phục việc này khi phân phối.
+> **Build lại mà gõ không được (icon hiện EN)?** Chữ ký ad-hoc đổi cdhash mỗi lần
+> build → macOS có thể thu hồi quyền dù công tắc vẫn xanh. Khắc phục: vào System
+> Settings → Privacy & Security, **xoá hẳn** entry BowKey (dấu –) ở *cả* Accessibility
+> *và* Input Monitoring, thoát app, mở lại để cấp quyền mới. (Bản build hiện đã bỏ
+> `--options runtime` để giảm tình trạng này; Developer ID + notarize sẽ dứt điểm.)
 
 ## Lộ trình macOS
 
@@ -66,6 +69,9 @@ Bấm icon để bật/tắt, đổi Telex/VNI, hoặc thoát.
 - [x] Cơ chế phục hồi tap khi macOS tự tắt (health check 5s)
 - [x] Đóng gói .app + code sign (ad-hoc)
 - [x] Bật/tắt + đổi Telex/VNI qua menu
+- [x] Phím tắt bật/tắt ⌃⌥ Space (đồng bộ ngược ra file settings)
+- [x] Đọc cấu hình từ app UI Flutter qua file JSON dùng chung (`SettingsStore.swift`)
+- [x] Phím tắt tuỳ biến (đặt tổ hợp bất kỳ trong app UI, Swift áp ngay)
 - [ ] Dịch keyCode theo layout thật (UCKeyTranslate) — đúng cả Dvorak/Colemak
 - [ ] Smart Switch: nhớ bật/tắt theo từng app
 - [ ] Developer ID + notarize để phân phối

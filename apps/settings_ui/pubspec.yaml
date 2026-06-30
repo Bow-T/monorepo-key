@@ -1,0 +1,33 @@
+name: bow_settings
+description: "Bow Key — UI cài đặt bộ gõ tiếng Việt (phong cách pixel)."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  # Xác định ~/Library/Application Support để ghi settings.json (Swift cùng đọc).
+  path_provider: ^2.1.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  # Font pixel (giống monorepo-remote): Press Start 2P cho tiêu đề, VT323 cho thân.
+  fonts:
+    - family: PixelHead
+      fonts:
+        - asset: assets/fonts/PressStart2P-Regular.ttf
+    - family: PixelBody
+      fonts:
+        - asset: assets/fonts/VT323-Regular.ttf

@@ -25,8 +25,24 @@ final class EventTapController {
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
 
+    // Dịch keyCode -> ký tự theo layout bàn phím THẬT (Dvorak/Colemak/AZERTY...).
+    private let layout = KeyboardLayout()
+
+    // Cấu hình hiện hành (đồng bộ từ file settings do app UI ghi).
+    private var method: InputMethod = .telex
+    private var toneStyle: VietEngine.ToneStyle = .modern
+
+    // Phím tắt bật/tắt — tuỳ biến từ UI. Mặc định ⌃⌥ Space.
+    private var hotkeyKeyCode: Int64 = 49
+    private var hotkeyModifiers: Set<String> = ["control", "option"]
+
     /// Bật/tắt bộ gõ (người dùng toggle qua menu / phím tắt).
     var enabled = true
+
+    /// Báo cho AppDelegate khi phím tắt bật/tắt bộ gõ -> cập nhật icon menu bar.
+    /// `@MainActor @Sendable` để gửi an toàn từ callback tap (ngoài isolation) về
+    /// main mà không bị Swift 6 cảnh báo data race.
+    var onToggle: (@MainActor @Sendable (Bool) -> Void)?
 
     /// "Số ký tự thô đã hiện trên màn hình cho âm tiết hiện tại" — để biết phải
     /// gửi bao nhiêu Backspace khi gõ thay. Mỗi phím chữ ta nuốt+thay sẽ +1.
@@ -91,13 +107,49 @@ final class EventTapController {
     }
 
     func setMethod(_ method: InputMethod) {
-        engine = VietEngine(method: method, toneStyle: .modern)
+        self.method = method
+        rebuildEngine()
+    }
+
+    /// Áp toàn bộ cấu hình đọc từ file (gọi lúc khởi động & mỗi khi UI lưu).
+    func apply(config: BowConfig) {
+        enabled = config.enabled
+        method = config.method
+        toneStyle = config.toneStyle
+        hotkeyKeyCode = config.hotkeyKeyCode
+        hotkeyModifiers = config.hotkeyModifiers
+        rebuildEngine()
+    }
+
+    private func rebuildEngine() {
+        engine = VietEngine(method: method, toneStyle: toneStyle)
         resetSyllable()
     }
 
     private func resetSyllable() {
         engine.clear()
         committedLength = 0
+    }
+
+    /// Sự kiện này có khớp phím tắt bật/tắt do người dùng đặt không?
+    /// So khớp CHÍNH XÁC: đúng keyCode VÀ đúng tập modifier (không thừa, không
+    /// thiếu) — để ⌃⌥ không kích hoạt nhầm khi đang giữ thêm ⌘.
+    private func isToggleHotkey(_ event: CGEvent) -> Bool {
+        guard event.getIntegerValueField(.keyboardEventKeycode) == hotkeyKeyCode else {
+            return false
+        }
+        // Phím tắt phải có ít nhất 1 modifier (tránh nuốt nhầm phím thường).
+        guard !hotkeyModifiers.isEmpty else { return false }
+
+        let flags = event.flags
+        let active: Set<String> = [
+            flags.contains(.maskControl)   ? "control" : nil,
+            flags.contains(.maskAlternate) ? "option"  : nil,
+            flags.contains(.maskShift)     ? "shift"   : nil,
+            flags.contains(.maskCommand)   ? "command" : nil,
+        ].compactMap { $0 }.reduce(into: Set()) { $0.insert($1) }
+
+        return active == hotkeyModifiers
     }
 
     // MARK: - Callback C (static, không bắt được self -> lấy qua refcon)
@@ -120,6 +172,21 @@ final class EventTapController {
         // Bỏ qua sự kiện do CHÍNH TA tạo (chống vòng lặp vô tận).
         if event.getIntegerValueField(.eventSourceUserData) == KeyOutput.marker {
             return Unmanaged.passUnretained(event)
+        }
+
+        // PHÍM TẮT bật/tắt: ⌃⌥ Space (Control+Option+Space). Kiểm tra TRƯỚC cổng
+        // `enabled` để vẫn bật lại được khi bộ gõ đang tắt. Nuốt phím (trả nil) để
+        // Space không lọt vào ứng dụng.
+        if type == .keyDown, isToggleHotkey(event) {
+            enabled.toggle()
+            resetSyllable()
+            let now = enabled
+            // Báo lên main mà KHÔNG bắt `self` (callback tap chạy ngoài isolation).
+            // `onToggle` là @MainActor @Sendable -> gửi qua Task an toàn.
+            if let notify = onToggle {
+                Task { @MainActor in notify(now) }
+            }
+            return nil
         }
 
         guard enabled, type == .keyDown else {
@@ -154,9 +221,11 @@ final class EventTapController {
             return Unmanaged.passUnretained(event)
         }
 
-        // Dịch keyCode -> Character.
+        // Dịch keyCode -> Character theo layout thật; lùi về bảng tĩnh QWERTY nếu
+        // UCKeyTranslate không cho kết quả dùng được.
         let shift = flags.contains(.maskShift)
-        guard let ch = KeyCodeMap.character(for: keyCode, shift: shift) else {
+        guard let ch = layout.character(for: keyCode, shift: shift)
+                ?? KeyCodeMap.character(for: keyCode, shift: shift) else {
             // Phím ta không xử lý -> chốt từ, cho đi qua.
             resetSyllable()
             return Unmanaged.passUnretained(event)
