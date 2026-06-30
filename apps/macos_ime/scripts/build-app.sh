@@ -63,8 +63,14 @@ PLIST
 echo "==> 4/4  Code sign (ad-hoc)…"
 # Ký ad-hoc (-) đủ để chạy & cấp quyền trên máy của chính bạn.
 # Khi phân phối cho người khác, thay bằng Developer ID + notarize.
+#
+# CỐ Ý KHÔNG dùng `--options runtime` (Hardened Runtime):
+#   Hardened Runtime khiến TCC siết chặt việc đối chiếu danh tính code. Với chữ ký
+#   ad-hoc (không có Team ID ổn định), MỖI lần build lại binary đổi cdhash -> macOS
+#   coi như app khác -> THU HỒI quyền Accessibility/Input Monitoring đã cấp, dù công
+#   tắc trong Settings vẫn xanh. Bỏ runtime giúp quyền bám ổn định hơn giữa các lần
+#   build cục bộ. (Khi phân phối thật thì bật lại runtime + Developer ID + notarize.)
 codesign --force --deep --sign - \
-    --options runtime \
     --identifier "$BUNDLE_ID" \
     "$APP_DIR"
 
@@ -74,3 +80,5 @@ echo ""
 echo "Chạy thử:   open \"$APP_DIR\""
 echo "Lần đầu sẽ cần cấp quyền Accessibility + Input Monitoring trong System Settings,"
 echo "tìm mục \"$APP_NAME\", bật lên, rồi mở lại app."
+echo "Nếu sau khi build lại mà gõ không được (icon hiện EN): xoá entry BowKey cũ"
+echo "(dấu –) trong cả hai mục quyền rồi mở lại app để cấp lại."

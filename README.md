@@ -24,7 +24,7 @@ monorepo-key/
 │   ├── windows_ime/        # Windows — TSF text service (C++) — ⬜ chưa làm
 │   ├── android_ime/        # Android — InputMethodService (Kotlin) — ⬜ chưa làm
 │   ├── ios_keyboard/       # iOS — Keyboard Extension (Swift) — ⬜ chưa làm
-│   └── settings_ui/        # Flutter — UI cài đặt (chọn Telex/VNI…) — ⬜ chưa làm
+│   └── settings_ui/        # Flutter — UI cài đặt pixel (Telex/VNI…) — ✅ chạy được (macOS)
 ├── pubspec.yaml            # Dart workspace (resolution dùng chung)
 └── README.md               # tài liệu này
 ```
@@ -66,7 +66,19 @@ open build/BowKey.app
 ```
 
 Lần đầu cần cấp **Accessibility** + **Input Monitoring** trong System Settings cho
-mục **Bow Key**, rồi mở lại app. Chi tiết: [apps/macos_ime/README.md](apps/macos_ime/README.md).
+mục **Bow Key**, rồi mở lại app. Phím tắt **⌃⌥ Space** bật/tắt nhanh.
+Chi tiết: [apps/macos_ime/README.md](apps/macos_ime/README.md).
+
+### 3. UI cài đặt (Flutter) — giao diện pixel
+
+```bash
+cd apps/settings_ui
+fvm flutter run -d macos          # mở app cài đặt phong cách pixel
+```
+
+Chọn Telex/VNI, kiểu đặt dấu (hiện đại/cũ), bật/tắt, gõ thử ngay trong app. Mọi
+thay đổi **auto-save** ra file JSON dùng chung; bộ gõ Swift đọc & áp **ngay lập tức**
+(không cần khởi động lại). Xem mục "Đường dây UI ↔ bộ gõ" bên dưới.
 
 ---
 
@@ -95,10 +107,31 @@ Tính năng engine đã có:
 | Windows IME | C++ + TSF | ⬜ Chưa làm |
 | Android IME | Kotlin + InputMethodService | ⬜ Chưa làm |
 | iOS keyboard | Swift + Keyboard Extension | ⬜ Chưa làm |
-| UI cài đặt | Flutter (`settings_ui`) | ⬜ Chưa làm |
+| UI cài đặt | Flutter (`settings_ui`) | ✅ Chạy được (macOS), pixel UI |
 
 Hướng mở rộng engine: kiểm tra âm tiết hợp lệ (auto-restore tiếng Anh), bảng mã ngoài
 Unicode (TCVN3/VNI-Windows), Smart Switch nhớ bật/tắt theo app.
+
+### 🔌 Đường dây UI ↔ bộ gõ
+
+App UI Flutter và bộ gõ Swift **không gọi nhau trực tiếp** — chúng dùng chung một
+file JSON làm "hợp đồng":
+
+```
+~/Library/Application Support/BowKey/settings.json
+{
+  "enabled": true, "method": "telex", "toneStyle": "modern",
+  "hotkeyKeyCode": 49, "hotkeyModifiers": ["control","option"],
+  "toggleHotkey": "⌃⌥ Space"
+}
+```
+
+- **Flutter GHI** (auto-save mỗi khi đổi cài đặt) — `settings_ui/lib/src/models/settings.dart`.
+- **Swift ĐỌC + watch file** (`DispatchSource`) → áp ngay không cần restart — `macos_ime/App/SettingsStore.swift`.
+- **Phím tắt tuỳ biến**: UI "thu" tổ hợp phím → ghi `hotkeyKeyCode` (mã phím macOS) +
+  `hotkeyModifiers`; Swift so khớp CHÍNH XÁC tập modifier. `toggleHotkey` chỉ là chuỗi hiển thị.
+- Phím tắt (hoặc menu bar) bật/tắt cũng **ghi ngược** `enabled` vào file để UI đồng bộ.
+- Các khoá JSON phải KHỚP hai bên; đổi tên một bên phải đổi bên kia.
 
 > **Cân nhắc kỹ thuật:** để 4 nền tảng dùng *chung một* engine biên dịch (thay vì port
 > lại logic sang C++/Kotlin), một hướng là tách engine thành **core Rust** gọi qua FFI.

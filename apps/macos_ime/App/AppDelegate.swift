@@ -15,11 +15,30 @@ import VietEngine
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private let tapController = EventTapController()
+    private let settingsStore = SettingsStore()
     private var statusItem: NSStatusItem?
     private var healthCheckTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenuBar()
+
+        // Đọc cấu hình do app UI (Flutter) ghi, rồi theo dõi để áp ngay khi đổi.
+        if let cfg = settingsStore.read() {
+            tapController.apply(config: cfg)
+        }
+        settingsStore.onChange = { [weak self] cfg in
+            guard let self else { return }
+            self.tapController.apply(config: cfg)
+            self.updateMenuTitle()
+            NSLog("[App] Đã áp cấu hình mới từ UI.")
+        }
+        // Phím tắt ⌃⌥ Space bật/tắt -> cập nhật icon + ghi lại file để UI đồng bộ.
+        tapController.onToggle = { [weak self] enabled in
+            guard let self else { return }
+            self.updateMenuTitle()
+            self.settingsStore.writeEnabled(enabled)
+        }
+        settingsStore.startWatching()
 
         if Permissions.ready() {
             startTyping()
@@ -94,7 +113,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let menu = NSMenu()
 
-        menu.addItem(makeItem("Bật/tắt bộ gõ", #selector(toggleEnabled)))
+        menu.addItem(makeItem("Bật/tắt bộ gõ  (⌃⌥ Space)", #selector(toggleEnabled)))
         menu.addItem(.separator())
         menu.addItem(makeItem("Kiểu gõ: Telex", #selector(useTelex)))
         menu.addItem(makeItem("Kiểu gõ: VNI", #selector(useVNI)))
@@ -136,6 +155,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func toggleEnabled() {
         tapController.enabled.toggle()
         updateMenuTitle()
+        settingsStore.writeEnabled(tapController.enabled)
     }
 
     @objc private func useTelex() {
