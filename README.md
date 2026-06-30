@@ -21,7 +21,7 @@ monorepo-key/
 │   └── viet_engine/        # Engine gõ tiếng Việt thuần Dart + BỘ CA TEST CHUẨN
 ├── apps/
 │   ├── macos_ime/          # macOS — CGEvent tap (Swift) — ✅ chạy được
-│   ├── windows_ime/        # Windows — TSF text service (C++) — ⬜ chưa làm
+│   ├── windows_ime/        # Windows — TSF (C++) — 🟨 engine xong (81 test), TSF skeleton
 │   ├── android_ime/        # Android — InputMethodService (Kotlin) — ⬜ chưa làm
 │   ├── ios_keyboard/       # iOS — Keyboard Extension (Swift) — ⬜ chưa làm
 │   └── settings_ui/        # Flutter — UI cài đặt pixel (Telex/VNI…) — ✅ chạy được (macOS)
@@ -104,7 +104,7 @@ Tính năng engine đã có:
 |---|---|---|
 | Engine gõ | Dart (`viet_engine`) | ✅ 25 test xanh |
 | macOS IME | Swift + CGEvent tap | ✅ Chạy được |
-| Windows IME | C++ + TSF | ⬜ Chưa làm |
+| Windows IME | C++ + TSF | 🟨 Engine C++ xong (81 test xanh); TSF text service mới ở skeleton |
 | Android IME | Kotlin + InputMethodService | ⬜ Chưa làm |
 | iOS keyboard | Swift + Keyboard Extension | ⬜ Chưa làm |
 | UI cài đặt | Flutter (`settings_ui`) | ✅ Chạy được (macOS), pixel UI |
