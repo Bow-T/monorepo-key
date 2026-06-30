@@ -29,6 +29,11 @@ class _HotkeyRecorderState extends State<HotkeyRecorder> {
   final _focusNode = FocusNode();
   bool _recording = false;
 
+  /// Có phím CHÍNH (không phải modifier) nào được nhấn trong lần thu này chưa?
+  /// Nếu chưa và người dùng nhả modifier khi đang giữ ≥2 modifier -> thu phím tắt
+  /// chỉ-modifier (vd ⌃⇧).
+  bool _sawMainKey = false;
+
   @override
   void dispose() {
     _focusNode.dispose();
@@ -36,6 +41,7 @@ class _HotkeyRecorderState extends State<HotkeyRecorder> {
   }
 
   void _startRecording() {
+    _sawMainKey = false;
     setState(() => _recording = true);
     _focusNode.requestFocus();
   }
@@ -47,20 +53,37 @@ class _HotkeyRecorderState extends State<HotkeyRecorder> {
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (!_recording) return KeyEventResult.ignored;
-    if (event is KeyUpEvent) return KeyEventResult.handled;
+
+    // NHẢ phím: nếu đang nhả một MODIFIER mà chưa nhấn phím chính nào và (sau khi
+    // nhả) vẫn còn ≥1 modifier khác đang giữ -> đây là phím tắt CHỈ-MODIFIER.
+    // Thu tổ hợp modifier đang giữ NGAY TRƯỚC khi nhả (gồm cả phím vừa nhả).
+    if (event is KeyUpEvent) {
+      if (!_sawMainKey && Hotkey.isModifierKey(event.logicalKey)) {
+        final hk = Hotkey.fromKeyEvent(event); // keyCode 0 + modifiers đang giữ
+        if (hk != null && hk.isValid) {
+          widget.onChanged(hk);
+          _sawMainKey = false;
+          _stopRecording();
+        }
+      }
+      return KeyEventResult.handled;
+    }
 
     // Esc -> huỷ thu.
     if (event.logicalKey == LogicalKeyboardKey.escape) {
+      _sawMainKey = false;
       _stopRecording();
       return KeyEventResult.handled;
     }
 
-    // Bỏ qua khi mới chỉ nhấn modifier — chờ phím chính.
+    // Mới chỉ nhấn modifier — chờ phím chính HOẶC chờ nhả (modifier-only).
     if (Hotkey.isModifierKey(event.logicalKey)) {
       setState(() {}); // vẽ lại để hiện modifier đang giữ
       return KeyEventResult.handled;
     }
 
+    // Đã có phím chính -> không còn là phím tắt chỉ-modifier.
+    _sawMainKey = true;
     final hk = Hotkey.fromKeyEvent(event);
     if (hk == null) {
       // Phím chính chưa hỗ trợ ánh xạ -> bỏ qua, giữ chế độ thu.
@@ -72,6 +95,7 @@ class _HotkeyRecorderState extends State<HotkeyRecorder> {
     }
 
     widget.onChanged(hk);
+    _sawMainKey = false;
     _stopRecording();
     return KeyEventResult.handled;
   }

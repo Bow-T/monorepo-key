@@ -20,11 +20,11 @@ struct BowConfig: Equatable {
     var toneStyle: VietEngine.ToneStyle = .modern
 
     /// Phím tắt bật/tắt — dạng máy đọc được để event tap so khớp.
-    ///   - hotkeyKeyCode: mã phím vật lý macOS (vd Space = 49).
+    ///   - hotkeyKeyCode: mã phím vật lý macOS (vd Space = 49). 0 = chỉ-modifier.
     ///   - hotkeyModifiers: tập modifier yêu cầu ("control","option","shift","command").
-    /// Mặc định ⌃⌥ Space (giữ tương thích bản trước).
-    var hotkeyKeyCode: Int64 = 49
-    var hotkeyModifiers: Set<String> = ["control", "option"]
+    /// Mặc định ⌃⇧ (Control+Shift, chỉ-modifier — giống Unikey).
+    var hotkeyKeyCode: Int64 = 0
+    var hotkeyModifiers: Set<String> = ["control", "shift"]
 
     /// Smart Switch: tự nhớ bật/tắt theo từng app (bundle id).
     var smartSwitch: Bool = false

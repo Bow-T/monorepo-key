@@ -30,11 +30,17 @@ final class EventTapController {
 
     // Cấu hình hiện hành (đồng bộ từ file settings do app UI ghi).
     private var method: InputMethod = .telex
+    var currentMethod: InputMethod { method }
     private var toneStyle: VietEngine.ToneStyle = .modern
 
-    // Phím tắt bật/tắt — tuỳ biến từ UI. Mặc định ⌃⌥ Space.
-    private var hotkeyKeyCode: Int64 = 49
-    private var hotkeyModifiers: Set<String> = ["control", "option"]
+    // Phím tắt bật/tắt — tuỳ biến từ UI. Mặc định ⌃⇧ (Control+Shift, chỉ-modifier).
+    // keyCode 0 = chỉ-modifier: bắt qua flagsChanged (nhấn-rồi-nhả), không keyDown.
+    private var hotkeyKeyCode: Int64 = 0
+    private var hotkeyModifiers: Set<String> = ["control", "shift"]
+
+    // Trạng thái để theo dõi phím tắt Control+Shift (chỉ phím bổ trợ, không kèm chữ)
+    private var bothDown = false
+    private var cancelShortcut = false
 
     /// Bật/tắt bộ gõ (người dùng toggle qua menu / phím tắt).
     var enabled = true
@@ -141,6 +147,9 @@ final class EventTapController {
     /// So khớp CHÍNH XÁC: đúng keyCode VÀ đúng tập modifier (không thừa, không
     /// thiếu) — để ⌃⌥ không kích hoạt nhầm khi đang giữ thêm ⌘.
     private func isToggleHotkey(_ event: CGEvent) -> Bool {
+        // Phím tắt chỉ-modifier (keyCode 0) KHÔNG khớp qua keyDown — nó được xử lý
+        // riêng ở nhánh flagsChanged. Tránh nhầm với phím 'A' (keyCode thật = 0).
+        guard hotkeyKeyCode != 0 else { return false }
         guard event.getIntegerValueField(.keyboardEventKeycode) == hotkeyKeyCode else {
             return false
         }
@@ -184,23 +193,58 @@ final class EventTapController {
         // reset thì lần gõ kế tiếp sẽ gửi Backspace dựa trên committedLength cũ và
         // xoá nhầm ký tự ở vị trí mới. Cho event đi qua nguyên vẹn.
         if type == .leftMouseDown || type == .rightMouseDown || type == .otherMouseDown {
+            cancelShortcut = true
             resetSyllable()
+            return Unmanaged.passUnretained(event)
+        }
+
+        // PHÍM TẮT CHỈ-MODIFIER (vd ⌃⇧): kích hoạt khi NHẤN ĐÚNG tập modifier yêu
+        // cầu rồi NHẢ ra, mà không có phím thường / modifier thừa nào ở giữa.
+        // Chỉ chạy khi phím tắt là chỉ-modifier (hotkeyKeyCode == 0).
+        if type == .flagsChanged, hotkeyKeyCode == 0, !hotkeyModifiers.isEmpty {
+            let flags = event.flags
+            let active: Set<String> = [
+                flags.contains(.maskControl)   ? "control" : nil,
+                flags.contains(.maskAlternate) ? "option"  : nil,
+                flags.contains(.maskShift)     ? "shift"   : nil,
+                flags.contains(.maskCommand)   ? "command" : nil,
+            ].compactMap { $0 }.reduce(into: Set()) { $0.insert($1) }
+
+            // Có modifier THỪA (ngoài tập yêu cầu) -> huỷ, không phải phím tắt.
+            if !active.isSubset(of: hotkeyModifiers) {
+                cancelShortcut = true
+                bothDown = false
+            } else if active == hotkeyModifiers {
+                // Đã nhấn ĐÚNG tập modifier yêu cầu -> "lên đạn". KHÔNG re-arm nếu đã
+                // bị huỷ trong session này (vd vừa nhấn Cmd thừa rồi nhả về Ctrl+Shift);
+                // cờ huỷ chỉ reset khi nhả HẾT (bên dưới).
+                if !cancelShortcut {
+                    bothDown = true
+                }
+            } else if bothDown {
+                // Đang lên đạn mà bớt modifier -> NHẢ ra: kích hoạt nếu không bị huỷ.
+                if !cancelShortcut {
+                    toggleEnabledState()
+                }
+                bothDown = false
+            }
+
+            // Mọi modifier đã nhả hết -> reset cờ huỷ cho lần sau.
+            if active.isEmpty {
+                cancelShortcut = false
+            }
             return Unmanaged.passUnretained(event)
         }
 
         // PHÍM TẮT bật/tắt: ⌃⌥ Space (Control+Option+Space). Kiểm tra TRƯỚC cổng
         // `enabled` để vẫn bật lại được khi bộ gõ đang tắt. Nuốt phím (trả nil) để
         // Space không lọt vào ứng dụng.
-        if type == .keyDown, isToggleHotkey(event) {
-            enabled.toggle()
-            resetSyllable()
-            let now = enabled
-            // Báo lên main mà KHÔNG bắt `self` (callback tap chạy ngoài isolation).
-            // `onToggle` là @MainActor @Sendable -> gửi qua Task an toàn.
-            if let notify = onToggle {
-                Task { @MainActor in notify(now) }
+        if type == .keyDown {
+            cancelShortcut = true
+            if isToggleHotkey(event) {
+                toggleEnabledState()
+                return nil
             }
-            return nil
         }
 
         guard enabled, type == .keyDown else {
@@ -271,5 +315,14 @@ final class EventTapController {
         }
         // Trả nil = "nuốt" phím gốc, không cho hệ thống nhận ký tự thô.
         return nil
+    }
+
+    private func toggleEnabledState() {
+        enabled.toggle()
+        resetSyllable()
+        let now = enabled
+        if let notify = onToggle {
+            Task { @MainActor in notify(now) }
+        }
     }
 }
