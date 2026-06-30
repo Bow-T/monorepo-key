@@ -1,0 +1,51 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Dart: test viet_engine",
+      "type": "shell",
+      "command": "fvm dart test",
+      "options": { "cwd": "${workspaceFolder}/packages/viet_engine" },
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Dart: pub get (workspace)",
+      "type": "shell",
+      "command": "fvm dart pub get",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Dart: analyze viet_engine",
+      "type": "shell",
+      "command": "fvm dart analyze",
+      "options": { "cwd": "${workspaceFolder}/packages/viet_engine" },
+      "problemMatcher": []
+    },
+    {
+      "label": "macOS: test engine (Swift)",
+      "type": "shell",
+      "command": "swift test",
+      "options": { "cwd": "${workspaceFolder}/apps/macos_ime" },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "macOS: build .app",
+      "type": "shell",
+      "command": "bash scripts/build-app.sh",
+      "options": { "cwd": "${workspaceFolder}/apps/macos_ime" },
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "macOS: build & open .app",
+      "type": "shell",
+      "command": "bash scripts/build-app.sh && open build/BowKey.app",
+      "options": { "cwd": "${workspaceFolder}/apps/macos_ime" },
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}

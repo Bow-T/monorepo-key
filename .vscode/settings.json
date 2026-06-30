@@ -1,0 +1,22 @@
+{
+  "dart.flutterSdkPath": ".fvm/flutter_sdk",
+  "search.exclude": {
+    "**/.fvm": true,
+    "**/.dart_tool": true,
+    "**/.build": true
+  },
+  "files.watcherExclude": {
+    "**/.fvm": true,
+    "**/.dart_tool": true,
+    "**/.build": true
+  },
+  "dart.runPubGetOnPubspecChanges": "always",
+  "dart.previewFlutterUiGuides": true,
+  "[dart]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "Dart-Code.dart-code",
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "explicit"
+    }
+  }
+}

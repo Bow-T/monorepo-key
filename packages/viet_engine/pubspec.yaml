@@ -1,0 +1,13 @@
+name: viet_engine
+description: Engine gõ tiếng Việt (Telex/VNI) thuần Dart — dùng chung cho app Flutter và làm spec chuẩn cho các bộ gõ native.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ^3.5.0
+
+resolution: workspace
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^4.0.0

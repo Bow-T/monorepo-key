@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Bow Key — app icon
+  3 BỘ PHẬN chồng ĐÈ lên nhau ở CÙNG vị trí giữa icon, theo lớp sâu (như Freeform):
+    Sau cùng (mờ nhất)  : CUNG
+    Giữa                : MŨI TÊN
+    Trước cùng (rõ nhất): CHÌA KHOÁ
+  Mỗi lớp lùi về sau thì lệch nhẹ + nhỏ + mờ -> khối có chiều sâu 3D.
+  Nền tối squircle. Nét gradient cyan->tím->hồng. Canvas 1024.
+-->
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink">
+  <defs>
+    <radialGradient id="bg" cx="0.5" cy="0.4" r="0.8">
+      <stop offset="0"   stop-color="#2B3242"/>
+      <stop offset="0.55" stop-color="#171C28"/>
+      <stop offset="1"   stop-color="#0A0D14"/>
+    </radialGradient>
+
+    <!-- Mỗi bộ phận một dải màu — tông rực rỡ, bão hoà cao để nổi trên nền tối -->
+    <linearGradient id="gBow" gradientUnits="userSpaceOnUse" x1="250" y1="240" x2="780" y2="780">
+      <stop offset="0" stop-color="#3DFFD0"/>
+      <stop offset="1" stop-color="#00E5FF"/>
+    </linearGradient>
+    <linearGradient id="gArrow" gradientUnits="userSpaceOnUse" x1="230" y1="300" x2="800" y2="720">
+      <stop offset="0" stop-color="#1FE3FF"/>
+      <stop offset="1" stop-color="#6A7BFF"/>
+    </linearGradient>
+    <linearGradient id="gKey" gradientUnits="userSpaceOnUse" x1="240" y1="300" x2="820" y2="760">
+      <stop offset="0" stop-color="#9B5CFF"/>
+      <stop offset="0.55" stop-color="#D24BFF"/>
+      <stop offset="1" stop-color="#FF3DAE"/>
+    </linearGradient>
+
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"   stop-color="#FFFFFF" stop-opacity="0.12"/>
+      <stop offset="0.4" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+    <filter id="softblur" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="85"/>
+    </filter>
+
+    <!-- Nền VUÔNG FULL: 0→1024 không bo góc, lấp đầy 100% ô, không hở góc. -->
+    <clipPath id="sq0">
+      <path d="M0 0 H1024 V1024 H0 Z"/>
+    </clipPath>
+
+    <!-- ===== 3 bộ phận, vẽ cùng tâm (≈512,512) để chồng đè lên nhau ===== -->
+
+    <!-- CUNG: cánh cung recurve dọc + dây -->
+    <g id="bow">
+      <path d="M512 300 C 360 392 360 632 512 724"
+            fill="none" stroke="url(#gBow)" stroke-width="44"
+            stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="506" y="306" width="12" height="412" rx="6" fill="#CFE9FF" fill-opacity="0.6"/>
+    </g>
+
+    <!-- MŨI TÊN: ngang qua tâm -->
+    <g id="arrow">
+      <rect x="318" y="492" width="320" height="40" rx="20" fill="url(#gArrow)"/>
+      <path d="M318 512 l-58 -46 l26 46 l-26 46 Z" fill="#46D6E6"/>
+      <path d="M700 512 l-66 -52 l0 104 Z" fill="url(#gArrow)"/>
+    </g>
+
+    <!-- CHÌA KHOÁ: vòng đầu trái + thân + răng, qua tâm -->
+    <g id="key">
+      <circle cx="372" cy="512" r="86" fill="none" stroke="url(#gKey)" stroke-width="42"/>
+      <circle cx="372" cy="512" r="30" fill="#0A0D14"/>
+      <rect x="430" y="492" width="276" height="40" rx="20" fill="url(#gKey)"/>
+      <rect x="612" y="534" width="28" height="64" rx="11" fill="url(#gKey)"/>
+      <rect x="664" y="534" width="28" height="92" rx="11" fill="url(#gKey)"/>
+    </g>
+  </defs>
+
+  <!-- ===== Nền ===== -->
+  <g clip-path="url(#sq0)">
+    <rect width="1024" height="1024" fill="url(#bg)"/>
+    <g filter="url(#softblur)">
+      <ellipse cx="400" cy="600" rx="280" ry="250" fill="#00E5C8" opacity="0.22"/>
+      <ellipse cx="660" cy="470" rx="260" ry="260" fill="#C24BFF" opacity="0.24"/>
+    </g>
+    <path d="M3 3 H1021 V1021 H3 Z"
+          fill="none" stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="6"/>
+    <rect width="1024" height="1024" fill="url(#sheen)"/>
+  </g>
+
+  <!-- ===== STACK 3 lớp xếp theo TRÊN->DƯỚI, to hơn, mờ->rõ ===== -->
+  <!-- Phóng to toàn cụm quanh tâm (512,512) + lệch các lớp theo chiều dọc:
+       CUNG ở TRÊN (sau, mờ) -> TÊN ở GIỮA -> CHÌA ở DƯỚI (trước, rõ). -->
+  <g transform="translate(512 512) scale(1.1) translate(-512 -512)">
+    <!-- LỚP SAU: CUNG — dịch lên trên, mờ nhất -->
+    <use xlink:href="#bow"
+         transform="translate(512 512) scale(0.93) translate(-512 -512) translate(0 -122)"
+         opacity="0.48"/>
+    <!-- LỚP GIỮA: MŨI TÊN — ở giữa -->
+    <use xlink:href="#arrow"
+         transform="translate(512 512) scale(0.96) translate(-512 -512) translate(0 0)"
+         opacity="0.78"/>
+    <!-- LỚP TRƯỚC: CHÌA KHOÁ — dịch xuống dưới, rõ nhất + glow rực -->
+    <g transform="translate(0 122)">
+      <use xlink:href="#key" filter="url(#glow)" opacity="0.7"/>
+      <use xlink:href="#key"/>
+    </g>
+  </g>
+</svg>

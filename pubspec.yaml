@@ -1,0 +1,19 @@
+# Workspace gốc của monorepo Bow Key (Dart/Flutter).
+#
+# Khai báo Dart workspace (resolution dùng chung) — tương tự npm workspaces trong
+# monorepo-remote: mọi package/app Dart bên dưới chia chung một lockfile.
+#
+# Để một package gia nhập workspace, trong pubspec của nó thêm: `resolution: workspace`.
+#
+# Lưu ý: các app NATIVE (macos_ime/Swift, windows_ime/C++, android_ime/Kotlin,
+# ios_keyboard/Swift) KHÔNG phải package Dart nên KHÔNG nằm ở đây — chúng có hệ
+# build riêng (SwiftPM / CMake / Gradle / Xcode).
+name: bow_key_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.5.0
+
+workspace:
+  - packages/viet_engine
+  # - apps/settings_ui   # (thêm khi tạo app Flutter UI cài đặt)

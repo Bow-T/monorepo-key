@@ -1,0 +1,23 @@
+# === Dart / Flutter ===
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# FVM Version Cache — pin qua .fvmrc (được commit), bỏ toàn bộ cache .fvm/
+.fvm/
+
+# === Swift / SwiftPM (apps/macos_ime) ===
+.build/
+.swiftpm/
+xcuserdata/
+*.xcodeproj/xcuserdata/
+
+# === Build output chung ===
+build/
+
+# Icon trung gian: sinh lại được từ Assets/*.svg qua build-icons.sh
+apps/macos_ime/Assets/AppIcon.iconset/
+
+# === Chung ===
+.DS_Store
