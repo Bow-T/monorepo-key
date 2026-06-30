@@ -4,9 +4,10 @@
 // với Character ('a', 'b'...). File này dịch keyCode -> ký tự, có xét Shift để
 // ra chữ hoa.
 //
-// Cách "chuẩn" là dùng UCKeyTranslate theo layout bàn phím hiện tại (để đúng cả
-// Dvorak/Colemak). Ở đây ta dùng bảng tĩnh cho layout US QWERTY để dễ hiểu trước;
-// nâng cấp UCKeyTranslate là việc của giai đoạn sau.
+// Dịch "chuẩn" theo layout thật đã chuyển sang KeyboardLayout.swift (UCKeyTranslate).
+// File này GIỜ đóng vai FALLBACK: bảng tĩnh US QWERTY dùng khi UCKeyTranslate không
+// cho kết quả, CỘNG với keyCode của các phím đặc biệt (delete/space/return/tab/esc)
+// và hàm isWordBreak mà EventTapController luôn cần.
 
 import CoreGraphics
 

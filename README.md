@@ -122,7 +122,8 @@ file JSON làm "hợp đồng":
 {
   "enabled": true, "method": "telex", "toneStyle": "modern",
   "hotkeyKeyCode": 49, "hotkeyModifiers": ["control","option"],
-  "toggleHotkey": "⌃⌥ Space"
+  "toggleHotkey": "⌃⌥ Space",
+  "smartSwitch": false, "perApp": { "com.apple.Terminal": false }
 }
 ```
 
@@ -130,6 +131,9 @@ file JSON làm "hợp đồng":
 - **Swift ĐỌC + watch file** (`DispatchSource`) → áp ngay không cần restart — `macos_ime/App/SettingsStore.swift`.
 - **Phím tắt tuỳ biến**: UI "thu" tổ hợp phím → ghi `hotkeyKeyCode` (mã phím macOS) +
   `hotkeyModifiers`; Swift so khớp CHÍNH XÁC tập modifier. `toggleHotkey` chỉ là chuỗi hiển thị.
+- **Smart Switch**: bật `smartSwitch` để bộ gõ tự nhớ bật/tắt theo từng app vào `perApp`
+  (bundleId → enabled). Swift theo dõi app focus (`NSWorkspace`) và tự khôi phục. UI giữ
+  nguyên `perApp` khi ghi để không xoá bộ nhớ.
 - Phím tắt (hoặc menu bar) bật/tắt cũng **ghi ngược** `enabled` vào file để UI đồng bộ.
 - Các khoá JSON phải KHỚP hai bên; đổi tên một bên phải đổi bên kia.
 

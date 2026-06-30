@@ -17,7 +17,10 @@ apps/macos_ime/
 │   ├── AppDelegate.swift    # vòng đời + menu bar + health check
 │   ├── EventTapController.swift # CGEvent tap: bắt phím -> engine -> gõ thay
 │   ├── KeyOutput.swift      # gõ thay ký tự (backspace + post Unicode)
-│   ├── KeyCodeMap.swift     # keyCode macOS -> Character
+│   ├── KeyboardLayout.swift # keyCode -> ký tự theo layout THẬT (UCKeyTranslate)
+│   ├── KeyCodeMap.swift     # bảng tĩnh QWERTY (fallback) + keyCode phím đặc biệt
+│   ├── SettingsStore.swift  # đọc/watch settings.json do app UI Flutter ghi
+│   ├── SmartSwitch.swift    # tự nhớ bật/tắt theo từng app (NSWorkspace focus)
 │   └── Permissions.swift    # xin/kiểm tra quyền Accessibility + Input Monitoring
 ├── Tests/VietEngineTests/   # test: gõ "tieengs" có ra "tiếng" không?
 ├── Assets/                  # NGUỒN ICON (vector) — sửa ở đây rồi render lại
@@ -72,6 +75,6 @@ Bấm icon để bật/tắt, đổi Telex/VNI, hoặc thoát.
 - [x] Phím tắt bật/tắt ⌃⌥ Space (đồng bộ ngược ra file settings)
 - [x] Đọc cấu hình từ app UI Flutter qua file JSON dùng chung (`SettingsStore.swift`)
 - [x] Phím tắt tuỳ biến (đặt tổ hợp bất kỳ trong app UI, Swift áp ngay)
-- [ ] Dịch keyCode theo layout thật (UCKeyTranslate) — đúng cả Dvorak/Colemak
-- [ ] Smart Switch: nhớ bật/tắt theo từng app
+- [x] Dịch keyCode theo layout thật (UCKeyTranslate) — đúng cả Dvorak/Colemak/AZERTY
+- [x] Smart Switch: tự nhớ bật/tắt theo từng app (`SmartSwitch.swift`)
 - [ ] Developer ID + notarize để phân phối

@@ -16,27 +16,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private let tapController = EventTapController()
     private let settingsStore = SettingsStore()
+    private let smartSwitch = SmartSwitch()
     private var statusItem: NSStatusItem?
     private var healthCheckTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenuBar()
+        setupSmartSwitch()
 
         // Đọc cấu hình do app UI (Flutter) ghi, rồi theo dõi để áp ngay khi đổi.
         if let cfg = settingsStore.read() {
             tapController.apply(config: cfg)
+            smartSwitch.apply(isOn: cfg.smartSwitch, perApp: cfg.perApp)
         }
         settingsStore.onChange = { [weak self] cfg in
             guard let self else { return }
             self.tapController.apply(config: cfg)
+            self.smartSwitch.apply(isOn: cfg.smartSwitch, perApp: cfg.perApp)
             self.updateMenuTitle()
             NSLog("[App] Đã áp cấu hình mới từ UI.")
         }
-        // Phím tắt ⌃⌥ Space bật/tắt -> cập nhật icon + ghi lại file để UI đồng bộ.
+        // Phím tắt ⌃⌥ Space bật/tắt -> cập nhật icon + ghi lại file để UI đồng bộ,
+        // và để Smart Switch ghi nhớ lựa chọn cho app đang focus.
         tapController.onToggle = { [weak self] enabled in
             guard let self else { return }
             self.updateMenuTitle()
             self.settingsStore.writeEnabled(enabled)
+            self.smartSwitch.userToggled(to: enabled)
         }
         settingsStore.startWatching()
 
@@ -58,7 +64,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         tapController.stop()
+        smartSwitch.stop()
         healthCheckTimer?.invalidate()
+    }
+
+    // MARK: - Smart Switch
+
+    private func setupSmartSwitch() {
+        // SmartSwitch điều khiển bộ gõ gián tiếp qua các closure này.
+        smartSwitch.getEnabled = { [weak self] in
+            self?.tapController.enabled ?? false
+        }
+        smartSwitch.setEnabled = { [weak self] enabled in
+            guard let self else { return }
+            self.tapController.enabled = enabled
+            self.updateMenuTitle()
+            // Ghi `enabled` toàn cục để UI phản ánh trạng thái app hiện tại.
+            self.settingsStore.writeEnabled(enabled)
+        }
+        smartSwitch.persistPerApp = { [weak self] bundleId, enabled in
+            self?.settingsStore.writePerApp(bundleId: bundleId, enabled: enabled)
+        }
+        smartSwitch.start()
     }
 
     // MARK: - Bộ gõ

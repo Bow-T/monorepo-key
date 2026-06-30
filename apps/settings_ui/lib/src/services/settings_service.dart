@@ -63,7 +63,20 @@ class SettingsService extends ChangeNotifier {
   Future<void> _write() async {
     final f = _file;
     if (f == null) return;
+    // `perApp` do bộ gõ Swift quản lý và có thể đã đổi trên đĩa kể từ lần đọc cuối.
+    // Đọc lại bản mới nhất từ file để KHÔNG ghi đè mất bộ nhớ per-app của Swift.
+    var out = _value;
+    if (f.existsSync()) {
+      try {
+        final disk = BowSettings.fromJson(
+          jsonDecode(f.readAsStringSync()) as Map<String, dynamic>,
+        );
+        out = _value.copyWith(perApp: disk.perApp);
+      } catch (_) {
+        // File hỏng -> ghi bản trong bộ nhớ.
+      }
+    }
     const encoder = JsonEncoder.withIndent('  ');
-    await f.writeAsString(encoder.convert(_value.toJson()));
+    await f.writeAsString(encoder.convert(out.toJson()));
   }
 }
