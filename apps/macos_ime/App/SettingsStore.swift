@@ -26,6 +26,12 @@ struct BowConfig: Equatable {
     var hotkeyKeyCode: Int64 = 49
     var hotkeyModifiers: Set<String> = ["control", "option"]
 
+    /// Smart Switch: tự nhớ bật/tắt theo từng app (bundle id).
+    var smartSwitch: Bool = false
+
+    /// Trạng thái đã nhớ cho từng app: bundleId -> enabled. Chỉ dùng khi smartSwitch.
+    var perApp: [String: Bool] = [:]
+
     static func decode(_ data: Data) -> BowConfig? {
         guard
             let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -39,6 +45,8 @@ struct BowConfig: Equatable {
         if let mods = obj["hotkeyModifiers"] as? [String] {
             cfg.hotkeyModifiers = Set(mods)
         }
+        if let s = obj["smartSwitch"] as? Bool { cfg.smartSwitch = s }
+        if let p = obj["perApp"] as? [String: Bool] { cfg.perApp = p }
         return cfg
     }
 }
@@ -68,22 +76,41 @@ final class SettingsStore {
         return BowConfig.decode(data)
     }
 
-    /// Cập nhật cờ `enabled` trong file (khi người dùng dùng phím tắt bật/tắt) để
-    /// app UI Flutter phản ánh đúng. Giữ nguyên các khoá khác đang có trong file.
-    /// Tự bỏ qua sự kiện watch do chính ta ghi (so khớp nội dung) để khỏi vòng lặp.
-    func writeEnabled(_ enabled: Bool) {
+    /// Đọc-sửa-ghi file JSON, giữ nguyên các khoá khác. `mutate` trả về false nếu
+    /// không có gì đổi (để khỏi ghi thừa -> tránh kích hoạt watch vô ích).
+    private func update(_ mutate: (inout [String: Any]) -> Bool) {
         let url = Self.fileURL
         var obj: [String: Any] = [:]
         if let data = try? Data(contentsOf: url),
            let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             obj = parsed
         }
-        if (obj["enabled"] as? Bool) == enabled { return } // không đổi -> khỏi ghi
-        obj["enabled"] = enabled
+        guard mutate(&obj) else { return }
         guard let out = try? JSONSerialization.data(
             withJSONObject: obj, options: [.prettyPrinted, .sortedKeys]
         ) else { return }
         try? out.write(to: url, options: .atomic)
+    }
+
+    /// Cập nhật cờ `enabled` trong file (khi bật/tắt qua phím tắt/menu) để app UI
+    /// Flutter phản ánh đúng. Giữ nguyên các khoá khác.
+    func writeEnabled(_ enabled: Bool) {
+        update { obj in
+            if (obj["enabled"] as? Bool) == enabled { return false }
+            obj["enabled"] = enabled
+            return true
+        }
+    }
+
+    /// Ghi nhớ trạng thái bật/tắt cho một app (Smart Switch). Giữ nguyên khoá khác.
+    func writePerApp(bundleId: String, enabled: Bool) {
+        update { obj in
+            var map = (obj["perApp"] as? [String: Bool]) ?? [:]
+            if map[bundleId] == enabled { return false }
+            map[bundleId] = enabled
+            obj["perApp"] = map
+            return true
+        }
     }
 
     /// Bắt đầu theo dõi file. Khi UI ghi đè file, ta đọc lại và báo onChange.

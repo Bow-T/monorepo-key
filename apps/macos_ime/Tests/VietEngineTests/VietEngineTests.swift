@@ -129,6 +129,38 @@ struct OldToneStyle {
     }
 }
 
+// Regression: phím-dấu (s f r x j z) đứng sau phụ âm đầu mà CHƯA có nguyên âm
+// không được nuốt làm dấu thanh. Đối chiếu commit PHTV 0adc2129
+// ("prevent initial consonants from being consumed as tone markers").
+@Suite("Phụ âm-dấu sau phụ âm đầu (chưa có nguyên âm)")
+struct LeadingConsonantToneKey {
+
+    @Test("tr- không bị nuốt thành dấu hỏi")
+    func trCluster() {
+        #expect(type("tre") == "tre")     // cây tre, KHÔNG phải "tẻ"
+        #expect(type("tres") == "tré")
+        #expect(type("treen") == "trên")  // trên, KHÔNG phải "tển"
+        #expect(type("trong") == "trong")
+        #expect(type("truowcs") == "trước")
+    }
+
+    @Test("các cụm phụ âm khác (gr/xr/...) giữ nguyên phím-dấu")
+    func otherClusters() {
+        #expect(type("gra") == "gra")
+        #expect(type("xra") == "xra")
+        #expect(type("strong") == "strong")
+    }
+
+    @Test("phụ âm-dấu là chữ ĐẦU vẫn giữ nguyên (đã đúng từ trước)")
+    func leadingMarkerStaysLiteral() {
+        #expect(type("sai") == "sai")
+        #expect(type("xin") == "xin")
+        #expect(type("rum") == "rum")
+        #expect(type("fan") == "fan")
+        #expect(type("zap") == "zap")
+    }
+}
+
 @Suite("Gõ lại để bỏ/đổi dấu")
 struct ReTyping {
 

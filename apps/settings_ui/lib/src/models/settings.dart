@@ -47,6 +47,8 @@ class BowSettings {
     this.method = InputMethod.telex,
     this.toneStyle = ToneStyle.modern,
     this.hotkey = Hotkey.defaultToggle,
+    this.smartSwitch = false,
+    this.perApp = const {},
   });
 
   /// Bộ gõ có đang bật không (toggle toàn cục).
@@ -61,17 +63,28 @@ class BowSettings {
   /// Phím tắt bật/tắt nhanh (tuỳ biến, máy đọc được).
   final Hotkey hotkey;
 
+  /// Smart Switch: tự nhớ bật/tắt theo từng app.
+  final bool smartSwitch;
+
+  /// Bảng nhớ per-app (bundleId -> enabled) do bộ gõ Swift quản lý. UI KHÔNG sửa
+  /// trực tiếp nhưng PHẢI giữ nguyên khi ghi lại file, nếu không sẽ xoá mất bộ nhớ.
+  final Map<String, bool> perApp;
+
   BowSettings copyWith({
     bool? enabled,
     InputMethod? method,
     ToneStyle? toneStyle,
     Hotkey? hotkey,
+    bool? smartSwitch,
+    Map<String, bool>? perApp,
   }) {
     return BowSettings(
       enabled: enabled ?? this.enabled,
       method: method ?? this.method,
       toneStyle: toneStyle ?? this.toneStyle,
       hotkey: hotkey ?? this.hotkey,
+      smartSwitch: smartSwitch ?? this.smartSwitch,
+      perApp: perApp ?? this.perApp,
     );
   }
 
@@ -81,6 +94,8 @@ class BowSettings {
         'toneStyle': toneStyle.json,
         // Hotkey tự ghi 3 khoá: hotkeyKeyCode, hotkeyModifiers, toggleHotkey.
         ...hotkey.toJson(),
+        'smartSwitch': smartSwitch,
+        'perApp': perApp,
       };
 
   factory BowSettings.fromJson(Map<String, dynamic> j) => BowSettings(
@@ -88,5 +103,10 @@ class BowSettings {
         method: InputMethod.fromJson(j['method'] as String?),
         toneStyle: ToneStyle.fromJson(j['toneStyle'] as String?),
         hotkey: Hotkey.fromJson(j),
+        smartSwitch: j['smartSwitch'] as bool? ?? false,
+        perApp: (j['perApp'] as Map?)?.map(
+              (k, v) => MapEntry(k.toString(), v == true),
+            ) ??
+            const {},
       );
 }

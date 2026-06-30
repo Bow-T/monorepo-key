@@ -148,7 +148,24 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     const SizedBox(height: AppSpacing.md),
 
-                    // ── Nhóm 5: Gõ thử ────────────────────────────────────
+                    // ── Nhóm 5: Smart Switch ──────────────────────────────
+                    _panelWithTitle(
+                      context,
+                      'SMART SWITCH',
+                      SettingRow(
+                        title: 'NHỚ THEO APP',
+                        subtitle: s.smartSwitch
+                            ? 'Tự nhớ bật/tắt cho mỗi app (${s.perApp.length} app)'
+                            : 'Bật để tự nhớ trạng thái theo từng app',
+                        control: PixelSwitch(
+                          value: s.smartSwitch,
+                          onChanged: (v) => _save(s.copyWith(smartSwitch: v)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+
+                    // ── Nhóm 6: Gõ thử ────────────────────────────────────
                     _testBox(context),
                     const SizedBox(height: AppSpacing.lg),
 
