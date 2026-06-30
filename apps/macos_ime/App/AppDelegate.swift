@@ -18,6 +18,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settingsStore = SettingsStore()
     private let smartSwitch = SmartSwitch()
     private var statusItem: NSStatusItem?
+    private var vietMenuItem: NSMenuItem?
+    private var engMenuItem: NSMenuItem?
+    private var telexMenuItem: NSMenuItem?
+    private var vniMenuItem: NSMenuItem?
+    private var autoRestoreMenuItem: NSMenuItem?
+    private var macroMenuItem: NSMenuItem?
     private var healthCheckTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -29,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             tapController.apply(config: cfg)
             smartSwitch.apply(isOn: cfg.smartSwitch, perApp: cfg.perApp)
         }
+        updateMenuTitle()
         settingsStore.onChange = { [weak self] cfg in
             guard let self else { return }
             self.tapController.apply(config: cfg)
@@ -140,14 +147,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let menu = NSMenu()
 
-        menu.addItem(makeItem("Bật/tắt bộ gõ  (⌃⌥ Space)", #selector(toggleEnabled)))
+        // 1. Header (disabled)
+        let header = NSMenuItem(title: "Chế độ gõ (⌃ + ⇧)", action: nil, keyEquivalent: "")
+        header.isEnabled = false
+        menu.addItem(header)
+
+        // 2. Ⓥ Tiếng Việt
+        let vietItem = makeItem("Ⓥ  Tiếng Việt", #selector(enableVietnamese))
+        menu.addItem(vietItem)
+        self.vietMenuItem = vietItem
+
+        // 3. Ⓔ Tiếng Anh
+        let engItem = makeItem("Ⓔ  Tiếng Anh", #selector(enableEnglish))
+        menu.addItem(engItem)
+        self.engMenuItem = engItem
+
         menu.addItem(.separator())
-        menu.addItem(makeItem("Kiểu gõ: Telex", #selector(useTelex)))
-        menu.addItem(makeItem("Kiểu gõ: VNI", #selector(useVNI)))
+
+        // 4. Submenu: ⌨️ Bộ gõ
+        let boGoItem = NSMenuItem(title: "⌨️  Bộ gõ", action: nil, keyEquivalent: "")
+        let boGoSub = NSMenu()
+        let telexItem = makeItem("Telex", #selector(useTelex))
+        let vniItem = makeItem("VNI", #selector(useVNI))
+        boGoSub.addItem(telexItem)
+        boGoSub.addItem(vniItem)
+        boGoItem.submenu = boGoSub
+        menu.addItem(boGoItem)
+        self.telexMenuItem = telexItem
+        self.vniMenuItem = vniItem
+
         menu.addItem(.separator())
-        menu.addItem(makeItem("Mở cài đặt quyền…", #selector(openPermissions)))
+
+        // 4b. Bật/tắt nhanh các tính năng (có checkmark)
+        let restoreItem = makeItem("Tự khôi phục tiếng Anh", #selector(toggleAutoRestore))
+        menu.addItem(restoreItem)
+        self.autoRestoreMenuItem = restoreItem
+
+        let macroItem = makeItem("Gõ tắt", #selector(toggleMacro))
+        menu.addItem(macroItem)
+        self.macroMenuItem = macroItem
+
         menu.addItem(.separator())
-        menu.addItem(makeItem("Thoát", #selector(quit)))
+
+        // 5. 🎛️ Mở Cài đặt...
+        let settingsItem = NSMenuItem(title: "🎛️  Mở Cài đặt...", action: #selector(openPermissions), keyEquivalent: ",")
+        settingsItem.keyEquivalentModifierMask = .command
+        settingsItem.target = self
+        menu.addItem(settingsItem)
+
+        menu.addItem(.separator())
+
+        // 6. ⓘ Về BowKey
+        let aboutItem = NSMenuItem(title: "ⓘ  Về BowKey v0.1", action: nil, keyEquivalent: "")
+        aboutItem.isEnabled = false
+        menu.addItem(aboutItem)
+
+        // 7. Thoát
+        let quitItem = NSMenuItem(title: "⏻  Thoát BowKey", action: #selector(quit), keyEquivalent: "q")
+        quitItem.keyEquivalentModifierMask = .command
+        quitItem.target = self
+        menu.addItem(quitItem)
 
         item.menu = menu
         statusItem = item
@@ -163,8 +222,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let on = tapController.enabled && Permissions.ready()
         guard let button = statusItem?.button else { return }
         button.title = on ? "VN" : "EN"
-        // Khi tắt: làm mờ logo để báo trạng thái "không gõ tiếng Việt".
         button.appearsDisabled = !on
+
+        vietMenuItem?.state = on ? .on : .off
+        engMenuItem?.state = on ? .off : .on
+
+        telexMenuItem?.state = tapController.currentMethod == .telex ? .on : .off
+        vniMenuItem?.state = tapController.currentMethod == .vni ? .on : .off
+
+        autoRestoreMenuItem?.state = tapController.autoRestoreEnglishOn ? .on : .off
+        macroMenuItem?.state = tapController.macroOn ? .on : .off
     }
 
     /// Nạp logo menu bar từ Resources (menubar.png + @2x), đánh dấu là template
@@ -179,18 +246,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Hành động menu
 
-    @objc private func toggleEnabled() {
-        tapController.enabled.toggle()
+    @objc private func enableVietnamese() {
+        tapController.enabled = true
         updateMenuTitle()
-        settingsStore.writeEnabled(tapController.enabled)
+        settingsStore.writeEnabled(true)
+        smartSwitch.userToggled(to: true)
+    }
+
+    @objc private func enableEnglish() {
+        tapController.enabled = false
+        updateMenuTitle()
+        settingsStore.writeEnabled(false)
+        smartSwitch.userToggled(to: false)
     }
 
     @objc private func useTelex() {
         tapController.setMethod(.telex)
+        updateMenuTitle()
     }
 
     @objc private func useVNI() {
         tapController.setMethod(.vni)
+        updateMenuTitle()
+    }
+
+    @objc private func toggleAutoRestore() {
+        let on = !tapController.autoRestoreEnglishOn
+        tapController.setAutoRestoreEnglish(on)
+        settingsStore.writeAutoRestoreEnglish(on)
+        updateMenuTitle()
+    }
+
+    @objc private func toggleMacro() {
+        let on = !tapController.macroOn
+        tapController.setMacroEnabled(on)
+        settingsStore.writeMacroEnabled(on)
+        updateMenuTitle()
     }
 
     @objc private func openPermissions() {

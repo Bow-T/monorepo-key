@@ -134,6 +134,24 @@ final class SettingsStore {
         }
     }
 
+    /// Cập nhật cờ `autoRestoreEnglish` (khi bật/tắt qua menu). Giữ nguyên khoá khác.
+    func writeAutoRestoreEnglish(_ enabled: Bool) {
+        update { obj in
+            if (obj["autoRestoreEnglish"] as? Bool) == enabled { return false }
+            obj["autoRestoreEnglish"] = enabled
+            return true
+        }
+    }
+
+    /// Cập nhật cờ `macroEnabled` (khi bật/tắt gõ tắt qua menu). Giữ nguyên khoá khác.
+    func writeMacroEnabled(_ enabled: Bool) {
+        update { obj in
+            if (obj["macroEnabled"] as? Bool) == enabled { return false }
+            obj["macroEnabled"] = enabled
+            return true
+        }
+    }
+
     /// Ghi nhớ trạng thái bật/tắt cho một app (Smart Switch). Giữ nguyên khoá khác.
     func writePerApp(bundleId: String, enabled: Bool) {
         update { obj in

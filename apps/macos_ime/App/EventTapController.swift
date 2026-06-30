@@ -132,6 +132,27 @@ final class EventTapController {
         rebuildEngine()
     }
 
+    // MARK: - Trạng thái cho menu (đọc + bật/tắt nhanh)
+
+    /// Tự khôi phục tiếng Anh có đang bật không.
+    var autoRestoreEnglishOn: Bool { autoRestoreEnglish }
+
+    /// Gõ tắt (macro) có đang bật không.
+    var macroOn: Bool { macroEnabled }
+
+    /// Bật/tắt tự khôi phục tiếng Anh (gọi từ menu). Tái tạo engine.
+    func setAutoRestoreEnglish(_ on: Bool) {
+        autoRestoreEnglish = on
+        rebuildEngine()
+    }
+
+    /// Bật/tắt gõ tắt (gọi từ menu). Tái tạo engine từ định nghĩa macro đã lưu.
+    func setMacroEnabled(_ on: Bool) {
+        macroEnabled = on
+        rebuildMacroStore()
+        rebuildEngine()
+    }
+
     /// Áp toàn bộ cấu hình đọc từ file (gọi lúc khởi động & mỗi khi UI lưu).
     func apply(config: BowConfig) {
         enabled = config.enabled
@@ -139,15 +160,25 @@ final class EventTapController {
         toneStyle = config.toneStyle
         hotkeyKeyCode = config.hotkeyKeyCode
         hotkeyModifiers = config.hotkeyModifiers
-        macroStore = (config.macroEnabled && !config.macros.isEmpty)
-            ? MacroStore(config.macros)
-            : nil
+        macroDefs = config.macros
+        macroEnabled = config.macroEnabled
+        rebuildMacroStore()
         autoRestoreEnglish = config.autoRestoreEnglish
         rebuildEngine()
     }
 
     /// Kho macro hiện hành (nil = tắt gõ tắt). Tái tạo engine khi đổi.
     private var macroStore: MacroStore?
+
+    /// Định nghĩa macro đã lưu (để bật lại sau khi tắt qua menu).
+    private var macroDefs: [MacroDefinition] = []
+
+    /// Cờ bật gõ tắt (tách khỏi việc có định nghĩa hay không).
+    private var macroEnabled = true
+
+    private func rebuildMacroStore() {
+        macroStore = (macroEnabled && !macroDefs.isEmpty) ? MacroStore(macroDefs) : nil
+    }
 
     private func rebuildEngine() {
         engine = VietEngine(method: method, toneStyle: toneStyle,
