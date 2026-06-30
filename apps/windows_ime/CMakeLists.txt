@@ -23,6 +23,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_library(bowkey_engine STATIC
     engine/engine.cpp
     engine/viet_table.cpp
+    engine/viet_syllable.cpp
+    engine/macro.cpp
+    engine/text_converter.cpp
 )
 target_include_directories(bowkey_engine PUBLIC engine)
 

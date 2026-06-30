@@ -196,6 +196,34 @@ struct WShortcut {
         #expect(type("huowng") == "hương")
         #expect(type("huow") == "hươ")   // gõ dở, chưa âm đóng -> giữ nguyên
     }
+
+    @Test("Telex ua + w -> ưa và quaw -> quă")
+    func telexUaW() {
+        #expect(type("muaw") == "mưa")
+        #expect(type("chuaw") == "chưa")
+        #expect(type("luawj") == "lựa")
+        #expect(type("dduaw") == "đưa")
+        #expect(type("quaw") == "quă") // không thành qưa
+    }
+
+    @Test("Telex quow -> quơ")
+    func telexQuow() {
+        #expect(type("quow") == "quơ") // không thành quươ
+    }
+
+    @Test("Telex thuo + w -> thuơ và thuowng -> thương")
+    func telexThuoW() {
+        #expect(type("thuow") == "thuơ")
+        #expect(type("thuowr") == "thuở")
+        #expect(type("thuowng") == "thương")
+    }
+
+    @Test("Telex consecutive w collapsing")
+    func telexConsecutiveW() {
+        #expect(type("ww") == "w")
+        #expect(type("uww") == "ưw")
+        #expect(type("tww") == "tw")
+    }
 }
 
 // Regression: phím-dấu (s f r x j z) đứng sau phụ âm đầu mà CHƯA có nguyên âm
@@ -248,7 +276,7 @@ struct ReTyping {
     @Test("Gõ lại trùng biến âm -> bỏ biến âm")
     func cancelMark() {
         #expect(type("aaa") == "aa")       // mũ bị huỷ, a hiện ra
-        #expect(type("oww") == "ow")       // móc bị huỷ, w hiện ra
+        #expect(type("oww") == "ơw")       // oww -> ơw (standard Telex/Unikey)
         #expect(type("ddd") == "dd")       // đ bị huỷ, d hiện ra (đối xứng aaa)
     }
 
@@ -336,5 +364,53 @@ struct VNIBasics {
     func toneThenMark() {
         #expect(type("a16", method: .vni) == "ấ")   // sắc rồi mũ -> ấ
         #expect(type("a61", method: .vni) == "ấ")   // mũ rồi sắc -> ấ
+    }
+
+    @Test("VNI ua/uo + 7 -> ưa/ươ và qua7/quo7")
+    func vniUaUo7() {
+        #expect(type("mua7", method: .vni) == "mưa")
+        #expect(type("muo7n", method: .vni) == "mươn")
+        #expect(type("muo75n", method: .vni) == "mượn")
+        #expect(type("qua7", method: .vni) == "qua7") // không thành qưa
+        #expect(type("quo7", method: .vni) == "quơ")  // không thành quươ
+        #expect(type("thuo7", method: .vni) == "thuơ")
+        #expect(type("thuo73", method: .vni) == "thuở")
+        #expect(type("thuo7ng", method: .vni) == "thương")
+    }
+}
+
+// Kéo dài nguyên âm (vowel stretching) — đối chiếu bộ gõ tiếng Việt phổ biến.
+// Khi gõ lặp một nguyên âm để NHẤN MẠNH (vd "khôngggg", "đẹp quáaa"), chu kỳ mũ
+// chỉ áp cho CẶP đầu, sau đó các phím lặp chỉ nối thô; dấu thanh GIỮ NGUYÊN trên
+// nguyên âm gốc, không trôi sang nguyên âm bị kéo dài.
+@Suite("Kéo dài nguyên âm (elongation)")
+struct VowelElongation {
+
+    @Test("Chu kỳ mũ theo số lần gõ, không tạo lại mũ sau khi gỡ")
+    func circumflexCycle() {
+        #expect(type("aa") == "â")       // lần 2 -> mũ
+        #expect(type("aaa") == "aa")     // lần 3 -> gỡ mũ, nối thô
+        #expect(type("aaaa") == "aaa")   // lần 4 -> KHÔNG tạo lại mũ (regression)
+        #expect(type("aaaaa") == "aaaa")
+        #expect(type("eee") == "ee")
+        #expect(type("ooo") == "oo")
+        #expect(type("cooo") == "coo")
+        #expect(type("theee") == "thee")
+    }
+
+    @Test("Phím-thanh xen giữa không phá chu kỳ mũ (casa == caas)")
+    func toneKeyDoesNotBreakCycle() {
+        #expect(type("these") == "thế")  // 1 e thừa sau thé -> tạo mũ -> thế
+        #expect(type("baasm") == "bấm")  // mũ trước thanh -> giữ mũ
+        #expect(type("casa") == type("caas"))  // tone-before-shape Telex
+    }
+
+    @Test("Dấu thanh giữ trên nguyên âm gốc khi nguyên âm bị kéo dài")
+    func tonePlacementStableUnderStretch() {
+        // "oi" -> dấu lên o; kéo dài i không làm dấu trôi sang i.
+        #expect(type("choifiii") == "chòiiii")
+        #expect(type("choiiiif") == "chòiiii")
+        #expect(type("ojooo") == "ọoo")
+        #expect(type("curaaa") == "củaa")
     }
 }

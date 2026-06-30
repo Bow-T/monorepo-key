@@ -39,11 +39,19 @@ class Hotkey {
   final Set<HotkeyModifier> modifiers;
 
   static const Hotkey defaultToggle = Hotkey(
-    keyCode: 49, // Space
-    modifiers: {HotkeyModifier.control, HotkeyModifier.option},
+    keyCode: 0, // modifier-only: không có phím chính
+    modifiers: {HotkeyModifier.control, HotkeyModifier.shift},
   );
 
-  bool get isValid => keyCode != 0 && modifiers.isNotEmpty;
+  /// Phím tắt chỉ-modifier (keyCode 0): hợp lệ khi có ÍT NHẤT 2 modifier — để
+  /// không nuốt nhầm một phím modifier đơn (vd chỉ Shift). Phím tắt có phím chính:
+  /// hợp lệ khi có ít nhất 1 modifier.
+  bool get isValid => keyCode == 0
+      ? modifiers.length >= 2
+      : modifiers.isNotEmpty;
+
+  /// Phím tắt này chỉ gồm modifier (không có phím chính)?
+  bool get isModifierOnly => keyCode == 0 && modifiers.isNotEmpty;
 
   /// Chuỗi hiển thị: ký hiệu modifier (đúng thứ tự ⌃⌥⇧⌘) + tên phím chính.
   String get display {
@@ -54,6 +62,7 @@ class Hotkey {
       HotkeyModifier.command,
     ];
     final mods = order.where(modifiers.contains).map((m) => m.symbol).join();
+    if (keyCode == 0) return mods; // chỉ modifier (vd "⌃⇧")
     final key = _keyName(keyCode);
     if (mods.isEmpty) return key;
     return '$mods $key';
@@ -101,6 +110,13 @@ class Hotkey {
     if (pressed.contains(LogicalKeyboardKey.metaLeft) ||
         pressed.contains(LogicalKeyboardKey.metaRight)) {
       mods.add(HotkeyModifier.command);
+    }
+
+    // Modifier-only: nếu phím vừa nhấn CHÍNH LÀ một modifier (Ctrl/Shift/...) thì
+    // không có "phím chính" — dựng phím tắt chỉ-modifier (keyCode 0). Cần ít nhất
+    // 2 modifier để hợp lệ (vd Ctrl+Shift).
+    if (isModifierKey(event.logicalKey)) {
+      return Hotkey(keyCode: 0, modifiers: mods);
     }
 
     final code = _macKeyCode(event.logicalKey);

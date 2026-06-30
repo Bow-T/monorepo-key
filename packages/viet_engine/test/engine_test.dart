@@ -208,6 +208,30 @@ void main() {
       expect(type('huowng'), 'hương');
       expect(type('huow'), 'hươ'); // gõ dở, chưa âm đóng -> giữ nguyên
     });
+
+    test('Telex ua + w -> ưa và quaw -> quă', () {
+      expect(type('muaw'), 'mưa');
+      expect(type('chuaw'), 'chưa');
+      expect(type('luawj'), 'lựa');
+      expect(type('dduaw'), 'đưa');
+      expect(type('quaw'), 'quă'); // không thành qưa
+    });
+
+    test('Telex quow -> quơ', () {
+      expect(type('quow'), 'quơ'); // không thành quươ
+    });
+
+    test('Telex thuo + w -> thuơ và thuowng -> thương', () {
+      expect(type('thuow'), 'thuơ');
+      expect(type('thuowr'), 'thuở');
+      expect(type('thuowng'), 'thương');
+    });
+
+    test('Telex consecutive w collapsing', () {
+      expect(type('ww'), 'w');
+      expect(type('uww'), 'ưw');
+      expect(type('tww'), 'tw');
+    });
   });
 
   group('Gõ lại để bỏ/đổi dấu', () {
@@ -224,7 +248,7 @@ void main() {
 
     test('Gõ lại trùng biến âm -> bỏ biến âm', () {
       expect(type('aaa'), 'aa'); // mũ bị huỷ, a hiện ra
-      expect(type('oww'), 'ow'); // móc bị huỷ, w hiện ra
+      expect(type('oww'), 'ơw'); // oww -> ơw (standard Telex/Unikey)
       expect(type('ddd'), 'dd'); // đ bị huỷ, d hiện ra (đối xứng aaa)
     });
 
@@ -288,6 +312,44 @@ void main() {
     test('Kết hợp số-thanh + số-biến-âm vẫn đúng', () {
       expect(type('a16', method: InputMethod.vni), 'ấ'); // sắc rồi mũ -> ấ
       expect(type('a61', method: InputMethod.vni), 'ấ'); // mũ rồi sắc -> ấ
+    });
+
+    test('VNI ua/uo + 7 -> ưa/ươ và qua7/quo7', () {
+      expect(type('mua7', method: InputMethod.vni), 'mưa');
+      expect(type('muo7n', method: InputMethod.vni), 'mươn');
+      expect(type('muo75n', method: InputMethod.vni), 'mượn');
+      expect(type('qua7', method: InputMethod.vni), 'qua7'); // không thành qưa
+      expect(type('quo7', method: InputMethod.vni), 'quơ');  // không thành quươ
+      expect(type('thuo7', method: InputMethod.vni), 'thuơ');
+      expect(type('thuo73', method: InputMethod.vni), 'thuở');
+      expect(type('thuo7ng', method: InputMethod.vni), 'thương');
+    });
+  });
+
+  // Kéo dài nguyên âm (vowel stretching) — đối chiếu bộ gõ tiếng Việt phổ biến.
+  group('Kéo dài nguyên âm (elongation)', () {
+    test('Chu kỳ mũ theo số lần gõ, không tạo lại mũ sau khi gỡ', () {
+      expect(type('aa'), 'â');
+      expect(type('aaa'), 'aa');
+      expect(type('aaaa'), 'aaa'); // regression: không tạo lại mũ
+      expect(type('aaaaa'), 'aaaa');
+      expect(type('eee'), 'ee');
+      expect(type('ooo'), 'oo');
+      expect(type('cooo'), 'coo');
+      expect(type('theee'), 'thee');
+    });
+
+    test('Phím-thanh xen giữa không phá chu kỳ mũ', () {
+      expect(type('these'), 'thế');
+      expect(type('baasm'), 'bấm');
+      expect(type('casa'), type('caas'));
+    });
+
+    test('Dấu thanh giữ trên nguyên âm gốc khi nguyên âm bị kéo dài', () {
+      expect(type('choifiii'), 'chòiiii');
+      expect(type('choiiiif'), 'chòiiii');
+      expect(type('ojooo'), 'ọoo');
+      expect(type('curaaa'), 'củaa');
     });
   });
 }

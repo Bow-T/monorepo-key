@@ -44,4 +44,15 @@ enum KeyCodeMap {
     static func isWordBreak(_ keyCode: Int64) -> Bool {
         keyCode == space || keyCode == `return` || keyCode == tab || keyCode == escape
     }
+
+    /// Ký tự tương ứng phím ngắt từ (để tự gõ lại sau khi bung macro).
+    /// space -> " ", return -> "\n", tab -> "\t". esc không có ký tự -> " ".
+    static func wordBreakCharacter(for keyCode: Int64) -> Character {
+        switch keyCode {
+        case space:    return " "
+        case `return`: return "\n"
+        case tab:      return "\t"
+        default:       return " "
+        }
+    }
 }

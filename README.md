@@ -60,7 +60,7 @@ fvm dart test packages/viet_engine   # 25 ca test chuẩn
 
 ```bash
 cd apps/macos_ime
-swift test                       # 25 test engine Swift (khớp bản Dart)
+swift test                       # 84 test engine Swift (khớp bản Dart)
 bash scripts/build-app.sh        # build + ký -> build/BowKey.app
 open build/BowKey.app
 ```
@@ -86,15 +86,21 @@ thay đổi **auto-save** ra file JSON dùng chung; bộ gõ Swift đọc & áp 
 
 `packages/viet_engine` là nguồn chân lý cho logic gõ. Mỗi bộ gõ native (Swift/C++/Kotlin)
 **phải vượt qua cùng một bộ ca test** (vd `tieengs → tiếng`, `hoaf → hoà`, `quys → quý`)
-để đảm bảo gõ giống hệt nhau trên mọi nền tảng. Hiện engine Dart và engine Swift (macOS)
-đều xanh 25/25 trên cùng bộ ca này.
+để đảm bảo gõ giống hệt nhau trên mọi nền tảng. Hiện engine Dart (74 test), engine
+Swift macOS (84 test) và engine C++ Windows (114 test) đều xanh trên cùng bộ ca này.
 
 Tính năng engine đã có:
 - Telex + VNI: dấu thanh, mũ, móc, trăng, đ
 - Đặt dấu chuẩn chính tả: modern (hoà, quý) + old (hòa, qúy)
 - Cụm "ươ" (nướng, được)
 - Gõ lại để bỏ/đổi dấu (hoaff→hoaf, hoafs→hoá)
+- Kéo dài nguyên âm đúng chu kỳ mũ (aaaa→aaa, chòiiii)
 - Backspace bằng cách dựng lại (replay) từ buffer phím thô
+- **Gõ tắt / Macro**: `vn`→Việt Nam; nội dung tĩnh + động (ngày/giờ/đếm/ngẫu nhiên)
+- **Công cụ chuyển mã**: bỏ dấu, hoa/thường (4 kiểu), NFC↔NFD, TCVN3/VNI-Windows
+- **Tự khôi phục tiếng Anh** (heuristic, không từ điển): từ biến dạng & không hợp
+  lệ tiếng Việt → trả phím thô (vd "terminäl"→"terminal")
+- **Kiểm tra chính tả** tiếng Việt theo luật âm tiết (gạch chân từ sai)
 
 ---
 
@@ -102,9 +108,9 @@ Tính năng engine đã có:
 
 | Phần | Công nghệ | Trạng thái |
 |---|---|---|
-| Engine gõ | Dart (`viet_engine`) | ✅ 25 test xanh |
-| macOS IME | Swift + CGEvent tap | ✅ Chạy được |
-| Windows IME | C++ + TSF | 🟨 Engine C++ xong (81 test xanh); TSF text service mới ở skeleton |
+| Engine gõ | Dart (`viet_engine`) | ✅ 74 test xanh (gõ + macro + chuyển mã + chính tả) |
+| macOS IME | Swift + CGEvent tap | ✅ Chạy được (84 test engine) |
+| Windows IME | C++ + TSF | 🟨 Engine C++ xong (114 test xanh); TSF text service mới ở skeleton |
 | Android IME | Kotlin + InputMethodService | ⬜ Chưa làm |
 | iOS keyboard | Swift + Keyboard Extension | ⬜ Chưa làm |
 | UI cài đặt | Flutter (`settings_ui`) | ✅ Chạy được (macOS), pixel UI |
@@ -123,9 +129,23 @@ file JSON làm "hợp đồng":
   "enabled": true, "method": "telex", "toneStyle": "modern",
   "hotkeyKeyCode": 49, "hotkeyModifiers": ["control","option"],
   "toggleHotkey": "⌃⌥ Space",
-  "smartSwitch": false, "perApp": { "com.apple.Terminal": false }
+  "smartSwitch": false, "perApp": { "com.apple.Terminal": false },
+
+  "autoRestoreEnglish": false,
+  "macroEnabled": true,
+  "macros": [
+    { "keyword": "vn", "content": "Việt Nam" },
+    { "keyword": "email", "content": "ban@example.com" },
+    { "keyword": "td", "content": "dd/MM/yyyy", "type": "date" }
+  ]
 }
 ```
+
+- **`macros`** — gõ tắt: gõ `keyword` (phím thô ASCII) + space/return/tab → thay bằng
+  `content`. `type`: `staticText` (mặc định) · `date` · `time` · `dateTime` · `random`
+  (content = "a, b, c") · `counter` (content = tiền tố). Tắt toàn bộ bằng `macroEnabled:false`.
+- **`autoRestoreEnglish`** — bật để từ bị biến dạng & không hợp lệ tiếng Việt tự trả về
+  phím thô khi chốt từ (heuristic theo luật âm tiết, không cần từ điển).
 
 - **Flutter GHI** (auto-save mỗi khi đổi cài đặt) — `settings_ui/lib/src/models/settings.dart`.
 - **Swift ĐỌC + watch file** (`DispatchSource`) → áp ngay không cần restart — `macos_ime/App/SettingsStore.swift`.

@@ -20,17 +20,28 @@ struct BowConfig: Equatable {
     var toneStyle: VietEngine.ToneStyle = .modern
 
     /// Phím tắt bật/tắt — dạng máy đọc được để event tap so khớp.
-    ///   - hotkeyKeyCode: mã phím vật lý macOS (vd Space = 49).
+    ///   - hotkeyKeyCode: mã phím vật lý macOS (vd Space = 49). 0 = chỉ-modifier.
     ///   - hotkeyModifiers: tập modifier yêu cầu ("control","option","shift","command").
-    /// Mặc định ⌃⌥ Space (giữ tương thích bản trước).
-    var hotkeyKeyCode: Int64 = 49
-    var hotkeyModifiers: Set<String> = ["control", "option"]
+    /// Mặc định ⌃⇧ (Control+Shift, chỉ-modifier — giống Unikey).
+    var hotkeyKeyCode: Int64 = 0
+    var hotkeyModifiers: Set<String> = ["control", "shift"]
 
     /// Smart Switch: tự nhớ bật/tắt theo từng app (bundle id).
     var smartSwitch: Bool = false
 
     /// Trạng thái đã nhớ cho từng app: bundleId -> enabled. Chỉ dùng khi smartSwitch.
     var perApp: [String: Bool] = [:]
+
+    /// Bật/tắt gõ tắt (macro). Mặc định bật.
+    var macroEnabled: Bool = true
+
+    /// Tự khôi phục tiếng Anh: từ biến dạng & không hợp lệ tiếng Việt -> trả phím
+    /// thô khi chốt từ. Mặc định tắt (heuristic, không từ điển).
+    var autoRestoreEnglish: Bool = false
+
+    /// Định nghĩa macro: từ khoá thô -> nội dung. Loại tĩnh.
+    /// JSON: "macros": [ {"keyword":"vn","content":"Việt Nam"}, ... ]
+    var macros: [MacroDefinition] = []
 
     static func decode(_ data: Data) -> BowConfig? {
         guard
@@ -47,7 +58,28 @@ struct BowConfig: Equatable {
         }
         if let s = obj["smartSwitch"] as? Bool { cfg.smartSwitch = s }
         if let p = obj["perApp"] as? [String: Bool] { cfg.perApp = p }
+        if let me = obj["macroEnabled"] as? Bool { cfg.macroEnabled = me }
+        if let ar = obj["autoRestoreEnglish"] as? Bool { cfg.autoRestoreEnglish = ar }
+        if let arr = obj["macros"] as? [[String: Any]] {
+            cfg.macros = arr.compactMap { item in
+                guard let kw = item["keyword"] as? String, !kw.isEmpty,
+                      let content = item["content"] as? String else { return nil }
+                let type = parseMacroType(item["type"] as? String)
+                return MacroDefinition(keyword: kw, content: content, type: type)
+            }
+        }
         return cfg
+    }
+
+    private static func parseMacroType(_ s: String?) -> MacroSnippetType {
+        switch s {
+        case "date":     return .date
+        case "time":     return .time
+        case "dateTime": return .dateTime
+        case "random":   return .random
+        case "counter":  return .counter
+        default:         return .staticText
+        }
     }
 }
 

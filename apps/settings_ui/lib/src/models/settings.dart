@@ -40,6 +40,30 @@ enum ToneStyle {
   String get example => this == modern ? 'hoà · quý' : 'hòa · qúy';
 }
 
+/// Một định nghĩa gõ tắt (macro): từ khoá thô -> nội dung. Khớp `MacroDefinition`
+/// của engine Swift (xem Macro.swift) và khoá JSON "macros".
+class MacroEntry {
+  const MacroEntry({required this.keyword, required this.content, this.type = 'staticText'});
+
+  final String keyword; // phím thô ASCII, vd "vn"
+  final String content; // nội dung thay thế / format
+  final String type;    // staticText | date | time | dateTime | random | counter
+
+  MacroEntry copyWith({String? keyword, String? content, String? type}) => MacroEntry(
+        keyword: keyword ?? this.keyword,
+        content: content ?? this.content,
+        type: type ?? this.type,
+      );
+
+  Map<String, dynamic> toJson() => {'keyword': keyword, 'content': content, 'type': type};
+
+  factory MacroEntry.fromJson(Map<String, dynamic> j) => MacroEntry(
+        keyword: (j['keyword'] as String?) ?? '',
+        content: (j['content'] as String?) ?? '',
+        type: (j['type'] as String?) ?? 'staticText',
+      );
+}
+
 /// Toàn bộ cấu hình bộ gõ, gói trong một object để serialize 1 lần.
 class BowSettings {
   const BowSettings({
@@ -49,6 +73,9 @@ class BowSettings {
     this.hotkey = Hotkey.defaultToggle,
     this.smartSwitch = false,
     this.perApp = const {},
+    this.autoRestoreEnglish = false,
+    this.macroEnabled = true,
+    this.macros = const [],
   });
 
   /// Bộ gõ có đang bật không (toggle toàn cục).
@@ -70,6 +97,15 @@ class BowSettings {
   /// trực tiếp nhưng PHẢI giữ nguyên khi ghi lại file, nếu không sẽ xoá mất bộ nhớ.
   final Map<String, bool> perApp;
 
+  /// Tự khôi phục tiếng Anh (heuristic). Khớp khoá "autoRestoreEnglish".
+  final bool autoRestoreEnglish;
+
+  /// Bật/tắt gõ tắt (macro). Khớp khoá "macroEnabled".
+  final bool macroEnabled;
+
+  /// Danh sách macro. Khớp khoá "macros".
+  final List<MacroEntry> macros;
+
   BowSettings copyWith({
     bool? enabled,
     InputMethod? method,
@@ -77,6 +113,9 @@ class BowSettings {
     Hotkey? hotkey,
     bool? smartSwitch,
     Map<String, bool>? perApp,
+    bool? autoRestoreEnglish,
+    bool? macroEnabled,
+    List<MacroEntry>? macros,
   }) {
     return BowSettings(
       enabled: enabled ?? this.enabled,
@@ -85,6 +124,9 @@ class BowSettings {
       hotkey: hotkey ?? this.hotkey,
       smartSwitch: smartSwitch ?? this.smartSwitch,
       perApp: perApp ?? this.perApp,
+      autoRestoreEnglish: autoRestoreEnglish ?? this.autoRestoreEnglish,
+      macroEnabled: macroEnabled ?? this.macroEnabled,
+      macros: macros ?? this.macros,
     );
   }
 
@@ -96,6 +138,9 @@ class BowSettings {
         ...hotkey.toJson(),
         'smartSwitch': smartSwitch,
         'perApp': perApp,
+        'autoRestoreEnglish': autoRestoreEnglish,
+        'macroEnabled': macroEnabled,
+        'macros': macros.map((m) => m.toJson()).toList(),
       };
 
   factory BowSettings.fromJson(Map<String, dynamic> j) => BowSettings(
@@ -108,5 +153,12 @@ class BowSettings {
               (k, v) => MapEntry(k.toString(), v == true),
             ) ??
             const {},
+        autoRestoreEnglish: j['autoRestoreEnglish'] as bool? ?? false,
+        macroEnabled: j['macroEnabled'] as bool? ?? true,
+        macros: (j['macros'] as List?)
+                ?.whereType<Map>()
+                .map((m) => MacroEntry.fromJson(m.cast<String, dynamic>()))
+                .toList() ??
+            const [],
       );
 }
