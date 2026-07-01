@@ -428,6 +428,17 @@ class _SettingsPageState extends State<SettingsPage> {
         _tabSectionTitle('TÍNH NĂNG THÔNG MINH'),
         const SizedBox(height: AppSpacing.sm),
         SettingRow(
+          title: 'KHỞI ĐỘNG CÙNG HỆ THỐNG',
+          subtitle: s.launchAtLogin
+              ? 'Bộ gõ tự chạy khi đăng nhập máy'
+              : 'Bật để bộ gõ tự chạy khi mở máy',
+          control: PixelSwitch(
+            value: s.launchAtLogin,
+            onChanged: (v) => _save(s.copyWith(launchAtLogin: v)),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        SettingRow(
           title: 'SMART SWITCH',
           subtitle: s.smartSwitch
               ? 'Tự nhớ bật/tắt cho mỗi app (${s.perApp.length} app)'

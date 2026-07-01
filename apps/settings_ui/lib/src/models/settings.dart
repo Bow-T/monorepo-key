@@ -90,6 +90,7 @@ class BowSettings {
     this.method = InputMethod.telex,
     this.toneStyle = ToneStyle.modern,
     this.hotkey = Hotkey.defaultToggle,
+    this.launchAtLogin = true,
     this.smartSwitch = false,
     this.perApp = const {},
     this.autoRestoreEnglish = false,
@@ -113,6 +114,9 @@ class BowSettings {
 
   /// Phím tắt bật/tắt nhanh (tuỳ biến, máy đọc được).
   final Hotkey hotkey;
+
+  /// Khởi động cùng hệ thống (login item). Khớp khoá "launchAtLogin".
+  final bool launchAtLogin;
 
   /// Smart Switch: tự nhớ bật/tắt theo từng app.
   final bool smartSwitch;
@@ -151,6 +155,7 @@ class BowSettings {
     InputMethod? method,
     ToneStyle? toneStyle,
     Hotkey? hotkey,
+    bool? launchAtLogin,
     bool? smartSwitch,
     Map<String, bool>? perApp,
     bool? autoRestoreEnglish,
@@ -167,6 +172,7 @@ class BowSettings {
       method: method ?? this.method,
       toneStyle: toneStyle ?? this.toneStyle,
       hotkey: hotkey ?? this.hotkey,
+      launchAtLogin: launchAtLogin ?? this.launchAtLogin,
       smartSwitch: smartSwitch ?? this.smartSwitch,
       perApp: perApp ?? this.perApp,
       autoRestoreEnglish: autoRestoreEnglish ?? this.autoRestoreEnglish,
@@ -186,6 +192,7 @@ class BowSettings {
         'toneStyle': toneStyle.json,
         // Hotkey tự ghi 3 khoá: hotkeyKeyCode, hotkeyModifiers, toggleHotkey.
         ...hotkey.toJson(),
+        'launchAtLogin': launchAtLogin,
         'smartSwitch': smartSwitch,
         'perApp': perApp,
         'autoRestoreEnglish': autoRestoreEnglish,
@@ -203,6 +210,7 @@ class BowSettings {
         method: InputMethod.fromJson(j['method'] as String?),
         toneStyle: ToneStyle.fromJson(j['toneStyle'] as String?),
         hotkey: Hotkey.fromJson(j),
+        launchAtLogin: j['launchAtLogin'] as bool? ?? true,
         smartSwitch: j['smartSwitch'] as bool? ?? false,
         perApp: (j['perApp'] as Map?)?.map(
               (k, v) => MapEntry(k.toString(), v == true),
