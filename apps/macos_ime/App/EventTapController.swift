@@ -26,6 +26,7 @@
 import AppKit
 import CoreGraphics
 import Foundation
+import ApplicationServices
 import VietEngine
 
 final class EventTapController {
@@ -83,6 +84,189 @@ final class EventTapController {
 
     /// Bật tự khôi phục tiếng Anh (đồng bộ từ config).
     private var autoRestoreEnglish = false
+
+    // MARK: - Sửa lỗi gõ đôi trên ô autocomplete (trình duyệt Chromium / Spotlight)
+
+    /// Bật mẹo "phá highlight autocomplete" (gửi ký tự rỗng trước khi Backspace).
+    /// Mặc định bật — áp cho MỌI app trừ `browserFixExcludedApps`.
+    private var fixBrowserDoubleType = true
+
+    /// Bundle id các app KHÔNG áp mẹo (người dùng cấu hình nếu app hiếm chèn nhầm).
+    private var browserFixExcludedApps: Set<String> = []
+
+    // Cache cho check address bar để tránh AX tree query liên tục tốn CPU
+    private var cachedAddressBarResult = false
+    private var lastAddressBarCheckTime: CFTimeInterval = 0
+    private let addressBarCacheTTL: CFTimeInterval = 0.5
+    private var eventCounter: UInt = 0
+
+    /// Hộp chứa bundle id app đang focus — CACHE, cập nhật qua NSWorkspace
+    /// notification trên main (KHÔNG query trong callback tap vì tốn kém, chạy mỗi
+    /// phím). Đọc từ callback (ngoài main) chỉ là đọc một String Optional -> chấp nhận
+    /// được, cùng lắm trễ một lần đổi app (không ảnh hưởng đúng/sai gõ, chỉ ảnh hưởng
+    /// có-phá-highlight-hay-không). Dùng CLASS BOX `@unchecked Sendable` để observer
+    /// `@Sendable` capture được box (Sendable) thay vì `self` (non-Sendable).
+    private final class FrontAppBox: @unchecked Sendable {
+        var bundleID: String?
+    }
+    private let frontAppBox = FrontAppBox()
+    private var frontAppBundleID: String? { frontAppBox.bundleID }
+
+    /// Observer theo dõi app focus để cập nhật `frontAppBundleID`.
+    private var frontAppObserver: NSObjectProtocol?
+
+    /// CACHE "Spotlight có đang hiện không" — `CGWindowListCopyWindowInfo` liệt kê mọi
+    /// cửa sổ nên KHÔNG gọi mỗi phím. Kiểm lại sau mỗi `spotlightTTL`. Spotlight không
+    /// đổi `frontmostApplication` (nó là overlay) nên phải dò qua danh sách cửa sổ.
+    private var spotlightVisible = false
+    private var spotlightCheckedAt: CFTimeInterval = 0
+    private let spotlightTTL: CFTimeInterval = 0.5
+
+    private func isSpotlightVisible() -> Bool {
+        let now = CACurrentMediaTime()
+        if now - spotlightCheckedAt >= spotlightTTL {
+            spotlightVisible = Self.querySpotlightVisible()
+            spotlightCheckedAt = now
+        }
+        return spotlightVisible
+    }
+
+    /// Dò danh sách cửa sổ trên màn tìm cửa sổ do "Spotlight" sở hữu.
+    private static func querySpotlightVisible() -> Bool {
+        let opts: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let windows = CGWindowListCopyWindowInfo(opts, kCGNullWindowID) as? [[String: Any]]
+        else { return false }
+        for w in windows {
+            if let owner = w[kCGWindowOwnerName as String] as? String, owner == "Spotlight" {
+                return true
+            }
+        }
+        return false
+    }
+
+    private func isBrowserApp(_ bundleID: String) -> Bool {
+        let browsers: Set<String> = [
+            "com.apple.Safari",
+            "com.apple.SafariTechnologyPreview",
+            "com.apple.Safari.WebApp",
+            "com.google.Chrome",
+            "com.brave.Browser",
+            "com.microsoft.edgemac",
+            "com.microsoft.edgemac.Dev",
+            "com.microsoft.edgemac.Beta",
+            "com.microsoft.Edge",
+            "com.microsoft.Edge.Dev",
+            "org.chromium.Chromium",
+            "com.vivaldi.Vivaldi",
+            "com.operasoftware.Opera",
+            "com.operasoftware.OperaGX",
+            "com.coccoc.browser",
+            "com.duckduckgo.macos.browser",
+            "org.mozilla.firefox",
+            "org.mozilla.firefoxdeveloperedition",
+            "org.mozilla.nightly",
+            "company.thebrowser.Browser",
+            "com.kagi.orion",
+            "com.kagi.orion.RC"
+        ]
+        if browsers.contains(bundleID) { return true }
+        if bundleID.hasPrefix("com.google.Chrome.app.") || bundleID.hasPrefix("com.brave.Browser.app.") {
+            return true
+        }
+        return false
+    }
+
+    private func isFocusedElementAddressBar() -> Bool {
+        let now = CACurrentMediaTime()
+        if now - lastAddressBarCheckTime < addressBarCacheTTL {
+            return cachedAddressBarResult
+        }
+
+        var isAddressBar = false
+        defer {
+            cachedAddressBarResult = isAddressBar
+            lastAddressBarCheckTime = now
+        }
+
+        let systemWide = AXUIElementCreateSystemWide()
+        var focusedRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedRef) == .success,
+              let focused = focusedRef else {
+            return false
+        }
+        let element = focused as! AXUIElement
+
+        var roleRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef) == .success,
+              let role = roleRef as? String else {
+            return false
+        }
+
+        // Dò ngược lên tối đa 12 cấp để tìm AXWebArea (vùng trang web)
+        var current: AXUIElement? = element
+        var foundWebArea = false
+        for _ in 0..<12 {
+            guard let curr = current else { break }
+            var parentRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(curr, kAXParentAttribute as CFString, &parentRef) == .success,
+               let parent = parentRef {
+                let parentElement = parent as! AXUIElement
+                var pRoleRef: CFTypeRef?
+                if AXUIElementCopyAttributeValue(parentElement, kAXRoleAttribute as CFString, &pRoleRef) == .success,
+                   let pRole = pRoleRef as? String,
+                   pRole == "AXWebArea" {
+                    foundWebArea = true
+                    break
+                }
+                current = parentElement
+            } else {
+                break
+            }
+        }
+
+        if foundWebArea {
+            isAddressBar = false
+        } else {
+            isAddressBar = (role == "AXComboBox" || role == "AXTextField" || role == "AXSearchField")
+        }
+
+        return isAddressBar
+    }
+
+    private func checkAndRecover() {
+        eventCounter &+= 1
+        if eventCounter % 25 == 0 {
+            ensureAlive()
+        }
+    }
+
+    /// Chọn CÁCH XOÁ ký tự cũ khi gõ thay, theo ô nhập liệu đang focus:
+    ///   • Spotlight đang hiện -> bôi đen bằng Shift+Mũi-tên-trái (ký tự rỗng không
+    ///     phá được highlight Spotlight, dễ để lại vệt).
+    ///   • App khác + bật fix + không bị loại trừ -> phá highlight bằng ký tự rỗng
+    ///     (chống gõ đôi "ddo" ở address/search bar Chromium).
+    ///   • Còn lại -> Backspace thường.
+    /// Mẹo này vô hại ở ô THƯỜNG vì chỉ kích hoạt khi CÓ ký tự cần xoá (backspaces>0).
+    private func eraseStrategy() -> KeyOutput.EraseStrategy {
+        guard fixBrowserDoubleType else { return .backspace }
+        if isSpotlightVisible() { return .selectionReplacement }
+        if let app = frontAppBundleID {
+            if app == "com.raycast.macos" || app == "com.runningwithcrayons.Alfred" {
+                return .selectionReplacement
+            }
+            if browserFixExcludedApps.contains(app) { return .backspace }
+            if isBrowserApp(app) {
+                // Chỉ áp dụng mẹo phá highlight cho Address Bar.
+                // Ở vùng nội dung trang web (AXWebArea), dùng Backspace thường để tránh lỗi mất chữ/kẹt ký tự.
+                if isFocusedElementAddressBar() {
+                    return .breakAutocompleteHighlight
+                } else {
+                    return .backspace
+                }
+            }
+        }
+        return .backspace
+    }
 
     /// CACHE quyền Accessibility — để guard "mất quyền giữa chừng" mà KHÔNG gọi
     /// AXIsProcessTrusted() mỗi phím (tốn CPU). Kiểm tra lại sau mỗi `accessTTL`.
@@ -147,7 +331,25 @@ final class EventTapController {
         NSLog("[Tap] Đã bật event tap.")
 
         startFlagsMonitor()
+        startFrontAppTracking()
         return true
+    }
+
+    /// Theo dõi app đang focus để cache `frontAppBundleID` (dùng quyết định có phá
+    /// highlight autocomplete hay không). Cập nhật trên main qua NSWorkspace — KHÔNG
+    /// query trong callback tap.
+    private func startFrontAppTracking() {
+        guard frontAppObserver == nil else { return }
+        frontAppBox.bundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        let box = frontAppBox   // capture box (Sendable), KHÔNG capture self.
+        frontAppObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { note in
+            let app = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)
+            box.bundleID = app?.bundleIdentifier
+        }
     }
 
     /// NSEvent global monitor cho .flagsChanged — xử lý phím tắt chỉ-modifier
@@ -205,6 +407,10 @@ final class EventTapController {
             NSEvent.removeMonitor(m)
             flagsMonitor = nil
         }
+        if let o = frontAppObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(o)
+            frontAppObserver = nil
+        }
         bothDown = false
         cancelShortcut = false
     }
@@ -255,6 +461,8 @@ final class EventTapController {
         macroEnabled = config.macroEnabled
         rebuildMacroStore()
         autoRestoreEnglish = config.autoRestoreEnglish
+        fixBrowserDoubleType = config.fixBrowserDoubleType
+        browserFixExcludedApps = config.browserFixExcludedApps
         clipboardHistoryEnabled = config.clipboardHistoryEnabled
         clipboardHistoryHotkeyKeyCode = config.clipboardHistoryHotkeyKeyCode
         clipboardHistoryHotkeyModifiers = config.clipboardHistoryHotkeyModifiers
@@ -340,6 +548,10 @@ final class EventTapController {
     // MARK: - Xử lý sự kiện
 
     private func handle(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        if type == .keyDown {
+            checkAndRecover()
+        }
+
         // PHỤC HỒI: macOS tự tắt tap -> bật lại ngay.
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
@@ -410,17 +622,28 @@ final class EventTapController {
 
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
 
-        // Backspace: lùi trong engine, đồng bộ committedLength.
+        // Backspace: lùi trong engine, ĐỒNG BỘ màn hình = engine.
         if keyCode == KeyCodeMap.delete {
-            if !wordRawKeys.isEmpty { wordRawKeys.removeLast() }
             if let rebuilt = engine.backspace() {
-                // Engine đã dựng lại âm tiết. Cho phím Backspace gốc đi qua (xoá 1 ký
-                // tự trên màn), rồi để committedLength khớp độ dài mới.
+                // Engine đã dựng lại âm tiết (lùi tới khi hiển thị bớt 1 ký tự).
+                // KHÔNG để phím Backspace gốc đi qua rồi giả định nó xoá đúng 1 ký tự:
+                // engine có thể vừa nhảy nhiều hơn 1 ký tự hiển thị (ư=u+w, â=a+a...),
+                // nên ta NUỐT phím gốc và TỰ đồng bộ — xoá `committedLength` ký tự cũ,
+                // gõ lại `rebuilt`. Nhờ vậy màn hình luôn khớp engine -> hết nuốt chữ
+                // khi gõ sai, xoá đi rồi gõ lại. `wordRawKeys` không còn khớp phần đã
+                // xoá nên bỏ luôn (macro/khôi-phục-tiếng-Anh tính lại từ phím kế tiếp).
+                let backspaces = committedLength
                 committedLength = rebuilt.count
-                return Unmanaged.passUnretained(event)
+                currentDisplay = rebuilt
+                wordRawKeys.removeAll()
+                KeyOutput.replace(backspaces: backspaces, with: rebuilt, proxy: proxy,
+                                  erase: eraseStrategy())
+                return nil  // nuốt phím Backspace gốc (ta đã tự đồng bộ màn hình)
             }
-            // Engine rỗng -> Backspace bình thường.
+            // Engine rỗng -> Backspace bình thường (để phím gốc xoá 1 ký tự).
             committedLength = 0
+            currentDisplay = ""
+            wordRawKeys.removeAll()
             return Unmanaged.passUnretained(event)
         }
 
@@ -438,7 +661,8 @@ final class EventTapController {
                 wordRawKeys.removeAll()
                 // Xoá từ khoá, gõ nội dung macro, rồi gõ chính phím ngắt từ.
                 KeyOutput.replace(backspaces: backspaces,
-                                  with: content + String(breakChar), proxy: proxy)
+                                  with: content + String(breakChar), proxy: proxy,
+                                  erase: eraseStrategy())
                 return nil  // nuốt phím ngắt gốc (ta đã tự gõ nó)
             }
 
@@ -450,7 +674,8 @@ final class EventTapController {
                 let backspaces = committedLength
                 let breakChar = KeyCodeMap.wordBreakCharacter(for: keyCode)
                 resetSyllable()
-                KeyOutput.replace(backspaces: backspaces, with: raw + String(breakChar), proxy: proxy)
+                KeyOutput.replace(backspaces: backspaces, with: raw + String(breakChar), proxy: proxy,
+                                  erase: eraseStrategy())
                 return nil  // nuốt phím ngắt gốc (ta đã tự gõ nó kèm từ khôi phục)
             }
 
@@ -490,29 +715,26 @@ final class EventTapController {
             return Unmanaged.passUnretained(event)
         }
 
-        // PHÍM KHÔNG BIẾN ĐỔI -> ĐỂ ĐI QUA TỰ NHIÊN (không nuốt-rồi-gõ-lại).
+        // LUÔN NUỐT PHÍM GỐC RỒI GÕ THAY (đồng bộ qua proxy) — KỂ CẢ khi engine chỉ
+        // nối thêm đúng ký tự gốc.
         //
-        // Nếu engine chỉ NỐI THÊM đúng ký tự gốc vào cuối (không đặt dấu/mũ/móc/đ),
-        // thì việc nuốt phím rồi tự gõ lại CHÍNH ký tự đó là dư thừa. Để phím thường
-        // đi qua thẳng (ít sự kiện tổng hợp hơn, hành vi tự nhiên nhất); ta chỉ can
-        // thiệp khi engine THỰC SỰ biến đổi chuỗi đã hiển thị.
-        if rendered == currentDisplay + String(ch) {
-            committedLength = rendered.count
-            currentDisplay = rendered
-            return Unmanaged.passUnretained(event)
-        }
-
-        // Engine ĐÃ biến đổi chuỗi. Ta NUỐT phím gốc và gõ thay ĐỒNG BỘ qua proxy:
-        //   - xoá committedLength ký tự cũ đã hiện
-        //   - gõ chuỗi rendered mới
-        // Post đồng bộ (tapPostEvent) ngay trong callback giữ ĐÚNG THỨ TỰ so với phím
-        // người dùng, tránh race với ô có autocomplete (thanh địa chỉ trình duyệt,
-        // Spotlight) từng gây nhân đôi ký tự khi còn dùng DispatchQueue.main.async.
+        // VÌ SAO KHÔNG "cho phím đi qua tự nhiên khi không biến đổi"? Đó là một tối ưu
+        // TỪNG có ở 1.0.1 và GÂY MẤT CHỮ: nếu ký tự trước (vd "a") đi qua TỰ NHIÊN,
+        // thì phím kế ("s" -> "á") lại cần backspace CHÍNH ký tự tự nhiên đó bằng sự
+        // kiện TỔNG HỢP. Ở nhiều app, ký tự tự nhiên chưa được commit vào buffer kịp
+        // lúc backspace tổng hợp tới -> backspace xoá nhầm/không xoá, "á" chèn sai ->
+        // cả cụm "as" biến mất ("em chịu á" -> "em chịu "). Trộn hai nguồn sự kiện
+        // (tự nhiên + tổng hợp) trong cùng một từ phá vỡ bất biến "mọi ký tự đã hiện
+        // đều do ta post, đúng thứ tự". Luôn gõ thay giữ bất biến đó -> hết mất chữ.
+        //
+        // (Việc chống GÕ ĐÔI ở URL bar/Spotlight đã do POST ĐỒNG BỘ QUA PROXY xử lý —
+        // xem KeyOutput.replace — chứ KHÔNG phải nhờ nhánh "đi qua tự nhiên".)
         let backspaces = committedLength
         committedLength = rendered.count
         currentDisplay = rendered
 
-        KeyOutput.replace(backspaces: backspaces, with: rendered, proxy: proxy)
+        KeyOutput.replace(backspaces: backspaces, with: rendered, proxy: proxy,
+                          erase: eraseStrategy())
         // Trả nil = "nuốt" phím gốc, không cho hệ thống nhận ký tự thô.
         return nil
     }
