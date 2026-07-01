@@ -15,13 +15,14 @@ import '../models/settings.dart';
 import '../services/permission_status_service.dart';
 import '../services/preview_engine.dart';
 import '../services/settings_service.dart';
+import '../services/update_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/hotkey_recorder.dart';
 import '../widgets/pixel.dart';
 import '../widgets/pixel_controls.dart';
 
 /// Các tab chức năng trong menu cài đặt.
-enum SettingsTab { general, shortcuts, clipboard, macros, autocorrect, convert, troubleshoot, about }
+enum SettingsTab { general, shortcuts, clipboard, macros, autocorrect, convert, troubleshoot, update, about }
 
 /// Các phép biến đổi cho công cụ chuyển mã.
 enum _Op { none, removeDiacritics, upper, lower, capWords, capFirst }
@@ -47,6 +48,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
   // Tab hiện tại đang chọn
   SettingsTab _activeTab = SettingsTab.general;
+
+  // Trạng thái kiểm tra cập nhật (Tab Cập nhật).
+  UpdateResult _update = UpdateResult.idle;
 
   // Trạng thái cho công cụ chuyển mã (Tab Chuyển mã)
   final _input = TextEditingController();
@@ -224,6 +228,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _buildSidebarTab(SettingsTab.autocorrect, Iconsax.magicpen, 'TỰ SỬA LỖI'),
           _buildSidebarTab(SettingsTab.convert, Iconsax.arrow_swap_horizontal, 'CHUYỂN MÃ'),
           _buildSidebarTab(SettingsTab.troubleshoot, Iconsax.setting_2, 'SỬA LỖI'),
+          _buildSidebarTab(SettingsTab.update, Iconsax.cloud_change, 'CẬP NHẬT'),
           _buildSidebarTab(SettingsTab.about, Iconsax.info_circle, 'THÔNG TIN'),
         ],
       ),
@@ -305,6 +310,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 SettingsTab.autocorrect => _buildAutoCorrectTab(context),
                 SettingsTab.convert => _buildConvertTab(context),
                 SettingsTab.troubleshoot => _buildTroubleshootTab(context),
+                SettingsTab.update => _buildUpdateTab(context),
                 SettingsTab.about => _buildAboutTab(context),
               }
             ],
@@ -1561,6 +1567,199 @@ class _SettingsPageState extends State<SettingsPage> {
     return result ?? false;
   }
 
+  // ── Tab: Cập nhật ────────────────────────────────────────────────────────
+
+  /// Gọi GitHub Releases để kiểm tra bản mới, cập nhật UI theo trạng thái.
+  Future<void> _checkForUpdates() async {
+    if (_update.state == UpdateState.checking) return;
+    setState(() => _update = UpdateResult.checking);
+    final result = await UpdateService.instance.check();
+    if (mounted) setState(() => _update = result);
+  }
+
+  Widget _buildUpdateTab(BuildContext context) {
+    final t = context.tokens;
+    final checking = _update.state == UpdateState.checking;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _tabSectionTitle('PHIÊN BẢN HIỆN TẠI'),
+        const SizedBox(height: AppSpacing.sm),
+        PixelPanel(
+          padding: const EdgeInsets.all(16),
+          fill: t.panel,
+          shadowOffset: AppBorders.shadowSm,
+          child: Row(
+            children: [
+              PixelPanel(
+                padding: const EdgeInsets.all(8),
+                shadowOffset: AppBorders.shadowSm,
+                fill: AppColors.blue,
+                child: const Icon(Iconsax.keyboard, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'BOW GO',
+                      style: TextStyle(
+                        fontFamily: AppFonts.head,
+                        fontSize: 12,
+                        color: AppColors.blueDark,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Phiên bản v$kAppVersion',
+                      style: TextStyle(
+                        fontFamily: AppFonts.body,
+                        fontSize: 15,
+                        color: t.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        _tabDivider(),
+
+        _tabSectionTitle('KIỂM TRA BẢN MỚI'),
+        const SizedBox(height: AppSpacing.sm),
+        SettingRow(
+          title: 'KIỂM TRA CẬP NHẬT',
+          subtitle: 'Hỏi GitHub xem đã có bản mới hơn chưa',
+          control: PixelButton(
+            label: checking ? 'ĐANG KIỂM…' : 'KIỂM TRA',
+            icon: Iconsax.cloud_change,
+            color: AppColors.blue,
+            small: true,
+            expand: false,
+            height: 32,
+            onPressed: checking ? null : _checkForUpdates,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        _buildUpdateStatus(context),
+      ],
+    );
+  }
+
+  /// Khối kết quả kiểm tra cập nhật (thay đổi theo _update.state).
+  Widget _buildUpdateStatus(BuildContext context) {
+    final t = context.tokens;
+
+    switch (_update.state) {
+      case UpdateState.idle:
+        return const SizedBox.shrink();
+
+      case UpdateState.checking:
+        return PixelPanel(
+          padding: const EdgeInsets.all(14),
+          fill: t.inset,
+          shadowOffset: AppBorders.shadowSm,
+          borderWidth: AppBorders.thin,
+          child: Row(
+            children: [
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Đang kiểm tra bản mới…',
+                  style: TextStyle(
+                    fontFamily: AppFonts.body,
+                    fontSize: 15,
+                    color: t.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+
+      case UpdateState.upToDate:
+        return _buildUpdateResultCard(
+          context,
+          icon: Iconsax.tick_circle,
+          color: AppColors.green,
+          text: 'Bạn đang dùng bản mới nhất (v$kAppVersion).',
+        );
+
+      case UpdateState.updateAvailable:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildUpdateResultCard(
+              context,
+              icon: Iconsax.arrow_circle_up,
+              color: AppColors.yellow,
+              text: 'Đã có bản mới: v${_update.latestVersion}. '
+                  'Bạn đang dùng v$kAppVersion.',
+            ),
+            if (_update.releaseUrl != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              PixelButton(
+                label: 'TẢI BẢN MỚI',
+                icon: Iconsax.export_3,
+                color: AppColors.green,
+                height: 38,
+                onPressed: () => _openSettingsUrl(_update.releaseUrl!),
+              ),
+            ],
+          ],
+        );
+
+      case UpdateState.error:
+        return _buildUpdateResultCard(
+          context,
+          icon: Iconsax.danger,
+          color: AppColors.red,
+          text: _update.message ?? 'Không kiểm tra được cập nhật.',
+        );
+    }
+  }
+
+  Widget _buildUpdateResultCard(
+    BuildContext context, {
+    required IconData icon,
+    required Color color,
+    required String text,
+  }) {
+    final t = context.tokens;
+    return PixelPanel(
+      padding: const EdgeInsets.all(16),
+      fill: t.panel,
+      shadowOffset: AppBorders.shadowSm,
+      borderColor: color,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontFamily: AppFonts.body,
+                fontSize: 15,
+                height: 1.2,
+                color: t.textPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAboutTab(BuildContext context) {
     final t = context.tokens;
     return Column(
@@ -1585,7 +1784,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Phiên bản v1.0.1',
+                'Phiên bản v$kAppVersion',
                 style: TextStyle(
                   fontFamily: AppFonts.body,
                   fontSize: 15,
