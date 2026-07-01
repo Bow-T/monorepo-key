@@ -43,8 +43,18 @@ public final class AutoCorrectDictionary: Sendable {
             }
         }
         // Xoá các key mà bản thân nó cũng là một từ đúng (an toàn: đừng "sửa" từ đúng).
+        // (a) Trùng một từ trong danh sách `words`.
         let correctSet = Set(words.map { $0.lowercased().precomposedStringWithCanonicalMapping })
         for k in Array(t.keys) where correctSet.contains(k) { t.removeValue(forKey: k) }
+        // (b) Bản thân biến thể đã là một TỪ ĐÚNG (dù không nằm trong `words`). Ví dụ
+        //     "dậy" sinh biến thể "dạy" — nhưng "dạy" cũng là từ đúng (dạy học), không
+        //     phải lỗi gõ; sửa "dạy"→"dậy" là phá từ đúng. Phân biệt với typo dấu-sai-chỗ
+        //     (nhiêù, giừo) bằng: biến thể có VẦN hợp lệ VÀ dấu thanh đặt ĐÚNG vị trí
+        //     chuẩn → là từ thật, loại bỏ. (nhiêù có vần "iêu" hợp lệ nhưng dấu ở 'u'
+        //     sai vị trí -> KHÔNG bị loại, vẫn sửa được về "nhiều".)
+        for k in Array(t.keys) where AutoCorrectDictionary.isRealWord(k) {
+            t.removeValue(forKey: k)
+        }
 
         // 2) Overrides thủ công built-in (ghi đè bản sinh tự động).
         for (wrong, right) in overrides {
@@ -95,6 +105,24 @@ public final class AutoCorrectDictionary: Sendable {
     /// Sinh các biến thể-lỗi thường gặp của MỘT từ đúng (đã lowercase, NFC).
     /// Các lỗi mô phỏng: gõ nhanh làm dấu thanh rơi nhầm nguyên âm, thiếu dấu mũ/móc,
     /// và đảo hai chữ liền kề trong cụm nguyên âm.
+    /// Một chuỗi có phải TỪ ĐÚNG thật không (để không "sửa" nhầm nó)?
+    /// = vần hợp lệ VÀ dấu thanh nằm ĐÚNG vị trí chuẩn chính tả. Chỉ true cho từ
+    /// gõ chuẩn (dạy, tay, mây), false cho typo dấu-sai-chỗ (nhiêù, cuời) dù vần
+    /// của chúng có thể hợp lệ.
+    static func isRealWord(_ word: String) -> Bool {
+        guard VietSyllable.isValidDisplay(word) else { return false }
+        guard let dec = Decomposed(word) else { return false }
+        // Không mang dấu thanh -> coi là "đúng" (không phải lỗi dấu-sai-chỗ).
+        guard dec.tone != .none else { return true }
+        // Vị trí dấu thanh THỰC TẾ trong chuỗi.
+        var realIdx = -1
+        for (i, ch) in word.precomposedStringWithCanonicalMapping.enumerated() {
+            if let parts = CharDecompose.map[ch], parts.tone != .none { realIdx = i }
+        }
+        // Đúng từ khi dấu đặt ĐÚNG vị trí chuẩn.
+        return realIdx == ToneRules.targetIndex(letters: dec.letters)
+    }
+
     static func misspellings(of correct: String) -> Set<String> {
         var out: Set<String> = []
         guard let dec = Decomposed(correct), dec.tone != .none else {

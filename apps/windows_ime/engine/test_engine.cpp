@@ -353,10 +353,19 @@ int main() {
         checkLookupNil("nhiều");
         checkLookupNil("người");
         checkLookupNil("được");
+        // Biến thể trùng một TỪ ĐÚNG khác -> KHÔNG được "sửa" (không phá từ thật).
+        // "dậy" sinh biến thể "dạy" nhưng "dạy" là từ đúng (dạy học) -> loại khỏi bảng.
+        checkLookupNil("dạy");
+        // Nhưng typo thật của "dậy" (dấu nặng ở 'y' thay vì 'â') vẫn phải sửa được.
+        checkLookup("dâỵ", "dậy");
         // Giữ kiểu hoa của chữ đầu.
         checkLookup("Giừo", "Giờ");
         checkLookup("Nhièu", "Nhiều");
     }
+
+    // IsRealWord: phân biệt từ đúng vs typo dấu-sai-chỗ.
+    checkEq(AutoCorrect::IsRealWord(U"dạy"), true, "dạy là từ thật");
+    checkEq(AutoCorrect::IsRealWord(U"nhiêù"), false, "nhiêù dấu sai chỗ");
 
     // An toàn: correctWord không đụng ASCII / từ đúng.
     auto checkCorrectNil = [](const std::string& in) {

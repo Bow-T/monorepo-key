@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import '../theme/app_theme.dart';
 
 /// Reusable retro / pixel-art building blocks.
@@ -473,7 +474,7 @@ class _ThemeCellState extends State<_ThemeCell> {
             color: _hover ? AppColors.blue : Colors.transparent,
             alignment: Alignment.center,
             child: Icon(
-              t.isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+              t.isDark ? Iconsax.sun_1 : Iconsax.moon,
               size: 16,
               color: _hover ? Colors.white : t.textSecondary,
             ),

@@ -12,6 +12,8 @@ dependencies:
     sdk: flutter
 
   cupertino_icons: ^1.0.8
+  # Bộ icon Iconsax (font) — dùng cho toàn bộ icon trong UI.
+  iconsax_flutter: ^1.0.0
   # Xác định ~/Library/Application Support để ghi settings.json (Swift cùng đọc).
   path_provider: ^2.1.4
   # Engine + công cụ chuyển mã dùng chung (spec chuẩn). Dùng cho công cụ chuyển mã.

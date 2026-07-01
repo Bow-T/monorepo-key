@@ -378,9 +378,19 @@ class AutoCorrectDictionary {
       }
     }
     // Xoá các key mà bản thân nó cũng là một từ đúng (an toàn: đừng "sửa" từ đúng).
+    // (a) Trùng một từ trong danh sách `words`.
     final correctSet = words.map((w) => w.toLowerCase()).toSet();
     for (final k in t.keys.toList()) {
       if (correctSet.contains(k)) t.remove(k);
+    }
+    // (b) Bản thân biến thể đã là một TỪ ĐÚNG (dù không nằm trong `words`). Ví dụ
+    //     "dậy" sinh biến thể "dạy" — nhưng "dạy" cũng là từ đúng (dạy học), không
+    //     phải lỗi gõ; sửa "dạy"→"dậy" là phá từ đúng. Phân biệt với typo dấu-sai-chỗ
+    //     (nhiêù, giừo) bằng: biến thể có VẦN hợp lệ VÀ dấu thanh đặt ĐÚNG vị trí
+    //     chuẩn → là từ thật, loại bỏ. (nhiêù có vần "iêu" hợp lệ nhưng dấu ở 'u'
+    //     sai vị trí -> KHÔNG bị loại, vẫn sửa được về "nhiều".)
+    for (final k in t.keys.toList()) {
+      if (isRealWord(k)) t.remove(k);
     }
 
     // 2) Overrides thủ công (ưu tiên cao nhất, ghi đè bản sinh tự động).
@@ -404,6 +414,27 @@ class AutoCorrectDictionary {
   int get count => _table.length;
 
   // ── Bộ sinh biến thể-lỗi gõ nhanh ──────────────────────────────────────────
+
+  /// Một chuỗi có phải TỪ ĐÚNG thật không (để không "sửa" nhầm nó)?
+  /// = vần hợp lệ VÀ dấu thanh nằm ĐÚNG vị trí chuẩn chính tả. Chỉ true cho từ
+  /// gõ chuẩn (dạy, tay, mây), false cho typo dấu-sai-chỗ (nhiêù, cuời) dù vần
+  /// của chúng có thể hợp lệ.
+  static bool isRealWord(String word) {
+    if (!VietSyllable.isValidDisplay(word)) return false;
+    final dec = Decomposed.tryParse(word);
+    if (dec == null) return false;
+    // Không mang dấu thanh -> coi là "đúng" (không phải lỗi dấu-sai-chỗ).
+    if (dec.tone == Tone.none) return true;
+    // Vị trí dấu thanh THỰC TẾ trong chuỗi.
+    var realIdx = -1;
+    final chars = word.split('');
+    for (var i = 0; i < chars.length; i++) {
+      final parts = CharDecompose.map[chars[i]];
+      if (parts != null && parts.tone != Tone.none) realIdx = i;
+    }
+    // Đúng từ khi dấu đặt ĐÚNG vị trí chuẩn.
+    return realIdx == ToneRules.targetIndex(dec.letters);
+  }
 
   /// Sinh các biến thể-lỗi thường gặp của MỘT từ đúng (đã lowercase).
   /// Các lỗi mô phỏng: gõ nhanh làm dấu thanh rơi nhầm nguyên âm, thiếu dấu mũ/móc.
@@ -491,7 +522,7 @@ class AutoCorrectDictionary {
     'khỏe', 'khoẻ', 'hoà', 'hoạ', 'loạ', 'toà', 'xoà', 'goá',
     'quý', 'quà', 'quả', 'quẻ', 'quỳ', 'thuý', 'tuý',
     // âm tiết mang mũ hay bị quên
-    'mấy', 'thấy', 'đấy', 'cây', 'mây', 'bây', 'gây',
+    'mấy', 'thấy', 'đấy', 'cây', 'mây', 'bây', 'gây', 'dậy', 'chạy',
     'tôi', 'rồi', 'mới', 'với', 'vội', 'đội', 'hỏi', 'gọi', 'nói',
     'về', 'lễ', 'kể', 'thế', 'để', 'nếu', 'đều', 'kêu', 'nhiêu',
     'cũng', 'những', 'từng', 'cùng', 'vẫn', 'lần', 'phần', 'gần',
