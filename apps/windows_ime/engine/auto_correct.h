@@ -126,6 +126,12 @@ public:
 
     // Từ có mang dấu tiếng Việt không? (mũ/móc/trăng/thanh precomposed)
     static bool ContainsVietnameseDiacritic(const std::u32string& word);
+
+    // Một chuỗi có phải TỪ ĐÚNG thật không (để không "sửa" nhầm nó)?
+    // = vần hợp lệ VÀ dấu thanh nằm ĐÚNG vị trí chuẩn chính tả. Chỉ true cho từ
+    // gõ chuẩn (dạy, tay, mây), false cho typo dấu-sai-chỗ (nhiêù, cuời) dù vần
+    // của chúng có thể hợp lệ.
+    static bool IsRealWord(const std::u32string& word);
 };
 
 }  // namespace bowgo

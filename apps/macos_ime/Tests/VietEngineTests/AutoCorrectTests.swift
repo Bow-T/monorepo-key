@@ -90,6 +90,19 @@ struct AutoCorrectDictionaryTests {
         #expect(dict.lookup("được") == nil)
     }
 
+    @Test("Biến thể trùng từ đúng KHÁC không bị sửa (dạy≠dậy)")
+    func doesNotCollideWithOtherRealWords() {
+        // "dậy" ∈ words -> sinh biến thể bỏ mũ "dạy". Nhưng "dạy" (dạy học) cũng
+        // là từ đúng, dấu ĐÚNG vị trí -> KHÔNG được sửa thành "dậy".
+        let dict = AutoCorrectDictionary.shared
+        #expect(dict.lookup("dạy") == nil)
+        // Typo dấu-sai-chỗ (dấu chồng "dâỵ") vẫn phải sửa được về "dậy".
+        #expect(dict.lookup("dâỵ".precomposedStringWithCanonicalMapping) == "dậy")
+        // isRealWord: đúng chỗ = true, sai chỗ = false.
+        #expect(AutoCorrectDictionary.isRealWord("dạy") == true)
+        #expect(AutoCorrectDictionary.isRealWord("nhiêù") == false)
+    }
+
     @Test("Giữ kiểu hoa của chữ đầu")
     func preservesCasing() {
         let dict = AutoCorrectDictionary.shared

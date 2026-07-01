@@ -78,6 +78,21 @@ void main() {
       expect(dict.lookup('được'), isNull);
     });
 
+    test('Biến thể trùng TỪ ĐÚNG khác KHÔNG bị "sửa" (dạy học)', () {
+      // "dậy" sinh biến thể "dạy" (rơi mũ) — nhưng "dạy" cũng là TỪ ĐÚNG (dạy học),
+      // không phải lỗi gõ; không được sửa "dạy"→"dậy".
+      expect(dict.lookup('dạy'), isNull);
+      // Nhưng typo dấu-sai-chỗ "dâỵ" (dấu ở 'y' thay vì 'â') vẫn sửa được về "dậy".
+      expect(dict.lookup('dâỵ'), 'dậy');
+    });
+
+    test('isRealWord phân biệt từ đúng vs typo dấu-sai-chỗ', () {
+      // "dạy" có vần "ay" hợp lệ VÀ dấu ở 'a' đúng vị trí chuẩn -> từ thật.
+      expect(AutoCorrectDictionary.isRealWord('dạy'), isTrue);
+      // "nhiêù" có vần "iêu" hợp lệ nhưng dấu ở 'u' sai vị trí (chuẩn ở 'ê') -> typo.
+      expect(AutoCorrectDictionary.isRealWord('nhiêù'), isFalse);
+    });
+
     test('Giữ kiểu hoa của chữ đầu', () {
       expect(dict.lookup('Giừo'), 'Giờ');
       expect(dict.lookup('Nhièu'), 'Nhiều');

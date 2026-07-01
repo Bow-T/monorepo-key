@@ -224,6 +224,27 @@ bool AutoCorrect::ContainsVietnameseDiacritic(const std::u32string& word) {
     return false;
 }
 
+// Một chuỗi có phải TỪ ĐÚNG thật không (để không "sửa" nhầm nó)?
+// = vần hợp lệ VÀ dấu thanh nằm ĐÚNG vị trí chuẩn chính tả. Chỉ true cho từ
+// gõ chuẩn (dạy, tay, mây), false cho typo dấu-sai-chỗ (nhiêù, cuời) dù vần
+// của chúng có thể hợp lệ.
+bool AutoCorrect::IsRealWord(const std::u32string& word) {
+    if (!VietSyllable::IsValidDisplay(word)) return false;
+    auto dec = Decomposed::Parse(word);
+    if (!dec) return false;
+    // Không mang dấu thanh -> coi là "đúng" (không phải lỗi dấu-sai-chỗ).
+    if (dec->tone == Tone::None) return true;
+    // Vị trí dấu thanh THỰC TẾ trong chuỗi.
+    const auto& char_map = CharDecomposeMap();
+    int real_idx = -1;
+    for (int i = 0; i < static_cast<int>(word.size()); ++i) {
+        auto it = char_map.find(word[i]);
+        if (it != char_map.end() && it->second.tone != Tone::None) real_idx = i;
+    }
+    // Đúng từ khi dấu đặt ĐÚNG vị trí chuẩn.
+    return real_idx == ToneRules::TargetIndex(dec->letters);
+}
+
 // Phân rã từ thành (chữ cái + mark) + (một dấu thanh), rồi dựng lại với dấu thanh
 // đặt đúng vị trí theo quy tắc chính tả. Trả nullopt nếu không áp dụng được.
 std::optional<std::u32string> AutoCorrect::RepositionTone(const std::u32string& word) {
@@ -351,7 +372,7 @@ const std::vector<std::u32string>& AutoCorrectDictionary::Words() {
         U"khỏe", U"khoẻ", U"hoà", U"hoạ", U"loạ", U"toà", U"xoà", U"goá",
         U"quý", U"quà", U"quả", U"quẻ", U"quỳ", U"thuý", U"tuý",
         // âm tiết mang mũ hay bị quên
-        U"mấy", U"thấy", U"đấy", U"cây", U"mây", U"bây", U"gây",
+        U"mấy", U"thấy", U"đấy", U"cây", U"mây", U"bây", U"gây", U"dậy", U"chạy",
         U"tôi", U"rồi", U"mới", U"với", U"vội", U"đội", U"hỏi", U"gọi", U"nói",
         U"về", U"lễ", U"kể", U"thế", U"để", U"nếu", U"đều", U"kêu", U"nhiêu",
         U"cũng", U"những", U"từng", U"cùng", U"vẫn", U"lần", U"phần", U"gần",
@@ -385,10 +406,24 @@ AutoCorrectDictionary::AutoCorrectDictionary(
         }
     }
     // Xoá các key mà bản thân nó cũng là một từ đúng (an toàn: đừng "sửa" từ đúng).
+    // (a) Trùng một từ trong danh sách `words`.
     std::unordered_set<std::u32string> correct_set;
     for (const std::u32string& w : words) correct_set.insert(Lowercase(w));
     for (auto it = table_.begin(); it != table_.end();) {
         if (correct_set.count(it->first)) {
+            it = table_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    // (b) Bản thân biến thể đã là một TỪ ĐÚNG (dù không nằm trong `words`). Ví dụ
+    //     "dậy" sinh biến thể "dạy" — nhưng "dạy" cũng là từ đúng (dạy học), không
+    //     phải lỗi gõ; sửa "dạy"→"dậy" là phá từ đúng. Phân biệt với typo dấu-sai-chỗ
+    //     (nhiêù, giừo) bằng: biến thể có VẦN hợp lệ VÀ dấu thanh đặt ĐÚNG vị trí
+    //     chuẩn → là từ thật, loại bỏ. (nhiêù có vần "iêu" hợp lệ nhưng dấu ở 'u'
+    //     sai vị trí -> KHÔNG bị loại, vẫn sửa được về "nhiều".)
+    for (auto it = table_.begin(); it != table_.end();) {
+        if (AutoCorrect::IsRealWord(it->first)) {
             it = table_.erase(it);
         } else {
             ++it;
