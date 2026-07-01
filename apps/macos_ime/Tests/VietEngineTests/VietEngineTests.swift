@@ -221,7 +221,7 @@ struct WShortcut {
     @Test("Telex consecutive w collapsing")
     func telexConsecutiveW() {
         #expect(type("ww") == "w")
-        #expect(type("uww") == "ưw")
+        #expect(type("uww") == "uw")
         #expect(type("tww") == "tw")
     }
 }
@@ -276,7 +276,7 @@ struct ReTyping {
     @Test("Gõ lại trùng biến âm -> bỏ biến âm")
     func cancelMark() {
         #expect(type("aaa") == "aa")       // mũ bị huỷ, a hiện ra
-        #expect(type("oww") == "ơw")       // oww -> ơw (standard Telex/Unikey)
+        #expect(type("oww") == "ow")       // oww -> ow (standard Telex/Unikey)
         #expect(type("ddd") == "dd")       // đ bị huỷ, d hiện ra (đối xứng aaa)
     }
 

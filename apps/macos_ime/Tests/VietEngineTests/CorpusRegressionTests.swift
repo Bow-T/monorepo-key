@@ -286,4 +286,142 @@ struct CorpusRegression {
             #expect(typeWord(vniLate, .vni) == word,      "VNI muộn \(vniLate) -> \(typeWord(vniLate, .vni))")
         }
     }
+
+    @Test("Kiểm thử 5000+ từ với nhiều thứ tự gõ dấu khác nhau")
+    func testFiveThousandWordsEquivalence() {
+        let initials = ["", "b", "c", "ch", "d", "đ", "g", "gh", "gi", "h", "k", "kh", "l", "m", "n", "ng", "ngh", "nh", "p", "ph", "q", "r", "s", "t", "th", "tr", "v", "x"]
+        let finals = ["", "c", "ch", "m", "n", "ng", "nh", "p", "t", "u", "o", "i", "y"]
+        
+        struct NucleusTest {
+            let name: String
+            let telex: String
+            let vni: String
+        }
+        
+        let nuclei = [
+            // 1 vowel
+            NucleusTest(name: "a", telex: "a", vni: "a"),
+            NucleusTest(name: "ă", telex: "aw", vni: "a8"),
+            NucleusTest(name: "â", telex: "aa", vni: "a6"),
+            NucleusTest(name: "e", telex: "e", vni: "e"),
+            NucleusTest(name: "ê", telex: "ee", vni: "e6"),
+            NucleusTest(name: "i", telex: "i", vni: "i"),
+            NucleusTest(name: "o", telex: "o", vni: "o"),
+            NucleusTest(name: "ô", telex: "oo", vni: "o6"),
+            NucleusTest(name: "ơ", telex: "ow", vni: "o7"),
+            NucleusTest(name: "u", telex: "u", vni: "u"),
+            NucleusTest(name: "ư", telex: "uw", vni: "u7"),
+            NucleusTest(name: "y", telex: "y", vni: "y"),
+            
+            // 2 vowels
+            NucleusTest(name: "ai", telex: "ai", vni: "ai"),
+            NucleusTest(name: "ao", telex: "ao", vni: "ao"),
+            NucleusTest(name: "au", telex: "au", vni: "au"),
+            NucleusTest(name: "ay", telex: "ay", vni: "ay"),
+            NucleusTest(name: "âu", telex: "aau", vni: "a6u"),
+            NucleusTest(name: "ây", telex: "aay", vni: "a6y"),
+            NucleusTest(name: "eo", telex: "eo", vni: "eo"),
+            NucleusTest(name: "êu", telex: "eeu", vni: "e6u"),
+            NucleusTest(name: "ia", telex: "ia", vni: "ia"),
+            NucleusTest(name: "iê", telex: "iee", vni: "ie6"),
+            NucleusTest(name: "iu", telex: "iu", vni: "iu"),
+            NucleusTest(name: "yê", telex: "yee", vni: "ye6"),
+            NucleusTest(name: "yêu", telex: "yeeu", vni: "ye6u"),
+            NucleusTest(name: "iêu", telex: "ieeu", vni: "ie6u"),
+            NucleusTest(name: "oa", telex: "oa", vni: "oa"),
+            NucleusTest(name: "oă", telex: "oaw", vni: "oa8"),
+            NucleusTest(name: "oe", telex: "oe", vni: "oe"),
+            NucleusTest(name: "oo", telex: "ooo", vni: "oo"),
+            NucleusTest(name: "oi", telex: "oi", vni: "oi"),
+            NucleusTest(name: "ôi", telex: "ooi", vni: "o6i"),
+            NucleusTest(name: "ơi", telex: "owi", vni: "o7i"),
+            NucleusTest(name: "ua", telex: "ua", vni: "ua"),
+            NucleusTest(name: "uâ", telex: "uaa", vni: "ua6"),
+            NucleusTest(name: "uê", telex: "uee", vni: "ue6"),
+            NucleusTest(name: "uô", telex: "uoo", vni: "uo6"),
+            NucleusTest(name: "uơ", telex: "uow", vni: "uo7"),
+            NucleusTest(name: "ui", telex: "ui", vni: "ui"),
+            NucleusTest(name: "ưi", telex: "uwi", vni: "u7i"),
+            NucleusTest(name: "uy", telex: "uy", vni: "uy"),
+            NucleusTest(name: "ưa", telex: "uwa", vni: "u7a"),
+            NucleusTest(name: "ươ", telex: "uwow", vni: "u7o7"),
+            NucleusTest(name: "ưu", telex: "uwu", vni: "u7u"),
+            NucleusTest(name: "ôô", telex: "oooo", vni: "o6o6"),
+            
+            // 3 vowels
+            NucleusTest(name: "oai", telex: "oai", vni: "oai"),
+            NucleusTest(name: "oay", telex: "oay", vni: "oay"),
+            NucleusTest(name: "oao", telex: "oao", vni: "oao"),
+            NucleusTest(name: "uây", telex: "uaay", vni: "ua6y"),
+            NucleusTest(name: "uôi", telex: "uooi", vni: "uo6i"),
+            NucleusTest(name: "ươi", telex: "uwowi", vni: "u7o7i"),
+            NucleusTest(name: "uya", telex: "uya", vni: "uya"),
+            NucleusTest(name: "uyê", telex: "uyee", vni: "uye6"),
+            NucleusTest(name: "uyu", telex: "uyu", vni: "uyu")
+        ]
+        
+        let telexTones = ["", "s", "f", "r", "x", "j"]
+        let vniTones = ["", "1", "2", "3", "4", "5"]
+        
+        var count = 0
+        var failures = 0
+        
+        for initial in initials {
+            if initial == "q" { continue }
+            for nucleus in nuclei {
+                if nucleus.name == "ôô" { continue }
+                for finalCons in finals {
+                    if (nucleus.name == "o" || nucleus.name == "ô" || nucleus.name == "ơ") && finalCons == "o" { continue }
+                    if (nucleus.name == "u" || nucleus.name == "ư") && finalCons == "u" { continue }
+                    
+                    let toneless = initial + nucleus.name + finalCons
+                    guard VietSyllable.isValidToneless(toneless) else { continue }
+                    
+                    for toneIndex in 0..<6 {
+                        count += 1
+                        
+                        let tTone = telexTones[toneIndex]
+                        let vTone = vniTones[toneIndex]
+                        
+                        // 1. Telex Test
+                        let telexLate = initial + nucleus.telex + finalCons + tTone
+                        let telexEarly = initial + nucleus.telex + tTone + finalCons
+                        let outTelexLate = typeWord(telexLate, .telex)
+                        let outTelexEarly = typeWord(telexEarly, .telex)
+                        
+                        if outTelexLate != outTelexEarly {
+                            failures += 1
+                            #if DEBUG
+                            print("Telex LỆCH: keys=\(telexLate) vs \(telexEarly) -> \(outTelexLate) vs \(outTelexEarly)")
+                            #endif
+                        }
+                        
+                        // 2. VNI Test
+                        let vniLate = initial + nucleus.vni + finalCons + vTone
+                        let vniEarly = initial + nucleus.vni + vTone + finalCons
+                        let outVniLate = typeWord(vniLate, .vni)
+                        let outVniEarly = typeWord(vniEarly, .vni)
+                        
+                        if outVniLate != outVniEarly {
+                            failures += 1
+                            #if DEBUG
+                            print("VNI LỆCH: keys=\(vniLate) vs \(vniEarly) -> \(outVniLate) vs \(outVniEarly)")
+                            #endif
+                        }
+                        
+                        // 3. Cross Telex vs VNI Test
+                        if outTelexLate != outVniLate {
+                            failures += 1
+                            #if DEBUG
+                            print("Telex vs VNI LỆCH: \(outTelexLate) (Telex) vs \(outVniLate) (VNI)")
+                            #endif
+                        }
+                    }
+                }
+            }
+        }
+        
+        print("Đã kiểm tra tổng cộng \(count) từ tiếng Việt hợp lệ.")
+        #expect(failures == 0, "Phát hiện \(failures) trường hợp gõ lỗi trong \(count) từ kiểm tra!")
+    }
 }

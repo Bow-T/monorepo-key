@@ -42,6 +42,17 @@ struct BowConfig: Equatable {
     /// JSON: "macros": [ {"keyword":"vn","content":"Việt Nam"}, ... ]
     var macros: [MacroDefinition] = []
 
+    /// SỬA LỖI GÕ ĐÔI TRÌNH DUYỆT: ở ô có autocomplete (thanh địa chỉ/tìm kiếm
+    /// Chromium — Edge/Chrome/Brave/Cốc Cốc, Spotlight), Backspace tổng hợp bị
+    /// highlight gợi ý nuốt -> ký tự cũ không xoá được -> nhân đôi ("d"+"o"->"ddo").
+    /// Khi bật, ta gửi trước một ký tự rỗng để phá highlight rồi mới Backspace.
+    /// Mặc định BẬT — áp cho MỌI app trừ danh sách loại trừ.
+    var fixBrowserDoubleType: Bool = true
+
+    /// Danh sách bundle id KHÔNG áp mẹo phá-highlight (app báo lỗi/không tương thích).
+    /// Người dùng có thể thêm nếu một app hiếm chèn nhầm ký tự rỗng. Mặc định trống.
+    var browserFixExcludedApps: Set<String> = []
+
     /// Cấu hình lịch sử Clipboard.
     var clipboardHistoryEnabled: Bool = true
     var clipboardHistoryLimit: Int = 40
@@ -73,6 +84,8 @@ struct BowConfig: Equatable {
                 return MacroDefinition(keyword: kw, content: content, type: type)
             }
         }
+        if let fb = obj["fixBrowserDoubleType"] as? Bool { cfg.fixBrowserDoubleType = fb }
+        if let ex = obj["browserFixExcludedApps"] as? [String] { cfg.browserFixExcludedApps = Set(ex) }
         if let che = obj["clipboardHistoryEnabled"] as? Bool { cfg.clipboardHistoryEnabled = che }
         if let chl = obj["clipboardHistoryLimit"] as? Int { cfg.clipboardHistoryLimit = chl }
         if let chk = obj["clipboardHistoryHotkeyKeyCode"] as? Int { cfg.clipboardHistoryHotkeyKeyCode = Int64(chk) }
