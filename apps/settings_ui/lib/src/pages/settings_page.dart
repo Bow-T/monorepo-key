@@ -7,6 +7,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:viet_engine/viet_engine.dart' hide InputMethod, ToneStyle;
 
@@ -41,6 +42,9 @@ class _SettingsPageState extends State<SettingsPage> {
   final _testController = TextEditingController();
   String _preview = '';
 
+  // Ô tìm kiếm trong tab Tự sửa lỗi (lọc theo cả "sai" và "đúng").
+  final _autoCorrectSearch = TextEditingController();
+
   // Tab hiện tại đang chọn
   SettingsTab _activeTab = SettingsTab.general;
 
@@ -59,6 +63,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _permStatus.addListener(_onPermStatus);
     _testController.addListener(_recomputePreview);
     _input.addListener(() => setState(() {}));
+    _autoCorrectSearch.addListener(() => setState(() {}));
   }
 
   @override
@@ -67,6 +72,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _permStatus.removeListener(_onPermStatus);
     _testController.dispose();
     _input.dispose();
+    _autoCorrectSearch.dispose();
     super.dispose();
   }
 
@@ -176,7 +182,7 @@ class _SettingsPageState extends State<SettingsPage> {
           padding: const EdgeInsets.all(8),
           shadowOffset: AppBorders.shadowSm,
           fill: AppColors.blue,
-          child: const Icon(Icons.keyboard_alt_rounded,
+          child: const Icon(Iconsax.keyboard,
               color: Colors.white, size: 20),
         ),
         const SizedBox(width: AppSpacing.sm),
@@ -211,14 +217,14 @@ class _SettingsPageState extends State<SettingsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildSidebarTab(SettingsTab.general, Icons.settings_rounded, 'BỘ GÕ'),
-          _buildSidebarTab(SettingsTab.shortcuts, Icons.bolt_rounded, 'PHÍM TẮT'),
-          _buildSidebarTab(SettingsTab.clipboard, Icons.assignment_rounded, 'CLIPBOARD'),
-          _buildSidebarTab(SettingsTab.macros, Icons.text_snippet_rounded, 'GÕ TẮT'),
-          _buildSidebarTab(SettingsTab.autocorrect, Icons.auto_fix_high_rounded, 'TỰ SỬA LỖI'),
-          _buildSidebarTab(SettingsTab.convert, Icons.swap_horiz_rounded, 'CHUYỂN MÃ'),
-          _buildSidebarTab(SettingsTab.troubleshoot, Icons.build_rounded, 'SỬA LỖI'),
-          _buildSidebarTab(SettingsTab.about, Icons.info_outline_rounded, 'THÔNG TIN'),
+          _buildSidebarTab(SettingsTab.general, Iconsax.setting_2, 'BỘ GÕ'),
+          _buildSidebarTab(SettingsTab.shortcuts, Iconsax.flash, 'PHÍM TẮT'),
+          _buildSidebarTab(SettingsTab.clipboard, Iconsax.clipboard_text, 'CLIPBOARD'),
+          _buildSidebarTab(SettingsTab.macros, Iconsax.document_text, 'GÕ TẮT'),
+          _buildSidebarTab(SettingsTab.autocorrect, Iconsax.magicpen, 'TỰ SỬA LỖI'),
+          _buildSidebarTab(SettingsTab.convert, Iconsax.arrow_swap_horizontal, 'CHUYỂN MÃ'),
+          _buildSidebarTab(SettingsTab.troubleshoot, Iconsax.setting_2, 'SỬA LỖI'),
+          _buildSidebarTab(SettingsTab.about, Iconsax.info_circle, 'THÔNG TIN'),
         ],
       ),
     );
@@ -344,7 +350,7 @@ class _SettingsPageState extends State<SettingsPage> {
         children: [
           Row(
             children: [
-              const Icon(Icons.info_rounded, color: AppColors.yellow, size: 14),
+              const Icon(Iconsax.info_circle, color: AppColors.yellow, size: 14),
               const SizedBox(width: 8),
               Text(
                 title.toUpperCase(),
@@ -592,7 +598,7 @@ class _SettingsPageState extends State<SettingsPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 PixelIconButton(
-                  icon: Icons.remove_rounded,
+                  icon: Iconsax.minus,
                   iconSize: 14,
                   size: 32,
                   onPressed: s.clipboardHistoryLimit > 10
@@ -612,7 +618,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
                 PixelIconButton(
-                  icon: Icons.add_rounded,
+                  icon: Iconsax.add,
                   iconSize: 14,
                   size: 32,
                   onPressed: s.clipboardHistoryLimit < 100
@@ -660,7 +666,7 @@ class _SettingsPageState extends State<SettingsPage> {
               const Spacer(),
               PixelButton(
                 label: 'THÊM MỚI',
-                icon: Icons.add_rounded,
+                icon: Iconsax.add,
                 color: AppColors.green,
                 small: true,
                 expand: false,
@@ -722,7 +728,7 @@ class _SettingsPageState extends State<SettingsPage> {
               const Spacer(),
               PixelButton(
                 label: 'THÊM MỚI',
-                icon: Icons.add_rounded,
+                icon: Iconsax.add,
                 color: AppColors.green,
                 small: true,
                 expand: false,
@@ -738,34 +744,105 @@ class _SettingsPageState extends State<SettingsPage> {
                 fontFamily: AppFonts.body, fontSize: 13, color: t.textMuted),
           ),
           const SizedBox(height: AppSpacing.sm),
-          if (s.autoCorrectPairs.isEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              alignment: Alignment.center,
-              child: Text(
-                '(Chưa có cặp từ nào)',
-                style: TextStyle(
-                  fontFamily: AppFonts.body,
-                  fontSize: 16,
-                  color: t.textMuted,
-                ),
-              ),
-            )
-          else
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: s.autoCorrectPairs.length,
-              itemBuilder: (ctx, index) => _autoCorrectRow(context, index),
-            ),
+          if (s.autoCorrectPairs.isNotEmpty) ...[
+            _autoCorrectSearchBox(context),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+          _autoCorrectList(context),
         ],
       ],
     );
   }
 
-  Widget _autoCorrectRow(BuildContext context, int index) {
+  /// Ô tìm kiếm lọc danh sách cặp tự-sửa theo cả "sai" và "đúng".
+  Widget _autoCorrectSearchBox(BuildContext context) {
     final t = context.tokens;
-    final p = s.autoCorrectPairs[index];
+    return Container(
+      decoration: BoxDecoration(
+        color: t.panel,
+        border: Border.all(color: t.outline, width: AppBorders.thin),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        children: [
+          Icon(Iconsax.search_normal, size: 18, color: t.textMuted),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _autoCorrectSearch,
+              cursorColor: AppColors.blue,
+              cursorWidth: 3,
+              style: TextStyle(
+                fontFamily: AppFonts.body,
+                fontSize: 18,
+                color: t.textPrimary,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Tìm từ (sai hoặc đúng)…',
+                hintStyle:
+                    TextStyle(fontFamily: AppFonts.body, color: t.textMuted),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+          if (_autoCorrectSearch.text.isNotEmpty)
+            PixelIconButton(
+              icon: Iconsax.close_circle,
+              iconSize: 15,
+              size: 30,
+              tooltip: 'Xoá tìm kiếm',
+              onPressed: () => _autoCorrectSearch.clear(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Danh sách cặp tự-sửa (đã lọc theo ô tìm kiếm nếu có).
+  Widget _autoCorrectList(BuildContext context) {
+    final query = _autoCorrectSearch.text.trim().toLowerCase();
+    final pairs = query.isEmpty
+        ? s.autoCorrectPairs
+        : s.autoCorrectPairs
+            .where((p) =>
+                p.wrong.toLowerCase().contains(query) ||
+                p.right.toLowerCase().contains(query))
+            .toList();
+
+    if (s.autoCorrectPairs.isEmpty) {
+      return _autoCorrectEmpty(context, '(Chưa có cặp từ nào)');
+    }
+    if (pairs.isEmpty) {
+      return _autoCorrectEmpty(context, 'Không tìm thấy cặp từ nào');
+    }
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: pairs.length,
+      itemBuilder: (ctx, i) => _autoCorrectRow(context, pairs[i]),
+    );
+  }
+
+  Widget _autoCorrectEmpty(BuildContext context, String message) {
+    final t = context.tokens;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      alignment: Alignment.center,
+      child: Text(
+        message,
+        style: TextStyle(
+          fontFamily: AppFonts.body,
+          fontSize: 16,
+          color: t.textMuted,
+        ),
+      ),
+    );
+  }
+
+  Widget _autoCorrectRow(BuildContext context, AutoCorrectPair p) {
+    final t = context.tokens;
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.xs),
       child: Container(
@@ -788,7 +865,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(Icons.arrow_forward_rounded, size: 16),
+            const Icon(Iconsax.arrow_right, size: 16),
             const SizedBox(width: 8),
             Expanded(
               child: Container(
@@ -807,21 +884,26 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const SizedBox(width: 8),
             PixelIconButton(
-              icon: Icons.edit_rounded,
+              icon: Iconsax.edit_2,
               iconSize: 15,
               size: 32,
               tooltip: 'Sửa',
-              onPressed: () => _editAutoCorrectPair(context, index),
+              onPressed: () {
+                final i = s.autoCorrectPairs.indexWhere(
+                    (e) => e.wrong == p.wrong && e.right == p.right);
+                if (i >= 0) _editAutoCorrectPair(context, i);
+              },
             ),
             const SizedBox(width: 4),
             PixelIconButton(
-              icon: Icons.delete_outline_rounded,
+              icon: Iconsax.trash,
               iconSize: 15,
               size: 32,
               tooltip: 'Xoá',
               color: AppColors.red,
               onPressed: () {
-                final next = [...s.autoCorrectPairs]..removeAt(index);
+                final next = [...s.autoCorrectPairs]..removeWhere(
+                    (e) => e.wrong == p.wrong && e.right == p.right);
                 _save(s.copyWith(autoCorrectPairs: next));
               },
             ),
@@ -859,6 +941,40 @@ class _SettingsPageState extends State<SettingsPage> {
                       ?.copyWith(color: t.textMuted, fontSize: 13)),
               const SizedBox(height: 4),
               _dialogField(ctx, wrongCtrl, 'giừo'),
+              // Cảnh báo khi "từ gõ sai" thật ra là một từ ĐÚNG chính tả
+              // (vd "dạy", "đẻ") — dễ vô tình biến từ đúng thành từ khác.
+              // Dùng isRealWord (dấu ĐÚNG vị trí chuẩn) nên không báo nhầm các
+              // typo dấu-sai-chỗ (nhiêù, giừo).
+              ListenableBuilder(
+                listenable: wrongCtrl,
+                builder: (ctx, _) {
+                  final w = wrongCtrl.text.trim();
+                  if (w.isEmpty || !AutoCorrectDictionary.isRealWord(w)) {
+                    return const SizedBox.shrink();
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Iconsax.warning_2,
+                            size: 16, color: AppColors.red),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            '"$w" là từ đúng chính tả — '
+                            'thêm cặp này sẽ tự đổi nó thành từ khác mỗi khi gõ.',
+                            style: TextStyle(
+                                fontFamily: AppFonts.body,
+                                fontSize: 13,
+                                color: AppColors.red),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
               const SizedBox(height: 12),
               Text('TỪ ĐÚNG (vd: giờ)',
                   style: Theme.of(ctx)
@@ -923,7 +1039,7 @@ class _SettingsPageState extends State<SettingsPage> {
             Expanded(child: _codeDropdown(context, _from, (v) => setState(() => _from = v))),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 8),
-              child: Icon(Icons.arrow_forward_rounded, size: 16),
+              child: Icon(Iconsax.arrow_right, size: 16),
             ),
             Expanded(child: _codeDropdown(context, _to, (v) => setState(() => _to = v))),
           ],
@@ -998,7 +1114,7 @@ class _SettingsPageState extends State<SettingsPage> {
         const SizedBox(height: AppSpacing.sm),
         PixelButton(
           label: 'COPY KẾT QUẢ',
-          icon: Icons.copy_rounded,
+          icon: Iconsax.copy,
           color: AppColors.cyan,
           height: 38,
           onPressed: out.isEmpty
@@ -1117,7 +1233,7 @@ class _SettingsPageState extends State<SettingsPage> {
           subtitle: 'Bật lại engine khi bị treo (không đụng quyền)',
           control: PixelButton(
             label: 'CHẠY',
-            icon: Icons.refresh_rounded,
+            icon: Iconsax.refresh,
             color: AppColors.blue,
             small: true,
             expand: false,
@@ -1135,7 +1251,7 @@ class _SettingsPageState extends State<SettingsPage> {
           subtitle: 'Khi đã cấp quyền mà vẫn không gõ được',
           control: PixelButton(
             label: 'SỬA',
-            icon: Icons.lock_reset_rounded,
+            icon: Iconsax.lock,
             color: AppColors.red,
             small: true,
             expand: false,
@@ -1239,7 +1355,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return Row(
       children: [
         Icon(
-          ok ? Icons.check_circle_rounded : Icons.error_rounded,
+          ok ? Iconsax.tick_circle : Iconsax.danger,
           color: ok ? AppColors.green : AppColors.red,
           size: 20,
         ),
@@ -1271,7 +1387,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return Row(
       children: [
         Icon(
-          granted ? Icons.check_circle_rounded : Icons.cancel_rounded,
+          granted ? Iconsax.tick_circle : Iconsax.close_circle,
           color: granted ? AppColors.green : AppColors.red,
           size: 18,
         ),
@@ -1302,7 +1418,7 @@ class _SettingsPageState extends State<SettingsPage> {
         if (!granted)
           PixelButton(
             label: 'CẤP',
-            icon: Icons.open_in_new_rounded,
+            icon: Iconsax.export_3,
             color: AppColors.blue,
             small: true,
             expand: false,
@@ -1531,7 +1647,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(Icons.arrow_forward_rounded, size: 16),
+            const Icon(Iconsax.arrow_right, size: 16),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -1545,7 +1661,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
             PixelIconButton(
-              icon: Icons.edit_rounded,
+              icon: Iconsax.edit_2,
               iconSize: 15,
               size: 32,
               tooltip: 'Sửa',
@@ -1553,7 +1669,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const SizedBox(width: 4),
             PixelIconButton(
-              icon: Icons.delete_outline_rounded,
+              icon: Iconsax.trash,
               iconSize: 15,
               size: 32,
               tooltip: 'Xoá',

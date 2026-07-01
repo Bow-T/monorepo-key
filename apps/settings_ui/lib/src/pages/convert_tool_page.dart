@@ -5,6 +5,7 @@
 // spec với engine native).
 
 import 'package:flutter/material.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:viet_engine/viet_engine.dart';
 
@@ -89,7 +90,7 @@ class _ConvertToolPageState extends State<ConvertToolPage> {
                             (v) => setState(() => _from = v))),
                         const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 8),
-                          child: Icon(Icons.arrow_forward_rounded, size: 18),
+                          child: Icon(Iconsax.arrow_right, size: 18),
                         ),
                         Expanded(child: _codeDropdown(context, _to,
                             (v) => setState(() => _to = v))),
@@ -166,7 +167,7 @@ class _ConvertToolPageState extends State<ConvertToolPage> {
                         const SizedBox(height: AppSpacing.sm),
                         PixelButton(
                           label: 'COPY KẾT QUẢ',
-                          icon: Icons.copy_rounded,
+                          icon: Iconsax.copy,
                           color: AppColors.cyan,
                           onPressed: out.isEmpty
                               ? null
@@ -197,7 +198,7 @@ class _ConvertToolPageState extends State<ConvertToolPage> {
     return Row(
       children: [
         PixelIconButton(
-          icon: Icons.arrow_back_rounded,
+          icon: Iconsax.arrow_left,
           tooltip: 'Quay lại',
           onPressed: () => Navigator.of(context).maybePop(),
         ),

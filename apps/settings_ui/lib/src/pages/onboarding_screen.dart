@@ -12,6 +12,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 
 import '../services/permission_status_service.dart';
 import '../theme/app_theme.dart';
@@ -125,7 +126,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 if (ready)
                   PixelButton(
                     label: 'Bắt đầu dùng',
-                    icon: Icons.check_rounded,
+                    icon: Iconsax.tick_square,
                     color: AppColors.green,
                     onPressed: widget.onContinue,
                   )
@@ -193,7 +194,7 @@ class _PermStep extends StatelessWidget {
               border: Border.all(color: t.outline, width: AppBorders.thin),
             ),
             child: granted
-                ? const Icon(Icons.check_rounded, size: 18, color: Colors.white)
+                ? const Icon(Iconsax.tick_square, size: 18, color: Colors.white)
                 : Text(
                     '$index',
                     style: TextStyle(
@@ -231,7 +232,7 @@ class _PermStep extends StatelessWidget {
           if (!granted)
             PixelButton(
               label: 'Cấp quyền',
-              icon: Icons.open_in_new_rounded,
+              icon: Iconsax.export_3,
               color: AppColors.blue,
               small: true,
               expand: false,
