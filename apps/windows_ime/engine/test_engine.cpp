@@ -13,6 +13,7 @@
 #include <optional>
 #include <string>
 
+#include "auto_correct.h"
 #include "engine.h"
 #include "macro.h"
 #include "text_converter.h"
@@ -282,6 +283,116 @@ int main() {
         MacroStore rnd({{U"rr", U"a, b, c", MacroSnippetType::Random}}, renv);
         checkStr(rnd.Expand(U"rr").value_or(U"?"), U"b", "random index 1");
     }
+
+    // ── Tự sửa lỗi gõ nhanh (auto-correct) ────────────────────────────────
+    // Helper: kiểm tra RepositionTone(u32(keys)) == u32(expect).
+    auto checkReposition = [](const std::string& in, const std::string& expect) {
+        auto got = AutoCorrect::RepositionTone(U8(in));
+        std::u32string want = U8(expect);
+        if (got.has_value() && got.value() == want) ++g_pass;
+        else {
+            ++g_fail;
+            std::cout << "  FAIL: repositionTone(\"" << in << "\") = \""
+                      << (got.has_value() ? ToU8(got.value()) : std::string("nil"))
+                      << "\"  (mong đợi \"" << expect << "\")\n";
+        }
+    };
+    auto checkRepositionNil = [](const std::string& in) {
+        auto got = AutoCorrect::RepositionTone(U8(in));
+        if (!got.has_value()) ++g_pass;
+        else {
+            ++g_fail;
+            std::cout << "  FAIL: repositionTone(\"" << in << "\") = \""
+                      << ToU8(got.value()) << "\"  (mong đợi nil)\n";
+        }
+    };
+    // Lớp 1: dời dấu thanh về đúng vị trí.
+    checkReposition("hòa", "hoà");   // dấu ở 'o' (cũ) -> 'a' (modern)
+    checkReposition("qúy", "quý");   // dấu lên 'y'
+    checkReposition("khỏe", "khoẻ");
+    // Đã đúng vị trí -> trả chính nó (không đổi).
+    checkReposition("tiếng", "tiếng");
+    checkReposition("giờ", "giờ");
+    checkReposition("hoà", "hoà");
+    // Không có dấu thanh -> nil.
+    checkRepositionNil("hoa");
+    checkRepositionNil("tieng");
+
+    // Lớp 2: từ điển (override + tự sinh).
+    {
+        const auto& dict = AutoCorrectDictionary::Shared();
+        auto checkLookup = [&](const std::string& in, const std::string& expect) {
+            auto got = dict.Lookup(U8(in));
+            std::u32string want = U8(expect);
+            if (got.has_value() && got.value() == want) ++g_pass;
+            else {
+                ++g_fail;
+                std::cout << "  FAIL: lookup(\"" << in << "\") = \""
+                          << (got.has_value() ? ToU8(got.value()) : std::string("nil"))
+                          << "\"  (mong đợi \"" << expect << "\")\n";
+            }
+        };
+        auto checkLookupNil = [&](const std::string& in) {
+            auto got = dict.Lookup(U8(in));
+            if (!got.has_value()) ++g_pass;
+            else {
+                ++g_fail;
+                std::cout << "  FAIL: lookup(\"" << in << "\") = \""
+                          << ToU8(got.value()) << "\"  (mong đợi nil)\n";
+            }
+        };
+        // Override kinh điển.
+        checkLookup("giừo", "giờ");
+        checkLookup("nhièu", "nhiều");
+        checkLookup("ngừoi", "người");
+        checkLookup("đựoc", "được");
+        // Biến thể tự sinh: dấu rơi nhầm nguyên âm.
+        checkLookup("nhiêù", "nhiều");
+        // Từ đúng -> KHÔNG bị "sửa".
+        checkLookupNil("giờ");
+        checkLookupNil("nhiều");
+        checkLookupNil("người");
+        checkLookupNil("được");
+        // Giữ kiểu hoa của chữ đầu.
+        checkLookup("Giừo", "Giờ");
+        checkLookup("Nhièu", "Nhiều");
+    }
+
+    // An toàn: correctWord không đụng ASCII / từ đúng.
+    auto checkCorrectNil = [](const std::string& in) {
+        if (!AutoCorrect::CorrectWord(U8(in)).has_value()) ++g_pass;
+        else {
+            ++g_fail;
+            std::cout << "  FAIL: correctWord(\"" << in << "\") kỳ vọng nil\n";
+        }
+    };
+    auto checkCorrect = [](const std::string& in, const std::string& expect,
+                           AutoCorrectResult::Reason reason) {
+        auto got = AutoCorrect::CorrectWord(U8(in));
+        std::u32string want = U8(expect);
+        if (got.has_value() && got.value().corrected == want && got.value().reason == reason)
+            ++g_pass;
+        else {
+            ++g_fail;
+            std::cout << "  FAIL: correctWord(\"" << in << "\") = \""
+                      << (got.has_value() ? ToU8(got.value().corrected) : std::string("nil"))
+                      << "\"  (mong đợi \"" << expect << "\")\n";
+        }
+    };
+    checkCorrectNil("hello");
+    checkCorrectNil("the");
+    checkCorrectNil("Github");
+    // Từ ASCII chứa nguyên âm thường (a/e/o/u/i/y) — có trong bảng ngược nhưng
+    // KHÔNG mang dấu -> guard an toàn phải bỏ qua, không auto-correct.
+    checkCorrectNil("bay");
+    checkCorrectNil("cay");
+    checkCorrectNil("tiếng");   // từ tiếng Việt đúng
+    checkCorrectNil("giờ");
+    checkCorrectNil("người");
+    // correctWord điều phối 2 lớp.
+    checkCorrect("hòa", "hoà", AutoCorrectResult::Reason::ToneReposition);
+    checkCorrect("giừo", "giờ", AutoCorrectResult::Reason::Dictionary);
+    checkCorrect("nhièu", "nhiều", AutoCorrectResult::Reason::Dictionary);
 
     std::cout << "\n" << g_pass << " pass, " << g_fail << " fail.\n";
     return g_fail == 0 ? 0 : 1;

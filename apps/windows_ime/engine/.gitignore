@@ -1,0 +1,3 @@
+# Binary biên dịch từ test_engine.cpp (chạy cục bộ, không commit)
+test_engine
+*.o

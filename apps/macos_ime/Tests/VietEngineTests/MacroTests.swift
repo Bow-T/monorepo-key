@@ -22,7 +22,8 @@ private func typeMacro(_ keys: String, store: MacroStore) -> String {
         case .wordBreak(let c):
             visible.append(c)
             currentSyllable = ""
-        case .macro(let deleteCount, let insert, let breakChar):
+        case .macro(let deleteCount, let insert, let breakChar),
+             .autoCorrect(let deleteCount, let insert, let breakChar):
             visible.removeLast(min(deleteCount, visible.count))
             visible += insert
             visible.append(breakChar)

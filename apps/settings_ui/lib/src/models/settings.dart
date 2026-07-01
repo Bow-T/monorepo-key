@@ -64,6 +64,25 @@ class MacroEntry {
       );
 }
 
+/// Một cặp tự-sửa-lỗi: gõ ra `wrong` -> tự thay bằng `right`. Khớp `AutoCorrectPair`
+/// phía Swift và khoá JSON "autoCorrectPairs".
+class AutoCorrectPair {
+  const AutoCorrectPair({required this.wrong, required this.right});
+
+  final String wrong; // từ gõ sai, vd "giừo"
+  final String right; // từ đúng, vd "giờ"
+
+  AutoCorrectPair copyWith({String? wrong, String? right}) =>
+      AutoCorrectPair(wrong: wrong ?? this.wrong, right: right ?? this.right);
+
+  Map<String, dynamic> toJson() => {'wrong': wrong, 'right': right};
+
+  factory AutoCorrectPair.fromJson(Map<String, dynamic> j) => AutoCorrectPair(
+        wrong: (j['wrong'] as String?) ?? '',
+        right: (j['right'] as String?) ?? '',
+      );
+}
+
 /// Toàn bộ cấu hình bộ gõ, gói trong một object để serialize 1 lần.
 class BowSettings {
   const BowSettings({
@@ -74,6 +93,8 @@ class BowSettings {
     this.smartSwitch = false,
     this.perApp = const {},
     this.autoRestoreEnglish = false,
+    this.autoCorrect = false,
+    this.autoCorrectPairs = const [],
     this.macroEnabled = true,
     this.macros = const [],
     this.clipboardHistoryEnabled = true,
@@ -103,6 +124,13 @@ class BowSettings {
   /// Tự khôi phục tiếng Anh (heuristic). Khớp khoá "autoRestoreEnglish".
   final bool autoRestoreEnglish;
 
+  /// Tự sửa lỗi gõ nhanh (dời dấu sai vị trí + từ điển lỗi phổ biến).
+  /// Khớp khoá "autoCorrect".
+  final bool autoCorrect;
+
+  /// Danh sách cặp (sai -> đúng) người dùng cấu hình. Khớp khoá "autoCorrectPairs".
+  final List<AutoCorrectPair> autoCorrectPairs;
+
   /// Bật/tắt gõ tắt (macro). Khớp khoá "macroEnabled".
   final bool macroEnabled;
 
@@ -126,6 +154,8 @@ class BowSettings {
     bool? smartSwitch,
     Map<String, bool>? perApp,
     bool? autoRestoreEnglish,
+    bool? autoCorrect,
+    List<AutoCorrectPair>? autoCorrectPairs,
     bool? macroEnabled,
     List<MacroEntry>? macros,
     bool? clipboardHistoryEnabled,
@@ -140,6 +170,8 @@ class BowSettings {
       smartSwitch: smartSwitch ?? this.smartSwitch,
       perApp: perApp ?? this.perApp,
       autoRestoreEnglish: autoRestoreEnglish ?? this.autoRestoreEnglish,
+      autoCorrect: autoCorrect ?? this.autoCorrect,
+      autoCorrectPairs: autoCorrectPairs ?? this.autoCorrectPairs,
       macroEnabled: macroEnabled ?? this.macroEnabled,
       macros: macros ?? this.macros,
       clipboardHistoryEnabled: clipboardHistoryEnabled ?? this.clipboardHistoryEnabled,
@@ -157,6 +189,8 @@ class BowSettings {
         'smartSwitch': smartSwitch,
         'perApp': perApp,
         'autoRestoreEnglish': autoRestoreEnglish,
+        'autoCorrect': autoCorrect,
+        'autoCorrectPairs': autoCorrectPairs.map((p) => p.toJson()).toList(),
         'macroEnabled': macroEnabled,
         'macros': macros.map((m) => m.toJson()).toList(),
         'clipboardHistoryEnabled': clipboardHistoryEnabled,
@@ -175,6 +209,12 @@ class BowSettings {
             ) ??
             const {},
         autoRestoreEnglish: j['autoRestoreEnglish'] as bool? ?? false,
+        autoCorrect: j['autoCorrect'] as bool? ?? false,
+        autoCorrectPairs: (j['autoCorrectPairs'] as List?)
+                ?.whereType<Map>()
+                .map((m) => AutoCorrectPair.fromJson(m.cast<String, dynamic>()))
+                .toList() ??
+            const [],
         macroEnabled: j['macroEnabled'] as bool? ?? true,
         macros: (j['macros'] as List?)
                 ?.whereType<Map>()

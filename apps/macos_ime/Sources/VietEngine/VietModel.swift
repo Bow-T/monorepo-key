@@ -7,7 +7,7 @@
 // Engine làm việc trên 3 trục này thay vì nhớ cứng từng ký tự Unicode.
 
 /// Dấu thanh (5 dấu + thanh ngang/không dấu).
-public enum Tone: Equatable {
+public enum Tone: Equatable, Sendable {
     case none      // ngang  (a)
     case acute     // sắc    (á)
     case grave     // huyền  (à)
@@ -17,7 +17,7 @@ public enum Tone: Equatable {
 }
 
 /// Dấu biến âm gắn vào chữ cái (mũ, móc, trăng...).
-public enum Mark: Equatable {
+public enum Mark: Equatable, Sendable {
     case none
     case circumflex   // dấu mũ:   a->â, e->ê, o->ô
     case breve        // dấu trăng: a->ă

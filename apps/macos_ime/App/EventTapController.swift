@@ -85,6 +85,15 @@ final class EventTapController {
     /// Bật tự khôi phục tiếng Anh (đồng bộ từ config).
     private var autoRestoreEnglish = false
 
+    /// Bật tự sửa lỗi gõ nhanh (đồng bộ từ config). Xem `AutoCorrect`.
+    private var autoCorrect = false
+
+    /// Cặp (sai -> đúng) người dùng cấu hình (đồng bộ từ config).
+    private var autoCorrectPairs: [AutoCorrectPair] = []
+
+    /// Từ điển tự-sửa dựng từ `autoCorrectPairs` (dựng lại khi đổi cấu hình).
+    private var autoCorrectDict = AutoCorrectDictionary(userPairs: [])
+
     // MARK: - Sửa lỗi gõ đôi trên ô autocomplete (trình duyệt Chromium / Spotlight)
 
     /// Bật mẹo "phá highlight autocomplete" (gửi ký tự rỗng trước khi Backspace).
@@ -434,12 +443,21 @@ final class EventTapController {
     /// Tự khôi phục tiếng Anh có đang bật không.
     var autoRestoreEnglishOn: Bool { autoRestoreEnglish }
 
+    /// Tự sửa lỗi gõ nhanh có đang bật không.
+    var autoCorrectOn: Bool { autoCorrect }
+
     /// Gõ tắt (macro) có đang bật không.
     var macroOn: Bool { macroEnabled }
 
     /// Bật/tắt tự khôi phục tiếng Anh (gọi từ menu). Tái tạo engine.
     func setAutoRestoreEnglish(_ on: Bool) {
         autoRestoreEnglish = on
+        rebuildEngine()
+    }
+
+    /// Bật/tắt tự sửa lỗi gõ nhanh (gọi từ menu). Tái tạo engine.
+    func setAutoCorrect(_ on: Bool) {
+        autoCorrect = on
         rebuildEngine()
     }
 
@@ -461,6 +479,9 @@ final class EventTapController {
         macroEnabled = config.macroEnabled
         rebuildMacroStore()
         autoRestoreEnglish = config.autoRestoreEnglish
+        autoCorrect = config.autoCorrect
+        autoCorrectPairs = config.autoCorrectPairs
+        rebuildAutoCorrectDict()
         fixBrowserDoubleType = config.fixBrowserDoubleType
         browserFixExcludedApps = config.browserFixExcludedApps
         clipboardHistoryEnabled = config.clipboardHistoryEnabled
@@ -482,9 +503,16 @@ final class EventTapController {
         macroStore = (macroEnabled && !macroDefs.isEmpty) ? MacroStore(macroDefs) : nil
     }
 
+    /// Dựng lại từ điển tự-sửa từ cặp người dùng cấu hình.
+    private func rebuildAutoCorrectDict() {
+        let pairs = autoCorrectPairs.map { (wrong: $0.wrong, right: $0.right) }
+        autoCorrectDict = AutoCorrectDictionary(userPairs: pairs)
+    }
+
     private func rebuildEngine() {
         engine = VietEngine(method: method, toneStyle: toneStyle,
-                            macros: macroStore, autoRestoreEnglish: autoRestoreEnglish)
+                            macros: macroStore, autoRestoreEnglish: autoRestoreEnglish,
+                            autoCorrect: autoCorrect)
         resetSyllable()
     }
 
@@ -677,6 +705,20 @@ final class EventTapController {
                 KeyOutput.replace(backspaces: backspaces, with: raw + String(breakChar), proxy: proxy,
                                   erase: eraseStrategy())
                 return nil  // nuốt phím ngắt gốc (ta đã tự gõ nó kèm từ khôi phục)
+            }
+
+            // TỰ SỬA LỖI GÕ NHANH: từ vừa gõ khớp một lỗi phổ biến hoặc dấu thanh đặt
+            // sai vị trí -> thay bằng từ đúng (vd "giừo" -> "giờ", "nhièu" -> "nhiều").
+            // Chạy SAU khôi-phục-tiếng-Anh để không tranh chỗ với từ tiếng Anh.
+            if autoCorrect, !currentDisplay.isEmpty,
+               let result = AutoCorrect.correctWord(currentDisplay, dictionary: autoCorrectDict) {
+                let backspaces = committedLength
+                let breakChar = KeyCodeMap.wordBreakCharacter(for: keyCode)
+                resetSyllable()
+                KeyOutput.replace(backspaces: backspaces,
+                                  with: result.corrected + String(breakChar), proxy: proxy,
+                                  erase: eraseStrategy())
+                return nil  // nuốt phím ngắt gốc (ta đã tự gõ từ đúng kèm ký tự ngắt)
             }
 
             resetSyllable()

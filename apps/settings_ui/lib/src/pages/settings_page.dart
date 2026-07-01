@@ -20,7 +20,7 @@ import '../widgets/pixel.dart';
 import '../widgets/pixel_controls.dart';
 
 /// Các tab chức năng trong menu cài đặt.
-enum SettingsTab { general, shortcuts, clipboard, macros, convert, troubleshoot, about }
+enum SettingsTab { general, shortcuts, clipboard, macros, autocorrect, convert, troubleshoot, about }
 
 /// Các phép biến đổi cho công cụ chuyển mã.
 enum _Op { none, removeDiacritics, upper, lower, capWords, capFirst }
@@ -215,6 +215,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _buildSidebarTab(SettingsTab.shortcuts, Icons.bolt_rounded, 'PHÍM TẮT'),
           _buildSidebarTab(SettingsTab.clipboard, Icons.assignment_rounded, 'CLIPBOARD'),
           _buildSidebarTab(SettingsTab.macros, Icons.text_snippet_rounded, 'GÕ TẮT'),
+          _buildSidebarTab(SettingsTab.autocorrect, Icons.auto_fix_high_rounded, 'TỰ SỬA LỖI'),
           _buildSidebarTab(SettingsTab.convert, Icons.swap_horiz_rounded, 'CHUYỂN MÃ'),
           _buildSidebarTab(SettingsTab.troubleshoot, Icons.build_rounded, 'SỬA LỖI'),
           _buildSidebarTab(SettingsTab.about, Icons.info_outline_rounded, 'THÔNG TIN'),
@@ -295,6 +296,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 SettingsTab.shortcuts => _buildShortcutsTab(context),
                 SettingsTab.clipboard => _buildClipboardTab(context),
                 SettingsTab.macros => _buildMacrosTab(context),
+                SettingsTab.autocorrect => _buildAutoCorrectTab(context),
                 SettingsTab.convert => _buildConvertTab(context),
                 SettingsTab.troubleshoot => _buildTroubleshootTab(context),
                 SettingsTab.about => _buildAboutTab(context),
@@ -680,6 +682,218 @@ class _SettingsPageState extends State<SettingsPage> {
         ],
       ],
     );
+  }
+
+  // ── Tab: Tự sửa lỗi gõ nhanh ────────────────────────────────────────────
+
+  Widget _buildAutoCorrectTab(BuildContext context) {
+    final t = context.tokens;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _tabSectionTitle('TỰ SỬA LỖI GÕ NHANH'),
+        const SizedBox(height: AppSpacing.sm),
+        SettingRow(
+          title: 'BẬT TỰ SỬA LỖI',
+          subtitle: s.autoCorrect
+              ? 'Gõ nhanh sai dấu tự sửa khi kết thúc từ: "giừo"→"giờ"'
+              : 'Bật để tự sửa lỗi đặt dấu sai khi gõ nhanh',
+          control: PixelSwitch(
+            value: s.autoCorrect,
+            onChanged: (v) => _save(s.copyWith(autoCorrect: v)),
+          ),
+        ),
+        if (s.autoCorrect) ...[
+          _tabDivider(),
+          Row(
+            children: [
+              _tabSectionTitle('DANH SÁCH TỪ TỰ SỬA'),
+              const Spacer(),
+              PixelButton(
+                label: 'THÊM MỚI',
+                icon: Icons.add_rounded,
+                color: AppColors.green,
+                small: true,
+                expand: false,
+                height: 32,
+                onPressed: () => _editAutoCorrectPair(context, null),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Gõ ra từ bên trái → tự thay bằng từ bên phải. Sửa/xoá tuỳ ý.',
+            style: TextStyle(
+                fontFamily: AppFonts.body, fontSize: 13, color: t.textMuted),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (s.autoCorrectPairs.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              alignment: Alignment.center,
+              child: Text(
+                '(Chưa có cặp từ nào)',
+                style: TextStyle(
+                  fontFamily: AppFonts.body,
+                  fontSize: 16,
+                  color: t.textMuted,
+                ),
+              ),
+            )
+          else
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: s.autoCorrectPairs.length,
+              itemBuilder: (ctx, index) => _autoCorrectRow(context, index),
+            ),
+        ],
+      ],
+    );
+  }
+
+  Widget _autoCorrectRow(BuildContext context, int index) {
+    final t = context.tokens;
+    final p = s.autoCorrectPairs[index];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+      child: Container(
+        decoration: BoxDecoration(
+          color: t.panel,
+          border: Border.all(color: t.outline, width: AppBorders.thin),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              color: AppColors.red.withValues(alpha: 0.15),
+              child: Text(
+                p.wrong,
+                style: TextStyle(
+                    fontFamily: AppFonts.body,
+                    fontSize: 16,
+                    color: t.textPrimary),
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.arrow_forward_rounded, size: 16),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                color: AppColors.green.withValues(alpha: 0.15),
+                child: Text(
+                  p.right,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontFamily: AppFonts.body,
+                      fontSize: 16,
+                      color: t.textPrimary),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            PixelIconButton(
+              icon: Icons.edit_rounded,
+              iconSize: 15,
+              size: 32,
+              tooltip: 'Sửa',
+              onPressed: () => _editAutoCorrectPair(context, index),
+            ),
+            const SizedBox(width: 4),
+            PixelIconButton(
+              icon: Icons.delete_outline_rounded,
+              iconSize: 15,
+              size: 32,
+              tooltip: 'Xoá',
+              color: AppColors.red,
+              onPressed: () {
+                final next = [...s.autoCorrectPairs]..removeAt(index);
+                _save(s.copyWith(autoCorrectPairs: next));
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editAutoCorrectPair(BuildContext context, int? index) async {
+    final existing = index != null ? s.autoCorrectPairs[index] : null;
+    final wrongCtrl = TextEditingController(text: existing?.wrong ?? '');
+    final rightCtrl = TextEditingController(text: existing?.right ?? '');
+
+    final result = await showDialog<AutoCorrectPair>(
+      context: context,
+      builder: (ctx) {
+        final t = ctx.tokens;
+        return AlertDialog(
+          backgroundColor: t.panel,
+          shape: const RoundedRectangleBorder(
+            side: BorderSide(color: Colors.black, width: AppBorders.thin),
+            borderRadius: BorderRadius.zero,
+          ),
+          title: Text(index == null ? 'THÊM TỪ TỰ SỬA' : 'SỬA TỪ TỰ SỬA',
+              style: Theme.of(ctx).textTheme.labelSmall),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('TỪ GÕ SAI (vd: giừo)',
+                  style: Theme.of(ctx)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: t.textMuted, fontSize: 13)),
+              const SizedBox(height: 4),
+              _dialogField(ctx, wrongCtrl, 'giừo'),
+              const SizedBox(height: 12),
+              Text('TỪ ĐÚNG (vd: giờ)',
+                  style: Theme.of(ctx)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: t.textMuted, fontSize: 13)),
+              const SizedBox(height: 4),
+              _dialogField(ctx, rightCtrl, 'giờ'),
+            ],
+          ),
+          actions: [
+            PixelButton(
+              label: 'HUỶ',
+              color: AppColors.stone,
+              small: true,
+              expand: false,
+              onPressed: () => Navigator.pop(ctx),
+            ),
+            PixelButton(
+              label: 'LƯU',
+              color: AppColors.green,
+              small: true,
+              expand: false,
+              onPressed: () {
+                final w = wrongCtrl.text.trim();
+                final r = rightCtrl.text.trim();
+                if (w.isEmpty || r.isEmpty || w == r) return;
+                Navigator.pop(ctx, AutoCorrectPair(wrong: w, right: r));
+              },
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == null) return;
+    final next = [...s.autoCorrectPairs];
+    // Xoá trùng vế 'wrong' (không phân biệt bản đang sửa), rồi thêm/ghi đè.
+    next.removeWhere((p) => p.wrong == result.wrong &&
+        (index == null || s.autoCorrectPairs[index].wrong != result.wrong));
+    if (index != null) {
+      next[index] = result;
+    } else {
+      next.add(result);
+    }
+    _save(s.copyWith(autoCorrectPairs: next));
   }
 
   // ── Tab 5: Chuyển mã (Integrated Convert Tool) ──────────────────────────
