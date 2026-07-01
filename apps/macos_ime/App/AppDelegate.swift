@@ -279,7 +279,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
 
         // 6. ⓘ Về Bow Go
-        let aboutItem = NSMenuItem(title: "ⓘ  Về Bow Go v1.0.3", action: nil, keyEquivalent: "")
+        let aboutItem = NSMenuItem(title: "ⓘ  Về Bow Go v1.0.4", action: nil, keyEquivalent: "")
         aboutItem.isEnabled = false
         menu.addItem(aboutItem)
 
