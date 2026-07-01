@@ -55,11 +55,20 @@ class VietEngine {
   final InputMethod method;
   final ToneStyle toneStyle;
 
+  /// Bật/tắt TỰ SỬA LỖI GÕ NHANH (auto-correct). Mặc định TẮT để giữ tương thích
+  /// ngược — engine Dart hiện chỉ có [process] nên cờ này chỉ là tuỳ chọn khai báo;
+  /// caller có thể dùng [AutoCorrect.correctWord] độc lập khi chốt từ.
+  final bool autoCorrect;
+
   /// Đúng dãy phím người dùng đã gõ cho âm tiết hiện tại (vd "tieengs").
   /// Giữ buffer này để có thể DỰNG LẠI (replay) âm tiết — cần cho backspace, ESC.
   final List<String> _rawKeys = [];
 
-  VietEngine({this.method = InputMethod.telex, this.toneStyle = ToneStyle.modern});
+  VietEngine({
+    this.method = InputMethod.telex,
+    this.toneStyle = ToneStyle.modern,
+    this.autoCorrect = false,
+  });
 
   /// TỰ KHÔI PHỤC TIẾNG ANH (thuần, không trạng thái) — port từ Engine.swift.
   /// Trả `rawKeys` để khôi phục, hoặc null nếu nên giữ nguyên dạng tiếng Việt.

@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var vniMenuItem: NSMenuItem?
     private var autoRestoreMenuItem: NSMenuItem?
     private var macroMenuItem: NSMenuItem?
+    private var autoCorrectMenuItem: NSMenuItem?
     private var healthCheckTimer: Timer?
     private var launchedWithoutPermissions = false
 
@@ -35,6 +36,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Self.registerPixelFonts()
         setupMenuBar()
         setupSmartSwitch()
+
+        // Gieo bộ cặp tự-sửa mặc định vào file nếu lần đầu chạy (để UI Flutter thấy).
+        settingsStore.seedAutoCorrectPairsIfAbsent()
 
         // Đọc cấu hình do app UI (Flutter) ghi, rồi theo dõi để áp ngay khi đổi.
         if let cfg = settingsStore.read() {
@@ -220,6 +224,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setSymbol(clipboardItem, "doc.on.clipboard")
         featuresSub.addItem(clipboardItem)
 
+        // Tự sửa lỗi gõ nhanh (toggle có checkmark) — nằm trong submenu Tính năng.
+        let autoCorrectItem = makeItem("Tự sửa lỗi gõ nhanh", #selector(toggleAutoCorrect))
+        setSymbol(autoCorrectItem, "wand.and.stars")
+        featuresSub.addItem(autoCorrectItem)
+        self.autoCorrectMenuItem = autoCorrectItem
+
         featuresItem.submenu = featuresSub
         menu.addItem(featuresItem)
 
@@ -301,6 +311,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         autoRestoreMenuItem?.state = tapController.autoRestoreEnglishOn ? .on : .off
         macroMenuItem?.state = tapController.macroOn ? .on : .off
+        autoCorrectMenuItem?.state = tapController.autoCorrectOn ? .on : .off
     }
 
     /// Đăng ký font pixel (PressStart2P + VT323) từ bundle để cửa sổ lịch sử
@@ -376,6 +387,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let on = !tapController.autoRestoreEnglishOn
         tapController.setAutoRestoreEnglish(on)
         settingsStore.writeAutoRestoreEnglish(on)
+        updateMenuTitle()
+    }
+
+    @objc private func toggleAutoCorrect() {
+        let on = !tapController.autoCorrectOn
+        tapController.setAutoCorrect(on)
+        settingsStore.writeAutoCorrect(on)
         updateMenuTitle()
     }
 

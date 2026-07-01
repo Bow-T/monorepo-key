@@ -100,6 +100,8 @@ Tính năng engine đã có:
 - **Công cụ chuyển mã**: bỏ dấu, hoa/thường (4 kiểu), NFC↔NFD, TCVN3/VNI-Windows
 - **Tự khôi phục tiếng Anh** (heuristic, không từ điển): từ biến dạng & không hợp
   lệ tiếng Việt → trả phím thô (vd "terminäl"→"terminal")
+- **Tự sửa lỗi gõ nhanh**: khi chốt từ, dời dấu thanh đặt sai vị trí + tra từ điển
+  tĩnh lỗi phổ biến (vd "giừo"→"giờ", "nhièu"→"nhiều"). Tắt mặc định.
 - **Kiểm tra chính tả** tiếng Việt theo luật âm tiết (gạch chân từ sai)
 
 ---
@@ -132,6 +134,7 @@ file JSON làm "hợp đồng":
   "smartSwitch": false, "perApp": { "com.apple.Terminal": false },
 
   "autoRestoreEnglish": false,
+  "autoCorrect": false,
   "macroEnabled": true,
   "macros": [
     { "keyword": "vn", "content": "Việt Nam" },
@@ -146,6 +149,9 @@ file JSON làm "hợp đồng":
   (content = "a, b, c") · `counter` (content = tiền tố). Tắt toàn bộ bằng `macroEnabled:false`.
 - **`autoRestoreEnglish`** — bật để từ bị biến dạng & không hợp lệ tiếng Việt tự trả về
   phím thô khi chốt từ (heuristic theo luật âm tiết, không cần từ điển).
+- **`autoCorrect`** — bật để tự sửa lỗi gõ nhanh khi chốt từ: dời dấu thanh đặt sai vị
+  trí + tra từ điển tĩnh các lỗi phổ biến ("giừo"→"giờ"). Thêm từ vào danh sách trong
+  `AutoCorrectDictionary.words` để mở rộng. Mặc định tắt.
 
 - **Flutter GHI** (auto-save mỗi khi đổi cài đặt) — `settings_ui/lib/src/models/settings.dart`.
 - **Swift ĐỌC + watch file** (`DispatchSource`) → áp ngay không cần restart — `macos_ime/App/SettingsStore.swift`.

@@ -12,6 +12,12 @@
 import Foundation
 import VietEngine
 
+/// Một cặp tự-sửa-lỗi: gõ ra `wrong` -> tự thay bằng `right` khi chốt từ.
+struct AutoCorrectPair: Equatable {
+    var wrong: String
+    var right: String
+}
+
 /// Ảnh chụp cấu hình bộ gõ đọc từ đĩa.
 struct BowConfig: Equatable {
     var enabled: Bool = true
@@ -37,6 +43,15 @@ struct BowConfig: Equatable {
     /// Tự khôi phục tiếng Anh: từ biến dạng & không hợp lệ tiếng Việt -> trả phím
     /// thô khi chốt từ. Mặc định tắt (heuristic, không từ điển).
     var autoRestoreEnglish: Bool = false
+
+    /// Tự sửa lỗi gõ nhanh: khi chốt từ, sửa dấu thanh đặt sai vị trí hoặc lỗi gõ
+    /// nhanh phổ biến ("giừo"->"giờ", "nhièu"->"nhiều"). Mặc định tắt (từ điển tĩnh).
+    var autoCorrect: Bool = false
+
+    /// Danh sách cặp (sai -> đúng) do người dùng cấu hình cho tự-sửa-lỗi.
+    /// JSON: "autoCorrectPairs": [ {"wrong":"giừo","right":"giờ"}, ... ]
+    /// Lần đầu (khoá vắng mặt) sẽ được gieo bằng bộ mặc định built-in.
+    var autoCorrectPairs: [AutoCorrectPair] = []
 
     /// Định nghĩa macro: từ khoá thô -> nội dung. Loại tĩnh.
     /// JSON: "macros": [ {"keyword":"vn","content":"Việt Nam"}, ... ]
@@ -76,6 +91,18 @@ struct BowConfig: Equatable {
         if let p = obj["perApp"] as? [String: Bool] { cfg.perApp = p }
         if let me = obj["macroEnabled"] as? Bool { cfg.macroEnabled = me }
         if let ar = obj["autoRestoreEnglish"] as? Bool { cfg.autoRestoreEnglish = ar }
+        if let ac = obj["autoCorrect"] as? Bool { cfg.autoCorrect = ac }
+        if let pairs = obj["autoCorrectPairs"] as? [[String: Any]] {
+            cfg.autoCorrectPairs = pairs.compactMap { item in
+                guard let w = item["wrong"] as? String, !w.isEmpty,
+                      let r = item["right"] as? String, !r.isEmpty else { return nil }
+                return AutoCorrectPair(wrong: w, right: r)
+            }
+        } else {
+            // Khoá vắng mặt -> gieo bộ mặc định built-in để người dùng thấy & sửa.
+            cfg.autoCorrectPairs = AutoCorrectDictionary.defaultPairs()
+                .map { AutoCorrectPair(wrong: $0.wrong, right: $0.right) }
+        }
         if let arr = obj["macros"] as? [[String: Any]] {
             cfg.macros = arr.compactMap { item in
                 guard let kw = item["keyword"] as? String, !kw.isEmpty,
@@ -163,6 +190,26 @@ final class SettingsStore {
         update { obj in
             if (obj["autoRestoreEnglish"] as? Bool) == enabled { return false }
             obj["autoRestoreEnglish"] = enabled
+            return true
+        }
+    }
+
+    /// Cập nhật cờ `autoCorrect` (khi bật/tắt tự sửa lỗi qua menu). Giữ nguyên khoá khác.
+    func writeAutoCorrect(_ enabled: Bool) {
+        update { obj in
+            if (obj["autoCorrect"] as? Bool) == enabled { return false }
+            obj["autoCorrect"] = enabled
+            return true
+        }
+    }
+
+    /// Gieo bộ cặp tự-sửa MẶC ĐỊNH vào file NẾU khoá chưa tồn tại (lần chạy đầu).
+    /// Nhờ vậy app UI Flutter thấy được danh sách để người dùng xem & sửa.
+    func seedAutoCorrectPairsIfAbsent() {
+        update { obj in
+            guard obj["autoCorrectPairs"] == nil else { return false }  // đã có -> giữ nguyên
+            obj["autoCorrectPairs"] = AutoCorrectDictionary.defaultPairs()
+                .map { ["wrong": $0.wrong, "right": $0.right] }
             return true
         }
     }

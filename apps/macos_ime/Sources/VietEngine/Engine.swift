@@ -55,14 +55,20 @@ public final class VietEngine {
     /// tiếng Việt hợp lệ thì khôi phục phím thô khi chốt từ. Mặc định tắt.
     private let autoRestoreEnglish: Bool
 
+    /// Tự sửa lỗi gõ nhanh: khi chốt từ, nếu từ vừa gõ khớp một lỗi phổ biến hoặc
+    /// dấu thanh đặt sai vị trí thì tự sửa về từ đúng. Mặc định tắt. Xem `AutoCorrect`.
+    private let autoCorrect: Bool
+
     public init(method: InputMethod = .telex,
                 toneStyle: ToneStyle = .modern,
                 macros: MacroStore? = nil,
-                autoRestoreEnglish: Bool = false) {
+                autoRestoreEnglish: Bool = false,
+                autoCorrect: Bool = false) {
         self.method = method
         self.toneStyle = toneStyle
         self.macros = macros
         self.autoRestoreEnglish = autoRestoreEnglish
+        self.autoCorrect = autoCorrect
     }
 
     // MARK: - Buffer phím thô (giữ lịch sử phím gốc người dùng gõ)
@@ -88,6 +94,9 @@ public final class VietEngine {
         /// Macro khớp -> caller XOÁ `deleteCount` ký tự đã hiển thị (cả từ khoá),
         /// rồi CHÈN `insert` + `breakChar`. (breakChar là phím ngắt vừa gõ.)
         case macro(deleteCount: Int, insert: String, breakChar: Character)
+        /// Tự sửa lỗi gõ nhanh: từ vừa gõ (`deleteCount` ký tự hiển thị) được thay bằng
+        /// `insert` (từ đúng), rồi CHÈN `breakChar`. Giống macro nhưng lý do khác nhau.
+        case autoCorrect(deleteCount: Int, insert: String, breakChar: Character)
     }
 
     /// Nhận một ký tự người dùng gõ, trả về chuỗi văn bản hiện tại của âm tiết
@@ -132,6 +141,18 @@ public final class VietEngine {
                 let deleteCount = currentWordDisplayLength()
                 resetWord()
                 return .macro(deleteCount: deleteCount, insert: content, breakChar: ch)
+            }
+        }
+
+        // Tự sửa lỗi gõ nhanh trên từ vừa gõ (chỉ xét âm tiết hiện tại — từ đơn).
+        // Chỉ chạy khi âm tiết chưa được khôi phục tiếng Anh (ưu tiên cao hơn ở caller).
+        if autoCorrect, committedWordLength == 0, !syllable.isEmpty {
+            let display = render()
+            if let result = AutoCorrect.correctWord(display) {
+                resetWord()
+                return .autoCorrect(deleteCount: display.count,
+                                    insert: result.corrected,
+                                    breakChar: ch)
             }
         }
 
