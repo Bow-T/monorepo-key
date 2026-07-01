@@ -19,7 +19,7 @@ APP_NAME="Bow Go"
 APP_DIR="$ROOT/build/$APP_NAME.app"
 
 # Lấy version từ Info.plist nếu app đã build; mặc định 0.1.
-VERSION="1.0.2"
+VERSION="1.0.3"
 
 # Kiến trúc máy hiện tại -> tên file (arm64 / intel) cho giống bản phát hành chuẩn.
 ARCH="$(uname -m)"
