@@ -233,6 +233,12 @@ public final class VietEngine {
     /// tạo nên (vd "ế" = e+e+s). Xoá 1 phím thô rồi replay luôn cho kết quả ĐÚNG mà
     /// không cần logic đảo ngược phức tạp — đây là mẹo gọn của cách giữ buffer thô.
     ///
+    /// LƯU Ý: hàm này lùi theo PHÍM THÔ, nên chuỗi hiển thị trả về có thể DÀI BẰNG
+    /// chuỗi cũ (chỉ tháo dấu: "tiếng"->"tiêng", "ấ"->"â"). Caller (EventTapController)
+    /// PHẢI đồng bộ màn hình theo chuỗi này (xoá `committedLength` cũ, gõ lại chuỗi
+    /// mới) — KHÔNG được giả định phím Backspace vật lý xoá đúng số ký tự hiển thị,
+    /// nếu không màn hình sẽ lệch engine -> nuốt chữ khi gõ lại.
+    ///
     /// Trả về chuỗi hiển thị mới của âm tiết (rỗng nếu đã hết), hoặc `nil` nếu không
     /// còn gì trong buffer (caller cứ để Backspace đi qua như bình thường).
     @discardableResult
@@ -335,8 +341,6 @@ public final class VietEngine {
                         syllable.letters[syllable.letters.count - 1] = last
                         return .applied
                     }
-                } else {
-                    return .notDiacritic
                 }
             }
             return applyHornOrBreve()
@@ -431,7 +435,7 @@ public final class VietEngine {
     ///
     /// Đây là chìa khoá để dấu/biến âm đặt ĐÚNG kể cả khi người dùng gõ phím-dấu
     /// SAU phụ âm cuối — vd "đuoc" rồi gõ "w" vẫn móc được cụm "uo" -> "đươc"
-    /// (giống cách OpenKey dùng findAndCalculateVowel quét qua phụ âm cuối).
+    /// (tìm cụm nguyên âm bằng cách quét ngược qua phụ âm cuối).
     private func vowelNucleusRange() -> (start: Int, end: Int)? {
         let letters = syllable.letters
         var end = letters.count - 1
@@ -478,7 +482,7 @@ public final class VietEngine {
             if a == "u" && b == "o" && !isPartOfQu {
                 // "thuo": LUÔN móc 'o', và móc THÊM 'u' nếu có phụ âm cuối sau cụm
                 // (thương = th-ư-ơ-ng). Không có phụ âm cuối thì chỉ móc 'o' (thuở).
-                // Theo đúng luật OpenKey (isThu + kiểm tra âm đóng).
+                // (luật "thu" + kiểm tra âm đóng).
                 let isThuo = vStart >= 2 &&
                     Character(syllable.letters[vStart - 2].base.lowercased()) == "t" &&
                     Character(syllable.letters[vStart - 1].base.lowercased()) == "h"

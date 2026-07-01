@@ -378,6 +378,112 @@ class PixelBadge extends StatelessWidget {
   }
 }
 
+/// Header status + theme toggle, fused into ONE pixel panel.
+///
+/// Left cell: the VN/EN engine status (color block + blinking LED + label).
+/// Right cell: a sun/moon button that flips light↔dark. A hard vertical divider
+/// splits the two so they read as a single control strip instead of two loose
+/// pieces. Shares the panel's border + hard shadow → one cohesive block.
+class PixelStatusToggle extends StatelessWidget {
+  const PixelStatusToggle({
+    super.key,
+    required this.ready,
+    required this.onToggleTheme,
+  });
+
+  /// Engine is in Vietnamese-typing mode (VN) vs. passthrough (EN).
+  final bool ready;
+  final VoidCallback onToggleTheme;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final statusColor = ready ? AppColors.green : AppColors.stone;
+
+    return PixelPanel(
+      padding: EdgeInsets.zero,
+      shadowOffset: AppBorders.shadowSm,
+      borderWidth: AppBorders.thin,
+      fill: t.inset,
+      child: IntrinsicHeight(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── Left cell: engine status ──────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (ready)
+                    BlinkingSquare(color: statusColor)
+                  else
+                    Container(width: 8, height: 8, color: statusColor),
+                  const SizedBox(width: 8),
+                  Text(
+                    ready ? 'VN' : 'EN',
+                    style: TextStyle(
+                      fontFamily: AppFonts.head,
+                      color: statusColor,
+                      fontSize: 8,
+                      height: 1.4,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // ── Hard divider ──────────────────────────────────────────────
+            Container(width: AppBorders.thin, color: t.outline),
+            // ── Right cell: sun / moon theme toggle ───────────────────────
+            _ThemeCell(onTap: onToggleTheme),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The right-hand cell of [PixelStatusToggle] — a sun/moon button that fills
+/// with the accent color on hover (matching [PixelIconButton]'s feel).
+class _ThemeCell extends StatefulWidget {
+  const _ThemeCell({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  State<_ThemeCell> createState() => _ThemeCellState();
+}
+
+class _ThemeCellState extends State<_ThemeCell> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Tooltip(
+      message: 'Đổi sáng/tối',
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: Container(
+            width: 34,
+            color: _hover ? AppColors.blue : Colors.transparent,
+            alignment: Alignment.center,
+            child: Icon(
+              t.isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+              size: 16,
+              color: _hover ? Colors.white : t.textSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// A square LED that blinks on/off in discrete steps (no fade).
 class BlinkingSquare extends StatefulWidget {
   const BlinkingSquare({super.key, required this.color, this.size = 8});

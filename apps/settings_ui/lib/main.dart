@@ -26,7 +26,7 @@ class BowSettingsApp extends StatefulWidget {
 }
 
 class _BowSettingsAppState extends State<BowSettingsApp> {
-  ThemeMode _mode = ThemeMode.light;
+  ThemeMode _mode = ThemeMode.dark;
 
   /// Đã rời màn onboarding để vào app chưa (bấm "Bắt đầu" / "Để sau").
   bool _enteredApp = false;

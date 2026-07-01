@@ -195,20 +195,9 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
         ),
-        PixelBadge(
-          label: ready ? 'VN' : 'EN',
-          color: ready ? AppColors.green : AppColors.stone,
-          blink: ready,
-        ),
-        const SizedBox(width: AppSpacing.xs),
-        PixelIconButton(
-          icon: context.tokens.isDark
-              ? Icons.light_mode_rounded
-              : Icons.dark_mode_rounded,
-          size: 32,
-          iconSize: 16,
-          tooltip: 'Đổi sáng/tối',
-          onPressed: widget.onToggleTheme,
+        PixelStatusToggle(
+          ready: ready,
+          onToggleTheme: widget.onToggleTheme,
         ),
       ],
     );
