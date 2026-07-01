@@ -28,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var autoRestoreMenuItem: NSMenuItem?
     private var macroMenuItem: NSMenuItem?
     private var autoCorrectMenuItem: NSMenuItem?
+    private var launchAtLoginMenuItem: NSMenuItem?
     private var healthCheckTimer: Timer?
     private var launchedWithoutPermissions = false
 
@@ -37,12 +38,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupMenuBar()
         setupSmartSwitch()
 
-        // Gieo bộ cặp tự-sửa mặc định vào file nếu lần đầu chạy (để UI Flutter thấy).
+        // Gieo giá trị mặc định vào file nếu lần đầu chạy (để UI Flutter thấy).
+        settingsStore.seedLaunchAtLoginIfAbsent(default: true)
         settingsStore.seedAutoCorrectPairsIfAbsent()
 
         // Đọc cấu hình do app UI (Flutter) ghi, rồi theo dõi để áp ngay khi đổi.
         if let cfg = settingsStore.read() {
             tapController.apply(config: cfg)
+            LoginItem.sync(desired: cfg.launchAtLogin)
             smartSwitch.apply(isOn: cfg.smartSwitch, perApp: cfg.perApp)
 
             ClipboardManager.shared.enabled = cfg.clipboardHistoryEnabled
@@ -55,6 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsStore.onChange = { [weak self] cfg in
             guard let self else { return }
             self.tapController.apply(config: cfg)
+            LoginItem.sync(desired: cfg.launchAtLogin)
             self.smartSwitch.apply(isOn: cfg.smartSwitch, perApp: cfg.perApp)
 
             ClipboardManager.shared.enabled = cfg.clipboardHistoryEnabled
@@ -230,6 +234,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         featuresSub.addItem(autoCorrectItem)
         self.autoCorrectMenuItem = autoCorrectItem
 
+        // Khởi động cùng hệ thống (toggle có checkmark).
+        let loginItem = makeItem("Khởi động cùng hệ thống", #selector(toggleLaunchAtLogin))
+        setSymbol(loginItem, "power")
+        featuresSub.addItem(loginItem)
+        self.launchAtLoginMenuItem = loginItem
+
         featuresItem.submenu = featuresSub
         menu.addItem(featuresItem)
 
@@ -312,6 +322,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         autoRestoreMenuItem?.state = tapController.autoRestoreEnglishOn ? .on : .off
         macroMenuItem?.state = tapController.macroOn ? .on : .off
         autoCorrectMenuItem?.state = tapController.autoCorrectOn ? .on : .off
+        // Trạng thái login item đọc TRỰC TIẾP từ hệ thống (nguồn chân lý — người dùng
+        // có thể đã tắt thủ công ở System Settings > Login Items).
+        launchAtLoginMenuItem?.state = LoginItem.isEnabled ? .on : .off
     }
 
     /// Đăng ký font pixel (PressStart2P + VT323) từ bundle để cửa sổ lịch sử
@@ -401,6 +414,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let on = !tapController.macroOn
         tapController.setMacroEnabled(on)
         settingsStore.writeMacroEnabled(on)
+        updateMenuTitle()
+    }
+
+    @objc private func toggleLaunchAtLogin() {
+        // Đảo theo trạng thái THỰC của hệ thống (nguồn chân lý), rồi ghi vào file.
+        let desired = !LoginItem.isEnabled
+        let ok = LoginItem.setEnabled(desired)
+        if ok { settingsStore.writeLaunchAtLogin(desired) }
         updateMenuTitle()
     }
 

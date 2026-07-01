@@ -31,6 +31,10 @@ struct BowConfig: Equatable {
     var hotkeyKeyCode: Int64 = 0
     var hotkeyModifiers: Set<String> = ["control", "shift"]
 
+    /// Khởi động cùng hệ thống (đăng ký login item qua SMAppService). Mặc định bật —
+    /// bộ gõ nên sẵn sàng ngay khi đăng nhập máy.
+    var launchAtLogin: Bool = true
+
     /// Smart Switch: tự nhớ bật/tắt theo từng app (bundle id).
     var smartSwitch: Bool = false
 
@@ -87,6 +91,7 @@ struct BowConfig: Equatable {
         if let mods = obj["hotkeyModifiers"] as? [String] {
             cfg.hotkeyModifiers = Set(mods)
         }
+        if let ll = obj["launchAtLogin"] as? Bool { cfg.launchAtLogin = ll }
         if let s = obj["smartSwitch"] as? Bool { cfg.smartSwitch = s }
         if let p = obj["perApp"] as? [String: Bool] { cfg.perApp = p }
         if let me = obj["macroEnabled"] as? Bool { cfg.macroEnabled = me }
@@ -199,6 +204,25 @@ final class SettingsStore {
         update { obj in
             if (obj["autoCorrect"] as? Bool) == enabled { return false }
             obj["autoCorrect"] = enabled
+            return true
+        }
+    }
+
+    /// Cập nhật cờ `launchAtLogin` (khi bật/tắt khởi động cùng hệ thống qua menu).
+    func writeLaunchAtLogin(_ enabled: Bool) {
+        update { obj in
+            if (obj["launchAtLogin"] as? Bool) == enabled { return false }
+            obj["launchAtLogin"] = enabled
+            return true
+        }
+    }
+
+    /// Gieo giá trị `launchAtLogin` MẶC ĐỊNH (bật) vào file nếu khoá chưa tồn tại
+    /// (lần chạy đầu) — để app UI Flutter thấy đúng trạng thái.
+    func seedLaunchAtLoginIfAbsent(default defaultValue: Bool = true) {
+        update { obj in
+            guard obj["launchAtLogin"] == nil else { return false }
+            obj["launchAtLogin"] = defaultValue
             return true
         }
     }
