@@ -120,6 +120,12 @@ class AutoCorrect {
 public:
     static std::optional<AutoCorrectResult> CorrectWord(const std::u32string& word);
 
+    // Như trên nhưng tra qua `dictionary` truyền vào (từ điển dựng kèm cặp
+    // sai->đúng người dùng cấu hình) thay vì bản Shared() — khớp bản Swift
+    // `correctWord(_:dictionary:)`.
+    static std::optional<AutoCorrectResult> CorrectWord(
+        const std::u32string& word, const AutoCorrectDictionary& dictionary);
+
     // Lớp 1: dời dấu thanh về đúng vị trí. Trả nullopt nếu không áp dụng được.
     // (Trả về CHÍNH từ gốc nếu dấu đã đúng — caller so sánh để biết có đổi không.)
     static std::optional<std::u32string> RepositionTone(const std::u32string& word);

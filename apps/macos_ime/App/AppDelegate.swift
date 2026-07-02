@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let tapController = EventTapController()
     private let settingsStore = SettingsStore()
     private let smartSwitch = SmartSwitch()
+    private let screenshotController = ScreenshotController()
     private var statusItem: NSStatusItem?
     private var vietMenuItem: NSMenuItem?
     private var engMenuItem: NSMenuItem?
@@ -29,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var macroMenuItem: NSMenuItem?
     private var autoCorrectMenuItem: NSMenuItem?
     private var launchAtLoginMenuItem: NSMenuItem?
+    private var screenshotMenuItem: NSMenuItem?
     private var healthCheckTimer: Timer?
     private var launchedWithoutPermissions = false
 
@@ -53,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if cfg.clipboardHistoryEnabled {
                 ClipboardManager.shared.start()
             }
+            screenshotMenuItem?.isHidden = !cfg.screenshotEnabled
         }
         updateMenuTitle()
         settingsStore.onChange = { [weak self] cfg in
@@ -68,6 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 ClipboardManager.shared.stop()
             }
+            self.screenshotMenuItem?.isHidden = !cfg.screenshotEnabled
 
             self.updateMenuTitle()
             NSLog("[App] Đã áp cấu hình mới từ UI.")
@@ -228,6 +232,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setSymbol(clipboardItem, "doc.on.clipboard")
         featuresSub.addItem(clipboardItem)
 
+        // Chụp màn hình (chọn vùng + chú thích + OCR). Ẩn khi tắt trong Cài đặt.
+        let screenshotItem = NSMenuItem(
+            title: "Chụp màn hình", action: #selector(openScreenshotCapture), keyEquivalent: ""
+        )
+        screenshotItem.target = self
+        setSymbol(screenshotItem, "camera.viewfinder")
+        featuresSub.addItem(screenshotItem)
+        self.screenshotMenuItem = screenshotItem
+
         // Tự sửa lỗi gõ nhanh (toggle có checkmark) — nằm trong submenu Tính năng.
         let autoCorrectItem = makeItem("Tự sửa lỗi gõ nhanh", #selector(toggleAutoCorrect))
         setSymbol(autoCorrectItem, "wand.and.stars")
@@ -344,30 +357,89 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Icon menu bar: chữ V/E trong vòng tròn ĐẶC.
-    ///   - vietnamese = true  -> "v.circle.fill" màu xanh lá grass (đang gõ tiếng Việt)
-    ///   - vietnamese = false -> "e.circle.fill" màu xám mờ (tiếng Anh)
+    /// Bản đồ pixel cho chữ cái dùng trên icon menu bar (1 = tô, hàng 0 ở ĐỈNH).
+    /// V, I, E dùng lưới 3×5; N dùng lưới 4×5 để nét chéo rõ, dễ đọc.
+    private static let pixelGlyphs: [Character: [[Int]]] = [
+        "V": [[1, 0, 1],
+              [1, 0, 1],
+              [1, 0, 1],
+              [1, 0, 1],
+              [0, 1, 0]],
+        "I": [[1, 1, 1],
+              [0, 1, 0],
+              [0, 1, 0],
+              [0, 1, 0],
+              [1, 1, 1]],
+        "E": [[1, 1, 1],
+              [1, 0, 0],
+              [1, 1, 0],
+              [1, 0, 0],
+              [1, 1, 1]],
+        "N": [[1, 0, 0, 1],
+              [1, 1, 0, 1],
+              [1, 0, 1, 1],
+              [1, 0, 0, 1],
+              [1, 0, 0, 1]],
+    ]
+
+    /// Icon menu bar: BADGE bo góc + chữ "VI"/"EN" kiểu PIXEL-ART.
+    ///   - vietnamese = true  -> nền xanh lá grass (#5DA130), chữ "VI" — đang gõ tiếng Việt
+    ///   - vietnamese = false -> nền xám, chữ "EN" — tiếng Anh
+    /// Nền bo góc mượt cho gọn; chữ vẽ bằng lưới ô vuông có khe hở -> chất pixel.
     /// KHÔNG dùng template để giữ được màu (template sẽ bị macOS tô đen/trắng).
     private static func menuBarIcon(vietnamese: Bool) -> NSImage? {
-        let symbolName = vietnamese ? "v.circle.fill" : "e.circle.fill"
-        let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
-        guard let base = NSImage(systemSymbolName: symbolName, accessibilityDescription: vietnamese ? "Tiếng Việt" : "Tiếng Anh")?
-            .withSymbolConfiguration(config) else { return nil }
-
-        // Màu: V = xanh lá grass (#5DA130) đồng bộ theme app; E = xám mờ.
-        let tint: NSColor = vietnamese
+        let side: CGFloat = 18
+        // Màu nền badge: VI = xanh lá grass (#5DA130); EN = xám.
+        let bg: NSColor = vietnamese
             ? NSColor(red: 0x5D / 255.0, green: 0xA1 / 255.0, blue: 0x30 / 255.0, alpha: 1.0)
-            : NSColor.secondaryLabelColor
+            : NSColor(white: 0.60, alpha: 1.0)
+        let text = vietnamese ? "VI" : "EN"
 
-        let size = base.size
-        let tinted = NSImage(size: size, flipped: false) { rect in
-            base.draw(in: rect)
-            tint.set()
-            rect.fill(using: .sourceAtop)
+        let image = NSImage(size: NSSize(width: side, height: side), flipped: false) { _ in
+            // Nền bo góc mượt (badge).
+            let rect = NSRect(x: 0.4, y: 2.0, width: side - 0.8, height: side - 4.0)
+            bg.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: 2.6, yRadius: 2.6).fill()
+
+            // Bố cục lưới chữ: mỗi glyph rộng theo bản đồ, cách nhau 1 cột trống.
+            let chars = Array(text)
+            let widths = chars.map { (Self.pixelGlyphs[$0]?.first?.count) ?? 3 }
+            let glyphH = 5
+            let totalCols = widths.reduce(0, +) + (chars.count - 1)
+
+            // Ô pixel vừa trong nền, chừa lề trong; có khe hở để lộ nét pixel.
+            // padExtra: lề thêm mỗi chiều -> chữ nhỏ lại & nằm gọn giữa badge.
+            let padExtra: CGFloat = 1.6
+            let innerW = rect.width - 3.0 - padExtra * 2
+            let innerH = rect.height - 3.2 - padExtra * 2
+            let cell = min(innerW / CGFloat(totalCols), innerH / CGFloat(glyphH))
+            let gap = cell * 0.16
+            let usedW = cell * CGFloat(totalCols)
+            let usedH = cell * CGFloat(glyphH)
+            let ox = rect.midX - usedW / 2
+            let oy = rect.midY - usedH / 2
+
+            NSColor.white.setFill()
+            var colBase = 0
+            for (idx, ch) in chars.enumerated() {
+                let g = Self.pixelGlyphs[ch] ?? []
+                let gw = widths[idx]
+                for r in 0..<g.count {
+                    for c in 0..<gw where g[r][c] == 1 {
+                        let x = ox + CGFloat(colBase + c) * cell
+                        // Hàng 0 ở ĐỈNH; toạ độ NSImage gốc dưới nên lật trục y.
+                        let y = oy + CGFloat(glyphH - 1 - r) * cell
+                        let px = NSRect(x: x + gap / 2, y: y + gap / 2,
+                                        width: cell - gap, height: cell - gap)
+                        NSBezierPath(rect: px).fill()
+                    }
+                }
+                colBase += gw + 1
+            }
             return true
         }
-        tinted.isTemplate = false
-        return tinted
+        image.isTemplate = false
+        return image
     }
 
     // MARK: - Hành động menu
@@ -427,6 +499,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openClipboardHistory() {
         showClipboardHistory()
+    }
+
+    @objc private func openScreenshotCapture() {
+        startScreenshotCapture()
+    }
+
+    /// Bắt đầu phiên chụp màn hình (gọi từ phím tắt qua event tap hoặc menu).
+    func startScreenshotCapture() {
+        screenshotController.beginCapture()
     }
 
     @objc private func openSettingsApp() {
@@ -517,11 +598,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.messageText = "Sửa lỗi quyền gõ tiếng Việt?"
         alert.informativeText = """
         Thao tác này sẽ:
-          1. Xoá (reset) quyền cũ của Bow Go trong Accessibility + Input Monitoring.
+          1. Xoá (reset) quyền cũ của Bow Go: Accessibility + Input Monitoring \
+        + Screen Recording (chụp màn hình).
           2. Mở System Settings để bạn BẬT LẠI quyền cho Bow Go.
           3. Tự khởi động lại app.
 
-        Dùng khi đã cấp quyền mà vẫn không gõ được tiếng Việt.
+        Dùng khi đã cấp quyền mà vẫn không gõ được tiếng Việt / không chụp được màn hình.
         """
         alert.addButton(withTitle: "Sửa ngay")
         alert.addButton(withTitle: "Huỷ")
@@ -530,8 +612,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard alert.runModal() == .alertFirstButtonReturn else { return }
 
         let bundleId = Bundle.main.bundleIdentifier ?? "com.bowgo.keyboard"
-        // tccutil reset cho từng loại quyền.
-        for service in ["Accessibility", "ListenEvent", "PostEvent"] {
+        // tccutil reset cho từng loại quyền (ScreenCapture = Ghi màn hình, cho
+        // tính năng chụp màn hình — cũng bị "mồ côi" sau mỗi lần build lại).
+        for service in ["Accessibility", "ListenEvent", "PostEvent", "ScreenCapture"] {
             let task = Process()
             task.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
             task.arguments = ["reset", service, bundleId]
@@ -542,9 +625,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NSLog("[Fix] Đã reset quyền cho \(bundleId).")
 
-        // Mở 2 trang Settings để người dùng cấp lại.
-        Permissions.openSettings(.accessibility)
+        // Mở các trang Settings để người dùng cấp lại. System Settings chỉ hiện
+        // 1 trang mỗi lúc — mở Screen Recording TRƯỚC để 2 quyền gõ phím (quan
+        // trọng hơn) nằm trên cùng.
+        Permissions.openSettings(.screenRecording)
         Permissions.openSettings(.inputMonitoring)
+        Permissions.openSettings(.accessibility)
 
         // Hướng dẫn rồi relaunch.
         let done = NSAlert()
@@ -553,6 +639,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Trong System Settings vừa mở:
           • Accessibility: bật Bow Go (thêm bằng dấu + nếu chưa có)
           • Input Monitoring: bật Bow Go
+          • Screen Recording: bật Bow Go (nếu dùng chụp màn hình)
 
         Bấm OK để khởi động lại Bow Go. Sau khi bật quyền, app sẽ nhận lại.
         """
@@ -572,8 +659,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        // Ghi nhớ app đang focus để trả lại sau khi OCR (không dùng NSApp.hide ở
+        // nhánh OCR — hide sẽ ẩn luôn toast xác nhận).
+        let previousApp = NSWorkspace.shared.frontmostApplication
+
         let entries = ClipboardManager.shared.history
-        let window = ClipboardHistoryWindow(entries: entries) { selectedEntry in
+        let window = ClipboardHistoryWindow(entries: entries, onSelect: { selectedEntry in
             ClipboardHistoryWindow.shared?.orderOut(nil)
             ClipboardHistoryWindow.shared = nil
 
@@ -593,7 +684,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 KeyOutput.simulatePaste()
             }
-        }
+        }, onOCR: { entry in
+            ClipboardHistoryWindow.shared?.orderOut(nil)
+            ClipboardHistoryWindow.shared = nil
+
+            let restoreFocus = {
+                if let app = previousApp, app.isTerminated == false {
+                    app.activate()
+                } else {
+                    NSApp.hide(nil)
+                }
+            }
+            guard let path = entry.imagePath,
+                  let image = NSImage(contentsOfFile: path) else {
+                restoreFocus()
+                return
+            }
+            // Cửa sổ bôi-đen-chữ kiểu Preview: trỏ vào chữ trong ảnh để copy.
+            LiveTextWindow.present(image: image, onDismiss: restoreFocus)
+        })
 
         ClipboardHistoryWindow.shared = window
         window.showWindow()

@@ -78,6 +78,12 @@ struct BowConfig: Equatable {
     var clipboardHistoryHotkeyKeyCode: Int64 = 9 // V
     var clipboardHistoryHotkeyModifiers: Set<String> = ["control"]
 
+    /// Cấu hình chụp màn hình (chọn vùng -> vẽ chú thích -> copy clipboard/OCR).
+    /// Mặc định ⌃⇧S. Cần quyền Ghi màn hình (Screen Recording) riêng.
+    var screenshotEnabled: Bool = true
+    var screenshotHotkeyKeyCode: Int64 = 1 // S
+    var screenshotHotkeyModifiers: Set<String> = ["control", "shift"]
+
     static func decode(_ data: Data) -> BowConfig? {
         guard
             let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -123,6 +129,11 @@ struct BowConfig: Equatable {
         if let chk = obj["clipboardHistoryHotkeyKeyCode"] as? Int { cfg.clipboardHistoryHotkeyKeyCode = Int64(chk) }
         if let chmods = obj["clipboardHistoryHotkeyModifiers"] as? [String] {
             cfg.clipboardHistoryHotkeyModifiers = Set(chmods)
+        }
+        if let se = obj["screenshotEnabled"] as? Bool { cfg.screenshotEnabled = se }
+        if let sk = obj["screenshotHotkeyKeyCode"] as? Int { cfg.screenshotHotkeyKeyCode = Int64(sk) }
+        if let smods = obj["screenshotHotkeyModifiers"] as? [String] {
+            cfg.screenshotHotkeyModifiers = Set(smods)
         }
         return cfg
     }

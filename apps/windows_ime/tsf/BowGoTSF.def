@@ -1,0 +1,8 @@
+; BowGoTSF.def — export các hàm COM in-proc server chuẩn cho DLL text service.
+; Cần khi build bằng MSVC (link.exe) để regsvr32/TSF gọi được.
+LIBRARY BowGoTSF
+EXPORTS
+    DllGetClassObject   PRIVATE
+    DllCanUnloadNow     PRIVATE
+    DllRegisterServer   PRIVATE
+    DllUnregisterServer PRIVATE

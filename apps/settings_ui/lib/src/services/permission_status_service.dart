@@ -14,7 +14,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
+
+import 'bow_paths.dart';
 
 /// Ảnh chụp trạng thái quyền đọc từ status.json.
 @immutable
@@ -22,6 +23,7 @@ class PermissionStatus {
   const PermissionStatus({
     required this.accessibility,
     required this.inputMonitoring,
+    this.screenRecording = false,
     this.known = true,
   });
 
@@ -29,10 +31,15 @@ class PermissionStatus {
   const PermissionStatus.unknown()
       : accessibility = false,
         inputMonitoring = false,
+        screenRecording = false,
         known = false;
 
   final bool accessibility;
   final bool inputMonitoring;
+
+  /// Ghi màn hình (Screen Recording) — chỉ cần cho tính năng chụp màn hình,
+  /// KHÔNG tính vào [ready] của bộ gõ.
+  final bool screenRecording;
 
   /// false nếu chưa đọc được file status (bộ gõ chưa từng chạy).
   final bool known;
@@ -44,10 +51,12 @@ class PermissionStatus {
       other is PermissionStatus &&
       other.accessibility == accessibility &&
       other.inputMonitoring == inputMonitoring &&
+      other.screenRecording == screenRecording &&
       other.known == known;
 
   @override
-  int get hashCode => Object.hash(accessibility, inputMonitoring, known);
+  int get hashCode =>
+      Object.hash(accessibility, inputMonitoring, screenRecording, known);
 }
 
 class PermissionStatusService extends ChangeNotifier {
@@ -61,11 +70,15 @@ class PermissionStatusService extends ChangeNotifier {
   Timer? _timer;
 
   /// Bắt đầu đọc + poll. Gọi một lần khi mở app.
+  ///
+  /// LƯU Ý nền tảng: file status.json chỉ do bộ gõ macOS (Swift) ghi ra — mô
+  /// hình quyền TCC (Accessibility/Input Monitoring) là đặc thù macOS. Trên
+  /// Windows, TSF không cần cấp quyền kiểu đó nên file này không tồn tại; khi
+  /// đó trạng thái là [PermissionStatus.unknown] (known=false) và UI bỏ qua
+  /// bước onboarding quyền.
   Future<void> start() async {
-    final dir = await getApplicationSupportDirectory();
-    // getApplicationSupportDirectory() trả .../Application Support/<bundleId>;
-    // dùng chung thư mục "BowGo" như settings.json.
-    _file = File('${dir.parent.path}/BowGo/status.json');
+    // Dùng chung thư mục "BowGo" như settings.json (xem [BowPaths]).
+    _file = await BowPaths.sharedFile('status.json');
     await _read();
     // Poll mỗi 2s — đủ nhanh để phản ánh khi người dùng vừa bật quyền.
     _timer ??= Timer.periodic(const Duration(seconds: 2), (_) => _read());
@@ -82,6 +95,7 @@ class PermissionStatusService extends ChangeNotifier {
       final next = PermissionStatus(
         accessibility: raw['accessibility'] == true,
         inputMonitoring: raw['inputMonitoring'] == true,
+        screenRecording: raw['screenRecording'] == true,
       );
       if (next != _value) {
         _value = next;

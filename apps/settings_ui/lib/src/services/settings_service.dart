@@ -1,20 +1,21 @@
 // settings_service.dart
 // ---------------------
-// Đọc/ghi cấu hình bộ gõ ra ĐĨA, ở một vị trí mà app Swift macOS cũng đọc được:
+// Đọc/ghi cấu hình bộ gõ ra ĐĨA, ở một vị trí mà bộ gõ nền tảng cũng đọc được:
 //
-//     ~/Library/Application Support/BowGo/settings.json
+//     macOS  : ~/Library/Application Support/BowGo/settings.json
+//     Windows: %APPDATA%\BowGo\settings.json   (khớp text service TSF)
 //
-// Đây là "đường dây" thật giữa UI Flutter và bộ gõ Swift: UI ghi file, bộ gõ đọc
-// file (và theo dõi thay đổi). Dùng Application Support vì cả hai tiến trình đều
-// truy cập được mà không cần quyền đặc biệt.
+// Đây là "đường dây" thật giữa UI Flutter và bộ gõ (Swift trên macOS, DLL TSF
+// trên Windows): UI ghi file, bộ gõ đọc file (và theo dõi thay đổi). Cả hai
+// tiến trình đều truy cập được mà không cần quyền đặc biệt.
 
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../models/settings.dart';
+import 'bow_paths.dart';
 
 class SettingsService extends ChangeNotifier {
   SettingsService._();
@@ -30,14 +31,9 @@ class SettingsService extends ChangeNotifier {
 
   /// Khởi tạo: xác định đường dẫn, đọc file nếu đã có.
   Future<void> load() async {
-    final dir = await getApplicationSupportDirectory();
-    // getApplicationSupportDirectory() trả về .../Application Support/<bundleId>.
-    // Ta cố định một thư mục "BowGo" dùng chung để Swift biết chỗ tìm.
-    final shared = Directory('${dir.parent.path}/BowGo');
-    if (!shared.existsSync()) {
-      shared.createSync(recursive: true);
-    }
-    _file = File('${shared.path}/settings.json');
+    // Thư mục dùng chung theo nền tảng (macOS: Application Support/BowGo;
+    // Windows: %APPDATA%\BowGo) — xem [BowPaths].
+    _file = await BowPaths.sharedFile('settings.json');
 
     if (_file!.existsSync()) {
       try {
@@ -53,11 +49,17 @@ class SettingsService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Hook tuỳ chọn khi cấu hình đổi (ngoài notifyListeners) — dùng cho tầng
+  /// chạy nền Windows đăng ký lại phím tắt toàn cục. Tránh import vòng: bên
+  /// runtime tự gán callback này, service không biết về runtime.
+  Future<void> Function(BowSettings next)? onChanged;
+
   /// Cập nhật một phần cấu hình rồi ghi xuống đĩa ngay (auto-save).
   Future<void> update(BowSettings next) async {
     _value = next;
     notifyListeners();
     await _write();
+    if (onChanged != null) await onChanged!(next);
   }
 
   Future<void> _write() async {

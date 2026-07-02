@@ -48,6 +48,11 @@ class Hotkey {
     modifiers: {HotkeyModifier.control},
   );
 
+  static const Hotkey defaultScreenshot = Hotkey(
+    keyCode: 1, // 'S'
+    modifiers: {HotkeyModifier.control, HotkeyModifier.shift},
+  );
+
   /// Phím tắt chỉ-modifier (keyCode 0): hợp lệ khi có ÍT NHẤT 2 modifier — để
   /// không nuốt nhầm một phím modifier đơn (vd chỉ Shift). Phím tắt có phím chính:
   /// hợp lệ khi có ít nhất 1 modifier.
@@ -163,6 +168,16 @@ class Hotkey {
 
   /// Bản công khai của `_macKeyCode` cho recorder dùng trực tiếp.
   static int? macKeyCode(LogicalKeyboardKey key) => _macKeyCode(key);
+
+  /// Chiều ngược: keyCode macOS -> LogicalKeyboardKey (đa nền). Dùng cho phím
+  /// tắt toàn cục trên Windows (hotkey_manager cần LogicalKeyboardKey). Trả null
+  /// nếu keyCode không nằm trong bảng (kể cả keyCode 0 = chỉ-modifier).
+  static LogicalKeyboardKey? logicalFromMacKeyCode(int code) {
+    for (final entry in _toMac.entries) {
+      if (entry.value == code) return LogicalKeyboardKey(entry.key);
+    }
+    return null;
+  }
 
   static String _keyName(int code) => _names[code] ?? 'Key#$code';
 

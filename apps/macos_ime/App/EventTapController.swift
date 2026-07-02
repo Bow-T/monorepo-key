@@ -54,6 +54,11 @@ final class EventTapController {
     private var clipboardHistoryHotkeyKeyCode: Int64 = 9 // V
     private var clipboardHistoryHotkeyModifiers: Set<String> = ["control"]
 
+    // Phím tắt chụp màn hình (chọn vùng)
+    private var screenshotEnabled = true
+    private var screenshotHotkeyKeyCode: Int64 = 1 // S
+    private var screenshotHotkeyModifiers: Set<String> = ["control", "shift"]
+
     // Trạng thái để theo dõi phím tắt Control+Shift (chỉ phím bổ trợ, không kèm chữ)
     private var bothDown = false
     private var cancelShortcut = false
@@ -487,6 +492,9 @@ final class EventTapController {
         clipboardHistoryEnabled = config.clipboardHistoryEnabled
         clipboardHistoryHotkeyKeyCode = config.clipboardHistoryHotkeyKeyCode
         clipboardHistoryHotkeyModifiers = config.clipboardHistoryHotkeyModifiers
+        screenshotEnabled = config.screenshotEnabled
+        screenshotHotkeyKeyCode = config.screenshotHotkeyKeyCode
+        screenshotHotkeyModifiers = config.screenshotHotkeyModifiers
         rebuildEngine()
     }
 
@@ -565,6 +573,24 @@ final class EventTapController {
         return active == clipboardHistoryHotkeyModifiers
     }
 
+    private func isScreenshotHotkey(_ event: CGEvent) -> Bool {
+        guard screenshotHotkeyKeyCode != 0 else { return false }
+        guard event.getIntegerValueField(.keyboardEventKeycode) == screenshotHotkeyKeyCode else {
+            return false
+        }
+        guard !screenshotHotkeyModifiers.isEmpty else { return false }
+
+        let flags = event.flags
+        let active: Set<String> = [
+            flags.contains(.maskControl)   ? "control" : nil,
+            flags.contains(.maskAlternate) ? "option"  : nil,
+            flags.contains(.maskShift)     ? "shift"   : nil,
+            flags.contains(.maskCommand)   ? "command" : nil,
+        ].compactMap { $0 }.reduce(into: Set()) { $0.insert($1) }
+
+        return active == screenshotHotkeyModifiers
+    }
+
     // MARK: - Callback C (static, không bắt được self -> lấy qua refcon)
 
     private static let callback: CGEventTapCallBack = { proxy, type, event, refcon in
@@ -628,6 +654,12 @@ final class EventTapController {
                 // Kích hoạt hiển thị lịch sử clipboard trên main thread
                 DispatchQueue.main.async {
                     AppDelegate.shared?.showClipboardHistory()
+                }
+                return nil
+            }
+            if screenshotEnabled && isScreenshotHotkey(event) {
+                DispatchQueue.main.async {
+                    AppDelegate.shared?.startScreenshotCapture()
                 }
                 return nil
             }

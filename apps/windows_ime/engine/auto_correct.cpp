@@ -263,6 +263,11 @@ std::optional<std::u32string> AutoCorrect::RepositionTone(const std::u32string& 
 }
 
 std::optional<AutoCorrectResult> AutoCorrect::CorrectWord(const std::u32string& word) {
+    return CorrectWord(word, AutoCorrectDictionary::Shared());
+}
+
+std::optional<AutoCorrectResult> AutoCorrect::CorrectWord(
+    const std::u32string& word, const AutoCorrectDictionary& dictionary) {
     if (word.empty()) return std::nullopt;
     // An toàn: chỉ xét từ có dấu tiếng Việt. Bỏ qua ASCII thuần (Anh/tên riêng).
     if (!ContainsVietnameseDiacritic(word)) return std::nullopt;
@@ -273,7 +278,7 @@ std::optional<AutoCorrectResult> AutoCorrect::CorrectWord(const std::u32string& 
     }
 
     // Lớp 2: tra từ điển lỗi phổ biến (khớp không phân biệt hoa/thường).
-    if (auto fixed = AutoCorrectDictionary::Shared().Lookup(word); fixed && *fixed != word) {
+    if (auto fixed = dictionary.Lookup(word); fixed && *fixed != word) {
         return AutoCorrectResult{*fixed, AutoCorrectResult::Reason::Dictionary};
     }
 
