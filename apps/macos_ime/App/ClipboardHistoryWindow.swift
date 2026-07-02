@@ -168,10 +168,13 @@ extension Font {
 class ClipboardHistoryWindow: NSPanel {
     static var shared: ClipboardHistoryWindow?
 
-    init(entries: [ClipboardEntry], onSelect: @escaping (ClipboardEntry) -> Void) {
+    init(entries: [ClipboardEntry],
+         onSelect: @escaping (ClipboardEntry) -> Void,
+         onOCR: @escaping (ClipboardEntry) -> Void) {
         let contentView = NSHostingView(rootView: ClipboardHistoryView(
             entries: entries,
             onSelect: onSelect,
+            onOCR: onOCR,
             onClose: {
                 ClipboardHistoryWindow.shared?.orderOut(nil)
                 ClipboardHistoryWindow.shared = nil
@@ -242,6 +245,7 @@ class ClipboardHistoryWindow: NSPanel {
 struct ClipboardHistoryView: View {
     @State var entries: [ClipboardEntry]
     let onSelect: (ClipboardEntry) -> Void
+    let onOCR: (ClipboardEntry) -> Void
     let onClose: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
@@ -428,7 +432,8 @@ struct ClipboardHistoryView: View {
                                     else if isHoveringIndex == index { isHoveringIndex = nil }
                                 },
                                 onTap: { onSelect(entry) },
-                                onDelete: { deleteEntry(entry) }
+                                onDelete: { deleteEntry(entry) },
+                                onExtractText: entry.isImage ? { onOCR(entry) } : nil
                             )
                             .id(index)
 
@@ -478,6 +483,8 @@ struct ClipboardItemRow: View {
     let onHover: (Bool) -> Void
     let onTap: () -> Void
     let onDelete: () -> Void
+    /// Có giá trị với mục ẢNH: nhận dạng chữ trong ảnh (OCR) rồi copy text.
+    let onExtractText: (() -> Void)?
 
     private var previewText: String {
         let singleLine = entry.text.replacingOccurrences(of: "\n", with: " ")
@@ -538,6 +545,20 @@ struct ClipboardItemRow: View {
             Spacer()
 
             if isHovered {
+                // Nút OCR (chỉ mục ảnh): copy CHỮ trong ảnh thay vì ảnh.
+                if let onExtractText {
+                    Button(action: onExtractText) {
+                        Image(systemName: "text.viewfinder")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 16, height: 16)
+                            .background(Pixel.grass)
+                            .overlay(Rectangle().strokeBorder(tokens.outline, lineWidth: 1.5))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Copy chữ trong ảnh (OCR)")
+                }
+
                 Button(action: onDelete) {
                     Image(systemName: "xmark")
                         .font(.system(size: 9, weight: .bold))

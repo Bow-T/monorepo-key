@@ -101,6 +101,8 @@ class BowSettings {
     this.clipboardHistoryEnabled = true,
     this.clipboardHistoryLimit = 40,
     this.clipboardHistoryHotkey = Hotkey.defaultClipboard,
+    this.screenshotEnabled = true,
+    this.screenshotHotkey = Hotkey.defaultScreenshot,
   });
 
   /// Bộ gõ có đang bật không (toggle toàn cục).
@@ -150,6 +152,12 @@ class BowSettings {
   /// Phím tắt mở lịch sử clipboard.
   final Hotkey clipboardHistoryHotkey;
 
+  /// Bật/tắt chụp màn hình (chọn vùng + chú thích + OCR).
+  final bool screenshotEnabled;
+
+  /// Phím tắt bắt đầu chụp màn hình.
+  final Hotkey screenshotHotkey;
+
   BowSettings copyWith({
     bool? enabled,
     InputMethod? method,
@@ -166,6 +174,8 @@ class BowSettings {
     bool? clipboardHistoryEnabled,
     int? clipboardHistoryLimit,
     Hotkey? clipboardHistoryHotkey,
+    bool? screenshotEnabled,
+    Hotkey? screenshotHotkey,
   }) {
     return BowSettings(
       enabled: enabled ?? this.enabled,
@@ -183,6 +193,8 @@ class BowSettings {
       clipboardHistoryEnabled: clipboardHistoryEnabled ?? this.clipboardHistoryEnabled,
       clipboardHistoryLimit: clipboardHistoryLimit ?? this.clipboardHistoryLimit,
       clipboardHistoryHotkey: clipboardHistoryHotkey ?? this.clipboardHistoryHotkey,
+      screenshotEnabled: screenshotEnabled ?? this.screenshotEnabled,
+      screenshotHotkey: screenshotHotkey ?? this.screenshotHotkey,
     );
   }
 
@@ -203,6 +215,8 @@ class BowSettings {
         'clipboardHistoryEnabled': clipboardHistoryEnabled,
         'clipboardHistoryLimit': clipboardHistoryLimit,
         ...clipboardHistoryHotkey.toJsonWithPrefix('clipboardHistoryHotkey'),
+        'screenshotEnabled': screenshotEnabled,
+        ...screenshotHotkey.toJsonWithPrefix('screenshotHotkey'),
       };
 
   factory BowSettings.fromJson(Map<String, dynamic> j) => BowSettings(
@@ -233,5 +247,8 @@ class BowSettings {
         clipboardHistoryLimit: j['clipboardHistoryLimit'] as int? ?? 40,
         clipboardHistoryHotkey: Hotkey.fromJsonWithPrefix(
             j, 'clipboardHistoryHotkey', Hotkey.defaultClipboard),
+        screenshotEnabled: j['screenshotEnabled'] as bool? ?? true,
+        screenshotHotkey: Hotkey.fromJsonWithPrefix(
+            j, 'screenshotHotkey', Hotkey.defaultScreenshot),
       );
 }

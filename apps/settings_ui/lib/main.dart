@@ -3,6 +3,7 @@
 // Điểm vào app cài đặt Bow Go (Flutter, macOS). Dựng theme pixel, nạp cấu hình
 // từ đĩa rồi mở màn hình cài đặt.
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import 'src/pages/onboarding_screen.dart';
@@ -16,6 +17,19 @@ Future<void> main() async {
   await SettingsService.instance.load();
   await PermissionStatusService.instance.start();
   runApp(const BowSettingsApp());
+}
+
+/// Cho phép cuộn bằng cả chuột/trackpad LẪN kéo-chuột-trái trên desktop.
+/// Mặc định Flutter chỉ cuộn bằng trackpad trên macOS; thêm touch + mouse
+/// để thanh công cụ (sidebar) và nội dung luôn kéo cuộn được.
+class _DragScrollBehavior extends MaterialScrollBehavior {
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.stylus,
+      };
 }
 
 class BowSettingsApp extends StatefulWidget {
@@ -51,6 +65,7 @@ class _BowSettingsAppState extends State<BowSettingsApp> {
     return MaterialApp(
       title: 'Bow Go — Cài đặt',
       debugShowCheckedModeBanner: false,
+      scrollBehavior: _DragScrollBehavior(),
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: _mode,

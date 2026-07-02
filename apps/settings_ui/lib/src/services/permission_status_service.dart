@@ -22,6 +22,7 @@ class PermissionStatus {
   const PermissionStatus({
     required this.accessibility,
     required this.inputMonitoring,
+    this.screenRecording = false,
     this.known = true,
   });
 
@@ -29,10 +30,15 @@ class PermissionStatus {
   const PermissionStatus.unknown()
       : accessibility = false,
         inputMonitoring = false,
+        screenRecording = false,
         known = false;
 
   final bool accessibility;
   final bool inputMonitoring;
+
+  /// Ghi màn hình (Screen Recording) — chỉ cần cho tính năng chụp màn hình,
+  /// KHÔNG tính vào [ready] của bộ gõ.
+  final bool screenRecording;
 
   /// false nếu chưa đọc được file status (bộ gõ chưa từng chạy).
   final bool known;
@@ -44,10 +50,12 @@ class PermissionStatus {
       other is PermissionStatus &&
       other.accessibility == accessibility &&
       other.inputMonitoring == inputMonitoring &&
+      other.screenRecording == screenRecording &&
       other.known == known;
 
   @override
-  int get hashCode => Object.hash(accessibility, inputMonitoring, known);
+  int get hashCode =>
+      Object.hash(accessibility, inputMonitoring, screenRecording, known);
 }
 
 class PermissionStatusService extends ChangeNotifier {
@@ -82,6 +90,7 @@ class PermissionStatusService extends ChangeNotifier {
       final next = PermissionStatus(
         accessibility: raw['accessibility'] == true,
         inputMonitoring: raw['inputMonitoring'] == true,
+        screenRecording: raw['screenRecording'] == true,
       );
       if (next != _value) {
         _value = next;

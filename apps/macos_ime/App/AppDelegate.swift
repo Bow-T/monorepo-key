@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let tapController = EventTapController()
     private let settingsStore = SettingsStore()
     private let smartSwitch = SmartSwitch()
+    private let screenshotController = ScreenshotController()
     private var statusItem: NSStatusItem?
     private var vietMenuItem: NSMenuItem?
     private var engMenuItem: NSMenuItem?
@@ -29,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var macroMenuItem: NSMenuItem?
     private var autoCorrectMenuItem: NSMenuItem?
     private var launchAtLoginMenuItem: NSMenuItem?
+    private var screenshotMenuItem: NSMenuItem?
     private var healthCheckTimer: Timer?
     private var launchedWithoutPermissions = false
 
@@ -53,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if cfg.clipboardHistoryEnabled {
                 ClipboardManager.shared.start()
             }
+            screenshotMenuItem?.isHidden = !cfg.screenshotEnabled
         }
         updateMenuTitle()
         settingsStore.onChange = { [weak self] cfg in
@@ -68,6 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 ClipboardManager.shared.stop()
             }
+            self.screenshotMenuItem?.isHidden = !cfg.screenshotEnabled
 
             self.updateMenuTitle()
             NSLog("[App] Đã áp cấu hình mới từ UI.")
@@ -227,6 +231,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         clipboardItem.target = self
         setSymbol(clipboardItem, "doc.on.clipboard")
         featuresSub.addItem(clipboardItem)
+
+        // Chụp màn hình (chọn vùng + chú thích + OCR). Ẩn khi tắt trong Cài đặt.
+        let screenshotItem = NSMenuItem(
+            title: "Chụp màn hình", action: #selector(openScreenshotCapture), keyEquivalent: ""
+        )
+        screenshotItem.target = self
+        setSymbol(screenshotItem, "camera.viewfinder")
+        featuresSub.addItem(screenshotItem)
+        self.screenshotMenuItem = screenshotItem
 
         // Tự sửa lỗi gõ nhanh (toggle có checkmark) — nằm trong submenu Tính năng.
         let autoCorrectItem = makeItem("Tự sửa lỗi gõ nhanh", #selector(toggleAutoCorrect))
@@ -429,6 +442,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         showClipboardHistory()
     }
 
+    @objc private func openScreenshotCapture() {
+        startScreenshotCapture()
+    }
+
+    /// Bắt đầu phiên chụp màn hình (gọi từ phím tắt qua event tap hoặc menu).
+    func startScreenshotCapture() {
+        screenshotController.beginCapture()
+    }
+
     @objc private func openSettingsApp() {
         // 1. Thử mở helper app cài đặt nhúng bên trong main bundle trước
         let helperURL = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/Bow Go.app")
@@ -517,11 +539,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.messageText = "Sửa lỗi quyền gõ tiếng Việt?"
         alert.informativeText = """
         Thao tác này sẽ:
-          1. Xoá (reset) quyền cũ của Bow Go trong Accessibility + Input Monitoring.
+          1. Xoá (reset) quyền cũ của Bow Go: Accessibility + Input Monitoring \
+        + Screen Recording (chụp màn hình).
           2. Mở System Settings để bạn BẬT LẠI quyền cho Bow Go.
           3. Tự khởi động lại app.
 
-        Dùng khi đã cấp quyền mà vẫn không gõ được tiếng Việt.
+        Dùng khi đã cấp quyền mà vẫn không gõ được tiếng Việt / không chụp được màn hình.
         """
         alert.addButton(withTitle: "Sửa ngay")
         alert.addButton(withTitle: "Huỷ")
@@ -530,8 +553,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard alert.runModal() == .alertFirstButtonReturn else { return }
 
         let bundleId = Bundle.main.bundleIdentifier ?? "com.bowgo.keyboard"
-        // tccutil reset cho từng loại quyền.
-        for service in ["Accessibility", "ListenEvent", "PostEvent"] {
+        // tccutil reset cho từng loại quyền (ScreenCapture = Ghi màn hình, cho
+        // tính năng chụp màn hình — cũng bị "mồ côi" sau mỗi lần build lại).
+        for service in ["Accessibility", "ListenEvent", "PostEvent", "ScreenCapture"] {
             let task = Process()
             task.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
             task.arguments = ["reset", service, bundleId]
@@ -542,9 +566,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NSLog("[Fix] Đã reset quyền cho \(bundleId).")
 
-        // Mở 2 trang Settings để người dùng cấp lại.
-        Permissions.openSettings(.accessibility)
+        // Mở các trang Settings để người dùng cấp lại. System Settings chỉ hiện
+        // 1 trang mỗi lúc — mở Screen Recording TRƯỚC để 2 quyền gõ phím (quan
+        // trọng hơn) nằm trên cùng.
+        Permissions.openSettings(.screenRecording)
         Permissions.openSettings(.inputMonitoring)
+        Permissions.openSettings(.accessibility)
 
         // Hướng dẫn rồi relaunch.
         let done = NSAlert()
@@ -553,6 +580,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Trong System Settings vừa mở:
           • Accessibility: bật Bow Go (thêm bằng dấu + nếu chưa có)
           • Input Monitoring: bật Bow Go
+          • Screen Recording: bật Bow Go (nếu dùng chụp màn hình)
 
         Bấm OK để khởi động lại Bow Go. Sau khi bật quyền, app sẽ nhận lại.
         """
@@ -572,8 +600,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        // Ghi nhớ app đang focus để trả lại sau khi OCR (không dùng NSApp.hide ở
+        // nhánh OCR — hide sẽ ẩn luôn toast xác nhận).
+        let previousApp = NSWorkspace.shared.frontmostApplication
+
         let entries = ClipboardManager.shared.history
-        let window = ClipboardHistoryWindow(entries: entries) { selectedEntry in
+        let window = ClipboardHistoryWindow(entries: entries, onSelect: { selectedEntry in
             ClipboardHistoryWindow.shared?.orderOut(nil)
             ClipboardHistoryWindow.shared = nil
 
@@ -593,7 +625,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 KeyOutput.simulatePaste()
             }
-        }
+        }, onOCR: { entry in
+            ClipboardHistoryWindow.shared?.orderOut(nil)
+            ClipboardHistoryWindow.shared = nil
+
+            let restoreFocus = {
+                if let app = previousApp, app.isTerminated == false {
+                    app.activate()
+                } else {
+                    NSApp.hide(nil)
+                }
+            }
+            guard let path = entry.imagePath,
+                  let image = NSImage(contentsOfFile: path) else {
+                restoreFocus()
+                return
+            }
+            // Cửa sổ bôi-đen-chữ kiểu Preview: trỏ vào chữ trong ảnh để copy.
+            LiveTextWindow.present(image: image, onDismiss: restoreFocus)
+        })
 
         ClipboardHistoryWindow.shared = window
         window.showWindow()

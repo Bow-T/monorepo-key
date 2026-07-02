@@ -22,7 +22,7 @@ import '../widgets/pixel.dart';
 import '../widgets/pixel_controls.dart';
 
 /// Các tab chức năng trong menu cài đặt.
-enum SettingsTab { general, shortcuts, clipboard, macros, autocorrect, convert, troubleshoot, update, about }
+enum SettingsTab { general, shortcuts, clipboard, screenshot, macros, autocorrect, convert, troubleshoot, update, about }
 
 /// Các phép biến đổi cho công cụ chuyển mã.
 enum _Op { none, removeDiacritics, upper, lower, capWords, capFirst }
@@ -51,6 +51,8 @@ class _SettingsPageState extends State<SettingsPage> {
 
   // Trạng thái kiểm tra cập nhật (Tab Cập nhật).
   UpdateResult _update = UpdateResult.idle;
+  // Tăng mỗi lần kiểm tra để card kết quả luôn fade-in lại (kể cả trùng trạng thái).
+  int _updateCheckSeq = 0;
 
   // Trạng thái cho công cụ chuyển mã (Tab Chuyển mã)
   final _input = TextEditingController();
@@ -216,21 +218,27 @@ class _SettingsPageState extends State<SettingsPage> {
   // ── Sidebar Navigation ──────────────────────────────────────────────────
 
   Widget _buildSidebar(BuildContext context) {
+    // Cuộn được để trên cửa sổ thấp vẫn với tới các tab cuối (Cập nhật/Thông tin).
+    // Padding phải chừa chỗ cho hiệu ứng dịch-phải khi hover/chọn tab.
     return SizedBox(
       width: 175,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildSidebarTab(SettingsTab.general, Iconsax.setting_2, 'BỘ GÕ'),
-          _buildSidebarTab(SettingsTab.shortcuts, Iconsax.flash, 'PHÍM TẮT'),
-          _buildSidebarTab(SettingsTab.clipboard, Iconsax.clipboard_text, 'CLIPBOARD'),
-          _buildSidebarTab(SettingsTab.macros, Iconsax.document_text, 'GÕ TẮT'),
-          _buildSidebarTab(SettingsTab.autocorrect, Iconsax.magicpen, 'TỰ SỬA LỖI'),
-          _buildSidebarTab(SettingsTab.convert, Iconsax.arrow_swap_horizontal, 'CHUYỂN MÃ'),
-          _buildSidebarTab(SettingsTab.troubleshoot, Iconsax.setting_2, 'SỬA LỖI'),
-          _buildSidebarTab(SettingsTab.update, Iconsax.cloud_change, 'CẬP NHẬT'),
-          _buildSidebarTab(SettingsTab.about, Iconsax.info_circle, 'THÔNG TIN'),
-        ],
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.only(right: 2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildSidebarTab(SettingsTab.general, Iconsax.setting_2, 'BỘ GÕ'),
+            _buildSidebarTab(SettingsTab.shortcuts, Iconsax.flash, 'PHÍM TẮT'),
+            _buildSidebarTab(SettingsTab.clipboard, Iconsax.clipboard_text, 'CLIPBOARD'),
+            _buildSidebarTab(SettingsTab.screenshot, Iconsax.camera, 'CHỤP HÌNH'),
+            _buildSidebarTab(SettingsTab.macros, Iconsax.document_text, 'GÕ TẮT'),
+            _buildSidebarTab(SettingsTab.autocorrect, Iconsax.magicpen, 'TỰ SỬA LỖI'),
+            _buildSidebarTab(SettingsTab.convert, Iconsax.arrow_swap_horizontal, 'CHUYỂN MÃ'),
+            _buildSidebarTab(SettingsTab.troubleshoot, Iconsax.setting_2, 'SỬA LỖI'),
+            _buildSidebarTab(SettingsTab.update, Iconsax.cloud_change, 'CẬP NHẬT'),
+            _buildSidebarTab(SettingsTab.about, Iconsax.info_circle, 'THÔNG TIN'),
+          ],
+        ),
       ),
     );
   }
@@ -306,6 +314,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 SettingsTab.general => _buildGeneralTab(context),
                 SettingsTab.shortcuts => _buildShortcutsTab(context),
                 SettingsTab.clipboard => _buildClipboardTab(context),
+                SettingsTab.screenshot => _buildScreenshotTab(context),
                 SettingsTab.macros => _buildMacrosTab(context),
                 SettingsTab.autocorrect => _buildAutoCorrectTab(context),
                 SettingsTab.convert => _buildConvertTab(context),
@@ -563,6 +572,18 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         _tabDivider(),
 
+        _tabSectionTitle('CHỤP MÀN HÌNH'),
+        const SizedBox(height: AppSpacing.sm),
+        SettingRow(
+          title: 'PHÍM TẮT CHỤP MÀN HÌNH',
+          subtitle: 'Chọn vùng màn hình để chụp (⌃⇧S mặc định)',
+          control: HotkeyRecorder(
+            hotkey: s.screenshotHotkey,
+            onChanged: (hk) => _save(s.copyWith(screenshotHotkey: hk)),
+          ),
+        ),
+        _tabDivider(),
+
         _buildPixelInfoCard(
           context,
           'LƯU Ý VỀ PHÍM TẮT',
@@ -640,6 +661,72 @@ class _SettingsPageState extends State<SettingsPage> {
           context,
           'BẢO MẬT AN TOÀN',
           'Bộ gõ tự động bỏ qua các dữ liệu nhạy cảm được sao chép từ các ứng dụng quản lý mật khẩu như Keychain Access, 1Password, Bitwarden, KeePassXC... hoặc các ứng dụng đánh dấu Transient/Concealed.',
+        ),
+      ],
+    );
+  }
+
+  // ── Tab: Chụp màn hình ──────────────────────────────────────────────────
+
+  Widget _buildScreenshotTab(BuildContext context) {
+    final st = _permStatus.value;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _tabSectionTitle('CHỤP MÀN HÌNH'),
+        const SizedBox(height: AppSpacing.sm),
+        SettingRow(
+          title: 'BẬT CHỤP MÀN HÌNH',
+          subtitle: s.screenshotEnabled
+              ? 'Chọn vùng, vẽ chú thích, tự copy vào clipboard'
+              : 'Bật để chụp và chú thích vùng màn hình',
+          control: PixelSwitch(
+            value: s.screenshotEnabled,
+            onChanged: (v) => _save(s.copyWith(screenshotEnabled: v)),
+          ),
+        ),
+        if (s.screenshotEnabled) ...[
+          _tabDivider(),
+          _tabSectionTitle('PHÍM TẮT'),
+          const SizedBox(height: AppSpacing.sm),
+          SettingRow(
+            title: 'PHÍM TẮT CHỤP',
+            subtitle: 'Nhấn để bắt đầu chọn vùng (⌃⇧S mặc định)',
+            control: HotkeyRecorder(
+              hotkey: s.screenshotHotkey,
+              onChanged: (hk) => _save(s.copyWith(screenshotHotkey: hk)),
+            ),
+          ),
+          _tabDivider(),
+          _tabSectionTitle('QUYỀN GHI MÀN HÌNH'),
+          const SizedBox(height: AppSpacing.sm),
+          if (st.known)
+            _permissionRow(
+              context,
+              label: 'Screen Recording (Ghi màn hình)',
+              sub: 'Để chụp được nội dung màn hình',
+              granted: st.screenRecording,
+              settingsUrl:
+                  'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
+            )
+          else
+            _buildPixelInfoCard(
+              context,
+              'CHƯA RÕ TRẠNG THÁI QUYỀN',
+              'Hãy mở bộ gõ Bow Go ít nhất một lần để kiểm tra quyền Ghi màn hình.',
+            ),
+        ],
+        _tabDivider(),
+        _buildPixelInfoCard(
+          context,
+          'CÁCH DÙNG',
+          '• Nhấn phím tắt rồi kéo chuột chọn vùng cần chụp.\n'
+          '• Dùng thanh công cụ để vẽ: bút, mũi tên, khung, chữ.\n'
+          '• COPY (hoặc Enter): copy ảnh vào clipboard — tự lưu vào lịch sử Clipboard.\n'
+          '• COPY TEXT: mở ảnh như Preview của macOS — trỏ vào chữ (kể cả tiếng Việt), '
+          'bôi đen đoạn cần rồi ⌘C, hoặc bấm COPY HẾT.\n'
+          '• LƯU: lưu ảnh ra file PNG. Esc: thoát.\n'
+          '• Mục ảnh trong lịch sử Clipboard cũng có nút copy chữ trong ảnh.',
         ),
       ],
     );
@@ -1350,6 +1437,15 @@ class _SettingsPageState extends State<SettingsPage> {
             settingsUrl:
                 'x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent',
           ),
+          const SizedBox(height: AppSpacing.sm),
+          _permissionRow(
+            context,
+            label: 'Screen Recording (Ghi màn hình)',
+            sub: 'Chỉ cần cho tính năng chụp màn hình',
+            granted: st.screenRecording,
+            settingsUrl:
+                'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
+          ),
         ],
       ),
     );
@@ -1467,25 +1563,31 @@ class _SettingsPageState extends State<SettingsPage> {
     final ok = await _confirmDialog(
       context,
       title: 'Sửa lỗi quyền?',
-      message: 'Sẽ xoá quyền cũ của Bow Go (Accessibility + Input Monitoring), '
-          'mở Cài đặt để bạn bật lại, rồi khởi động lại bộ gõ.',
+      message: 'Sẽ xoá quyền cũ của Bow Go (Accessibility + Input Monitoring '
+          '+ Screen Recording), mở Cài đặt để bạn bật lại, rồi khởi động lại bộ gõ.',
       confirmLabel: 'SỬA NGAY',
     );
     if (!ok) return;
 
     const bundleId = 'com.bowgo.keyboard';
-    for (final service in ['Accessibility', 'ListenEvent', 'PostEvent']) {
+    // ScreenCapture = Ghi màn hình (tính năng chụp màn hình) — cũng "mồ côi"
+    // sau mỗi lần build lại như 2 quyền gõ phím.
+    for (final service in ['Accessibility', 'ListenEvent', 'PostEvent', 'ScreenCapture']) {
       try {
         await Process.run('tccutil', ['reset', service, bundleId]);
       } catch (_) {/* bỏ qua */}
     }
 
-    // Mở 2 trang Settings liên quan.
+    // Mở các trang Settings liên quan — System Settings chỉ hiện 1 trang mỗi
+    // lúc, mở Screen Recording trước để 2 quyền gõ phím nằm trên cùng.
     await Process.run('open', [
-      'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
+      'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
     ]);
     await Process.run('open', [
       'x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent'
+    ]);
+    await Process.run('open', [
+      'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
     ]);
 
     // Khởi động lại bộ gõ để gắn quyền mới.
@@ -1572,7 +1674,10 @@ class _SettingsPageState extends State<SettingsPage> {
   /// Gọi GitHub Releases để kiểm tra bản mới, cập nhật UI theo trạng thái.
   Future<void> _checkForUpdates() async {
     if (_update.state == UpdateState.checking) return;
-    setState(() => _update = UpdateResult.checking);
+    setState(() {
+      _update = UpdateResult.checking;
+      _updateCheckSeq++; // đổi key → card kết quả fade-in lại mỗi lần kiểm tra
+    });
     final result = await UpdateService.instance.check();
     if (mounted) setState(() => _update = result);
   }
@@ -1658,6 +1763,7 @@ class _SettingsPageState extends State<SettingsPage> {
         return const SizedBox.shrink();
 
       case UpdateState.checking:
+        // Thanh nạp 8-bit thay vòng xoay tròn — hợp phong cách pixel.
         return PixelPanel(
           padding: const EdgeInsets.all(14),
           fill: t.inset,
@@ -1665,15 +1771,15 @@ class _SettingsPageState extends State<SettingsPage> {
           borderWidth: AppBorders.thin,
           child: Row(
             children: [
-              const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
+              const PixelLoadingBar(
+                color: AppColors.blue,
+                width: 120,
+                segments: 10,
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Đang kiểm tra bản mới…',
+                  'Đang hỏi GitHub…',
                   style: TextStyle(
                     fontFamily: AppFonts.body,
                     fontSize: 15,
@@ -1686,43 +1792,53 @@ class _SettingsPageState extends State<SettingsPage> {
         );
 
       case UpdateState.upToDate:
-        return _buildUpdateResultCard(
-          context,
-          icon: Iconsax.tick_circle,
-          color: AppColors.green,
-          text: 'Bạn đang dùng bản mới nhất (v$kAppVersion).',
+        // Card kết quả hiện dần cho mượt (không nhảy đột ngột).
+        return PixelFadeIn(
+          key: ValueKey(_updateCheckSeq),
+          child: _buildUpdateResultCard(
+            context,
+            icon: Iconsax.tick_circle,
+            color: AppColors.green,
+            text: 'Bạn đang dùng bản mới nhất (v$kAppVersion).',
+          ),
         );
 
       case UpdateState.updateAvailable:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildUpdateResultCard(
-              context,
-              icon: Iconsax.arrow_circle_up,
-              color: AppColors.yellow,
-              text: 'Đã có bản mới: v${_update.latestVersion}. '
-                  'Bạn đang dùng v$kAppVersion.',
-            ),
-            if (_update.releaseUrl != null) ...[
-              const SizedBox(height: AppSpacing.sm),
-              PixelButton(
-                label: 'TẢI BẢN MỚI',
-                icon: Iconsax.export_3,
-                color: AppColors.green,
-                height: 38,
-                onPressed: () => _openSettingsUrl(_update.releaseUrl!),
+        return PixelFadeIn(
+          key: ValueKey(_updateCheckSeq),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildUpdateResultCard(
+                context,
+                icon: Iconsax.arrow_circle_up,
+                color: AppColors.yellow,
+                text: 'Đã có bản mới: v${_update.latestVersion}. '
+                    'Bạn đang dùng v$kAppVersion.',
               ),
+              if (_update.releaseUrl != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                PixelButton(
+                  label: 'TẢI BẢN MỚI',
+                  icon: Iconsax.export_3,
+                  color: AppColors.green,
+                  height: 38,
+                  onPressed: () => _openSettingsUrl(_update.releaseUrl!),
+                ),
+              ],
             ],
-          ],
+          ),
         );
 
       case UpdateState.error:
-        return _buildUpdateResultCard(
-          context,
-          icon: Iconsax.danger,
-          color: AppColors.red,
-          text: _update.message ?? 'Không kiểm tra được cập nhật.',
+        return PixelFadeIn(
+          key: ValueKey(_updateCheckSeq),
+          child: _buildUpdateResultCard(
+            context,
+            icon: Iconsax.danger,
+            color: AppColors.red,
+            text: _update.message ?? 'Không kiểm tra được cập nhật.',
+          ),
         );
     }
   }

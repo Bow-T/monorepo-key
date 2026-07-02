@@ -25,6 +25,12 @@ enum Permissions {
         CGPreflightListenEventAccess()
     }
 
+    /// Đã được cấp Ghi màn hình (Screen Recording) chưa? Quyền TCC riêng, CHỈ cần
+    /// cho tính năng chụp màn hình — không tính vào `ready()` của bộ gõ.
+    static func hasScreenRecording() -> Bool {
+        CGPreflightScreenCaptureAccess()
+    }
+
     /// Cả hai quyền đã sẵn sàng để tạo event tap?
     static func ready() -> Bool {
         hasAccessibility() && hasInputMonitoring()
@@ -39,6 +45,7 @@ enum Permissions {
         let obj: [String: Any] = [
             "accessibility": acc,
             "inputMonitoring": im,
+            "screenRecording": hasScreenRecording(),
             "ready": acc && im,
         ]
         let url = statusFileURL
@@ -78,6 +85,14 @@ enum Permissions {
         CGRequestListenEventAccess()
     }
 
+    /// Hiện prompt xin Ghi màn hình. LƯU Ý: macOS chỉ hiện prompt MỘT LẦN cho mỗi
+    /// app; các lần sau phải bật thủ công trong System Settings. Sau khi cấp,
+    /// app phải khởi động lại mới có hiệu lực (hệ thống tự đề nghị).
+    @discardableResult
+    static func requestScreenRecording() -> Bool {
+        CGRequestScreenCaptureAccess()
+    }
+
     /// Mở thẳng trang cài đặt tương ứng trong System Settings để người dùng bật.
     static func openSettings(_ pane: SettingsPane) {
         let url = URL(string: pane.rawValue)!
@@ -89,6 +104,8 @@ enum Permissions {
             "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
         case inputMonitoring =
             "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
+        case screenRecording =
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
     }
 }
 
