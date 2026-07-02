@@ -357,30 +357,89 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Icon menu bar: chữ V/E trong vòng tròn ĐẶC.
-    ///   - vietnamese = true  -> "v.circle.fill" màu xanh lá grass (đang gõ tiếng Việt)
-    ///   - vietnamese = false -> "e.circle.fill" màu xám mờ (tiếng Anh)
+    /// Bản đồ pixel cho chữ cái dùng trên icon menu bar (1 = tô, hàng 0 ở ĐỈNH).
+    /// V, I, E dùng lưới 3×5; N dùng lưới 4×5 để nét chéo rõ, dễ đọc.
+    private static let pixelGlyphs: [Character: [[Int]]] = [
+        "V": [[1, 0, 1],
+              [1, 0, 1],
+              [1, 0, 1],
+              [1, 0, 1],
+              [0, 1, 0]],
+        "I": [[1, 1, 1],
+              [0, 1, 0],
+              [0, 1, 0],
+              [0, 1, 0],
+              [1, 1, 1]],
+        "E": [[1, 1, 1],
+              [1, 0, 0],
+              [1, 1, 0],
+              [1, 0, 0],
+              [1, 1, 1]],
+        "N": [[1, 0, 0, 1],
+              [1, 1, 0, 1],
+              [1, 0, 1, 1],
+              [1, 0, 0, 1],
+              [1, 0, 0, 1]],
+    ]
+
+    /// Icon menu bar: BADGE bo góc + chữ "VI"/"EN" kiểu PIXEL-ART.
+    ///   - vietnamese = true  -> nền xanh lá grass (#5DA130), chữ "VI" — đang gõ tiếng Việt
+    ///   - vietnamese = false -> nền xám, chữ "EN" — tiếng Anh
+    /// Nền bo góc mượt cho gọn; chữ vẽ bằng lưới ô vuông có khe hở -> chất pixel.
     /// KHÔNG dùng template để giữ được màu (template sẽ bị macOS tô đen/trắng).
     private static func menuBarIcon(vietnamese: Bool) -> NSImage? {
-        let symbolName = vietnamese ? "v.circle.fill" : "e.circle.fill"
-        let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
-        guard let base = NSImage(systemSymbolName: symbolName, accessibilityDescription: vietnamese ? "Tiếng Việt" : "Tiếng Anh")?
-            .withSymbolConfiguration(config) else { return nil }
-
-        // Màu: V = xanh lá grass (#5DA130) đồng bộ theme app; E = xám mờ.
-        let tint: NSColor = vietnamese
+        let side: CGFloat = 18
+        // Màu nền badge: VI = xanh lá grass (#5DA130); EN = xám.
+        let bg: NSColor = vietnamese
             ? NSColor(red: 0x5D / 255.0, green: 0xA1 / 255.0, blue: 0x30 / 255.0, alpha: 1.0)
-            : NSColor.secondaryLabelColor
+            : NSColor(white: 0.60, alpha: 1.0)
+        let text = vietnamese ? "VI" : "EN"
 
-        let size = base.size
-        let tinted = NSImage(size: size, flipped: false) { rect in
-            base.draw(in: rect)
-            tint.set()
-            rect.fill(using: .sourceAtop)
+        let image = NSImage(size: NSSize(width: side, height: side), flipped: false) { _ in
+            // Nền bo góc mượt (badge).
+            let rect = NSRect(x: 0.4, y: 2.0, width: side - 0.8, height: side - 4.0)
+            bg.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: 2.6, yRadius: 2.6).fill()
+
+            // Bố cục lưới chữ: mỗi glyph rộng theo bản đồ, cách nhau 1 cột trống.
+            let chars = Array(text)
+            let widths = chars.map { (Self.pixelGlyphs[$0]?.first?.count) ?? 3 }
+            let glyphH = 5
+            let totalCols = widths.reduce(0, +) + (chars.count - 1)
+
+            // Ô pixel vừa trong nền, chừa lề trong; có khe hở để lộ nét pixel.
+            // padExtra: lề thêm mỗi chiều -> chữ nhỏ lại & nằm gọn giữa badge.
+            let padExtra: CGFloat = 1.6
+            let innerW = rect.width - 3.0 - padExtra * 2
+            let innerH = rect.height - 3.2 - padExtra * 2
+            let cell = min(innerW / CGFloat(totalCols), innerH / CGFloat(glyphH))
+            let gap = cell * 0.16
+            let usedW = cell * CGFloat(totalCols)
+            let usedH = cell * CGFloat(glyphH)
+            let ox = rect.midX - usedW / 2
+            let oy = rect.midY - usedH / 2
+
+            NSColor.white.setFill()
+            var colBase = 0
+            for (idx, ch) in chars.enumerated() {
+                let g = Self.pixelGlyphs[ch] ?? []
+                let gw = widths[idx]
+                for r in 0..<g.count {
+                    for c in 0..<gw where g[r][c] == 1 {
+                        let x = ox + CGFloat(colBase + c) * cell
+                        // Hàng 0 ở ĐỈNH; toạ độ NSImage gốc dưới nên lật trục y.
+                        let y = oy + CGFloat(glyphH - 1 - r) * cell
+                        let px = NSRect(x: x + gap / 2, y: y + gap / 2,
+                                        width: cell - gap, height: cell - gap)
+                        NSBezierPath(rect: px).fill()
+                    }
+                }
+                colBase += gw + 1
+            }
             return true
         }
-        tinted.isTemplate = false
-        return tinted
+        image.isTemplate = false
+        return image
     }
 
     // MARK: - Hành động menu
