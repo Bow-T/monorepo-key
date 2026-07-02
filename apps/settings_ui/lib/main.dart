@@ -93,7 +93,8 @@ class BowSettingsApp extends StatefulWidget {
   State<BowSettingsApp> createState() => _BowSettingsAppState();
 }
 
-class _BowSettingsAppState extends State<BowSettingsApp> {
+class _BowSettingsAppState extends State<BowSettingsApp>
+    with WidgetsBindingObserver {
   ThemeMode _mode = ThemeMode.dark;
 
   /// Đã rời màn onboarding để vào app chưa (bấm "Bắt đầu" / "Để sau").
@@ -106,6 +107,24 @@ class _BowSettingsAppState extends State<BowSettingsApp> {
     // Chỉ hiện onboarding khi BIẾT CHẮC còn thiếu quyền.
     final st = PermissionStatusService.instance.value;
     _enteredApp = !(st.known && !st.ready);
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Người dùng thường bật quyền trong System Settings rồi Alt-Tab về app này.
+    // Ngay khi app được focus lại, kiểm tra quyền tức thì — không đợi vòng poll —
+    // để dòng trạng thái đổi sang ✓ ngay, không còn cảm giác "cấp xong mà chưa
+    // hiện".
+    if (state == AppLifecycleState.resumed) {
+      PermissionStatusService.instance.refresh();
+    }
   }
 
   void _toggleTheme() {

@@ -4,8 +4,10 @@
 // Bố cục dual-pane: Sidebar bên trái, nội dung cài đặt cuộn bên phải.
 // Tự động lưu cấu hình xuống file JSON để bộ gõ Swift đồng bộ.
 
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:flutter/services.dart';
@@ -815,10 +817,36 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         if (s.autoCorrect) ...[
           _tabDivider(),
-          Row(
+          _tabSectionTitle('DANH SÁCH TỪ TỰ SỬA'),
+          const SizedBox(height: AppSpacing.sm),
+          // Nhập/Xuất danh sách để mang sang máy khác (settings không tự
+          // đồng bộ giữa các máy — mỗi máy có file riêng). Dùng Wrap để cụm
+          // nút tự xuống dòng khi cửa sổ hẹp, tránh tràn ngang.
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            runSpacing: 8,
             children: [
-              _tabSectionTitle('DANH SÁCH TỪ TỰ SỬA'),
-              const Spacer(),
+              PixelButton(
+                label: 'NHẬP',
+                icon: Iconsax.import_1,
+                color: AppColors.blue,
+                small: true,
+                expand: false,
+                height: 32,
+                onPressed: () => _importAutoCorrectPairs(context),
+              ),
+              PixelButton(
+                label: 'XUẤT',
+                icon: Iconsax.export_1,
+                color: AppColors.stone,
+                small: true,
+                expand: false,
+                height: 32,
+                onPressed: s.autoCorrectPairs.isEmpty
+                    ? null
+                    : () => _exportAutoCorrectPairs(context),
+              ),
               PixelButton(
                 label: 'THÊM MỚI',
                 icon: Iconsax.add,
@@ -1114,6 +1142,172 @@ class _SettingsPageState extends State<SettingsPage> {
       next.add(result);
     }
     _save(s.copyWith(autoCorrectPairs: next));
+  }
+
+  // ── Xuất/Nhập danh sách cặp tự-sửa (chuyển giữa các máy) ────────────────
+  //
+  // Settings không tự đồng bộ giữa các máy; mỗi máy có file riêng. Hai hàm này
+  // cho phép ghi danh sách ra file .json và nạp lại ở máy khác.
+
+  /// Xuất danh sách cặp tự-sửa ra file .json do người dùng chọn.
+  Future<void> _exportAutoCorrectPairs(BuildContext context) async {
+    final pairs = s.autoCorrectPairs;
+    if (pairs.isEmpty) return;
+
+    // Định dạng riêng, tự nhận diện khi nhập; vẫn là JSON thuần dễ đọc/sửa tay.
+    final payload = <String, dynamic>{
+      '_type': 'bowgo.autoCorrectPairs',
+      '_version': 1,
+      'autoCorrectPairs': pairs.map((p) => p.toJson()).toList(),
+    };
+    final jsonStr = const JsonEncoder.withIndent('  ').convert(payload);
+
+    try {
+      final location = await getSaveLocation(
+        suggestedName: 'bowgo-tu-sua-loi.json',
+        acceptedTypeGroups: const [
+          XTypeGroup(label: 'JSON', extensions: ['json']),
+        ],
+      );
+      if (location == null) return; // người dùng huỷ
+
+      var path = location.path;
+      if (!path.toLowerCase().endsWith('.json')) path = '$path.json';
+      await File(path).writeAsString(jsonStr);
+
+      if (!context.mounted) return;
+      _showSnack('Đã xuất ${pairs.length} cặp ra file.');
+    } catch (e) {
+      if (!context.mounted) return;
+      _showSnack('Không xuất được: $e', error: true);
+    }
+  }
+
+  /// Nhập danh sách cặp tự-sửa từ file .json. Hỏi Gộp hay Ghi đè trước khi áp.
+  Future<void> _importAutoCorrectPairs(BuildContext context) async {
+    final List<AutoCorrectPair> imported;
+    try {
+      final file = await openFile(
+        acceptedTypeGroups: const [
+          XTypeGroup(label: 'JSON', extensions: ['json']),
+        ],
+      );
+      if (file == null) return; // người dùng huỷ
+
+      final raw = await file.readAsString();
+      imported = _parseImportedPairs(raw);
+    } catch (e) {
+      if (!context.mounted) return;
+      _showSnack('File không hợp lệ: $e', error: true);
+      return;
+    }
+
+    if (imported.isEmpty) {
+      if (!context.mounted) return;
+      _showSnack('File không có cặp tự-sửa nào.', error: true);
+      return;
+    }
+
+    if (!context.mounted) return;
+    // Nếu chưa có gì thì nạp thẳng, khỏi hỏi Gộp/Ghi đè.
+    if (s.autoCorrectPairs.isEmpty) {
+      _save(s.copyWith(autoCorrectPairs: imported));
+      _showSnack('Đã nhập ${imported.length} cặp.');
+      return;
+    }
+
+    final mode = await _askImportMode(context, imported.length);
+    if (mode == null) return; // huỷ
+
+    if (mode == _ImportMode.replace) {
+      _save(s.copyWith(autoCorrectPairs: imported));
+      _showSnack('Đã thay bằng ${imported.length} cặp từ file.');
+      return;
+    }
+
+    // Gộp: giữ cặp cũ, cặp mới trùng vế 'wrong' thì ghi đè theo file.
+    final byWrong = <String, AutoCorrectPair>{
+      for (final p in s.autoCorrectPairs) p.wrong: p,
+    };
+    var added = 0;
+    var updated = 0;
+    for (final p in imported) {
+      if (byWrong.containsKey(p.wrong)) {
+        if (byWrong[p.wrong]!.right != p.right) updated++;
+      } else {
+        added++;
+      }
+      byWrong[p.wrong] = p;
+    }
+    _save(s.copyWith(autoCorrectPairs: byWrong.values.toList()));
+    _showSnack('Đã gộp: thêm $added, cập nhật $updated cặp.');
+  }
+
+  /// Bóc danh sách cặp từ nội dung file. Chấp nhận cả file xuất riêng lẫn
+  /// file settings.json đầy đủ (đều có khoá "autoCorrectPairs").
+  List<AutoCorrectPair> _parseImportedPairs(String raw) {
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map) throw const FormatException('Không phải JSON hợp lệ');
+    final list = decoded['autoCorrectPairs'];
+    if (list is! List) throw const FormatException('Thiếu "autoCorrectPairs"');
+
+    final result = <AutoCorrectPair>[];
+    for (final item in list) {
+      if (item is! Map) continue;
+      final wrong = (item['wrong'] as String?)?.trim() ?? '';
+      final right = (item['right'] as String?)?.trim() ?? '';
+      if (wrong.isEmpty || right.isEmpty || wrong == right) continue;
+      result.add(AutoCorrectPair(wrong: wrong, right: right));
+    }
+    return result;
+  }
+
+  /// Hỏi người dùng chọn Gộp hay Ghi đè khi nhập vào danh sách đã có sẵn.
+  Future<_ImportMode?> _askImportMode(BuildContext context, int count) {
+    return showDialog<_ImportMode>(
+      context: context,
+      builder: (ctx) {
+        final t = ctx.tokens;
+        return AlertDialog(
+          backgroundColor: t.panel,
+          shape: const RoundedRectangleBorder(
+            side: BorderSide(color: Colors.black, width: AppBorders.thin),
+            borderRadius: BorderRadius.zero,
+          ),
+          title: Text('NHẬP $count CẶP', style: Theme.of(ctx).textTheme.labelSmall),
+          content: Text(
+            'Bạn đã có ${s.autoCorrectPairs.length} cặp. Chọn cách nhập:\n\n'
+            '• GỘP: giữ cặp cũ, thêm cặp mới (trùng thì lấy theo file).\n'
+            '• GHI ĐÈ: xoá hết cặp cũ, chỉ giữ nội dung trong file.',
+            style: TextStyle(
+                fontFamily: AppFonts.body, fontSize: 14, color: t.textPrimary),
+          ),
+          actions: [
+            PixelButton(
+              label: 'HUỶ',
+              color: AppColors.stone,
+              small: true,
+              expand: false,
+              onPressed: () => Navigator.pop(ctx),
+            ),
+            PixelButton(
+              label: 'GHI ĐÈ',
+              color: AppColors.red,
+              small: true,
+              expand: false,
+              onPressed: () => Navigator.pop(ctx, _ImportMode.replace),
+            ),
+            PixelButton(
+              label: 'GỘP',
+              color: AppColors.green,
+              small: true,
+              expand: false,
+              onPressed: () => Navigator.pop(ctx, _ImportMode.merge),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   // ── Tab 5: Chuyển mã (Integrated Convert Tool) ──────────────────────────
@@ -1614,8 +1808,15 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  void _showSnack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  void _showSnack(String msg, {bool error = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg,
+            style: const TextStyle(fontFamily: AppFonts.body, fontSize: 15)),
+        backgroundColor: error ? AppColors.red : AppColors.green,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<bool> _confirmDialog(
@@ -2127,3 +2328,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 }
+
+/// Cách nhập danh sách cặp tự-sửa khi máy đã có sẵn cặp: gộp thêm hay ghi đè.
+enum _ImportMode { merge, replace }
