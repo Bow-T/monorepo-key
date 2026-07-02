@@ -14,11 +14,21 @@ dependencies:
   cupertino_icons: ^1.0.8
   # Bộ icon Iconsax (font) — dùng cho toàn bộ icon trong UI.
   iconsax_flutter: ^1.0.0
-  # Xác định ~/Library/Application Support để ghi settings.json (Swift cùng đọc).
+  # Xác định thư mục dữ liệu dùng chung để ghi settings.json (bộ gõ cùng đọc).
   path_provider: ^2.1.4
   # Engine + công cụ chuyển mã dùng chung (spec chuẩn). Dùng cho công cụ chuyển mã.
   viet_engine:
     path: ../../packages/viet_engine
+
+  # ── Tính năng đồng hành trên Windows (clipboard history + chụp màn hình) ──
+  # Trên macOS các tính năng này do bộ gõ Swift đảm nhiệm; trên Windows app
+  # Flutter tự chạy nền, dùng các plugin sau (đều hỗ trợ Windows). Trên macOS
+  # chúng không được kích hoạt (mã bootstrap có Platform.isWindows-guard).
+  window_manager: ^0.4.2   # ẩn xuống khay, quản lý cửa sổ overlay
+  tray_manager: ^0.2.3     # icon khay hệ thống + menu chuột phải
+  hotkey_manager: ^0.2.3   # phím tắt toàn cục (mở clipboard, chụp màn hình)
+  super_clipboard: ^0.9.0  # đọc/ghi clipboard (text + ảnh) đa nền
+  screen_capturer: ^0.2.3  # chụp màn hình (chọn vùng) đa nền
 
 dev_dependencies:
   flutter_test:
@@ -27,6 +37,10 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # Icon khay hệ thống trên Windows (tray_manager). Đặt file .ico vào đây.
+  assets:
+    - assets/tray/
 
   # Font pixel (giống monorepo-remote): Press Start 2P cho tiêu đề, VT323 cho thân.
   fonts:

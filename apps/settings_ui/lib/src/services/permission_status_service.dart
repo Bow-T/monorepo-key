@@ -14,7 +14,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
+
+import 'bow_paths.dart';
 
 /// Ảnh chụp trạng thái quyền đọc từ status.json.
 @immutable
@@ -69,11 +70,15 @@ class PermissionStatusService extends ChangeNotifier {
   Timer? _timer;
 
   /// Bắt đầu đọc + poll. Gọi một lần khi mở app.
+  ///
+  /// LƯU Ý nền tảng: file status.json chỉ do bộ gõ macOS (Swift) ghi ra — mô
+  /// hình quyền TCC (Accessibility/Input Monitoring) là đặc thù macOS. Trên
+  /// Windows, TSF không cần cấp quyền kiểu đó nên file này không tồn tại; khi
+  /// đó trạng thái là [PermissionStatus.unknown] (known=false) và UI bỏ qua
+  /// bước onboarding quyền.
   Future<void> start() async {
-    final dir = await getApplicationSupportDirectory();
-    // getApplicationSupportDirectory() trả .../Application Support/<bundleId>;
-    // dùng chung thư mục "BowGo" như settings.json.
-    _file = File('${dir.parent.path}/BowGo/status.json');
+    // Dùng chung thư mục "BowGo" như settings.json (xem [BowPaths]).
+    _file = await BowPaths.sharedFile('status.json');
     await _read();
     // Poll mỗi 2s — đủ nhanh để phản ánh khi người dùng vừa bật quyền.
     _timer ??= Timer.periodic(const Duration(seconds: 2), (_) => _read());

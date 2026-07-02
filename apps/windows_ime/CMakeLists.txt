@@ -25,25 +25,45 @@ add_library(bowgo_engine STATIC
     engine/viet_table.cpp
     engine/viet_syllable.cpp
     engine/macro.cpp
+    engine/auto_correct.cpp
     engine/text_converter.cpp
 )
 target_include_directories(bowgo_engine PUBLIC engine)
 
-# ── Test engine (đa nền) ─────────────────────────────────────────────────────
+# ── Tầng common (đa nền): controller + đọc settings.json + chuyển mã ─────────
+add_library(bowgo_common STATIC
+    common/text_codec.cpp
+    common/bow_config.cpp
+    common/ime_controller.cpp
+)
+target_include_directories(bowgo_common PUBLIC common)
+target_link_libraries(bowgo_common PUBLIC bowgo_engine)
+
+# ── Test engine + test common (đa nền) ───────────────────────────────────────
 add_executable(bowgo_engine_tests engine/test_engine.cpp)
 target_link_libraries(bowgo_engine_tests PRIVATE bowgo_engine)
 
+add_executable(bowgo_common_tests common/test_common.cpp)
+target_link_libraries(bowgo_common_tests PRIVATE bowgo_common)
+
 enable_testing()
 add_test(NAME engine_golden_cases COMMAND bowgo_engine_tests)
+add_test(NAME common_controller_config COMMAND bowgo_common_tests)
 
 # ── Text service TSF (CHỈ Windows) ───────────────────────────────────────────
 if(WIN32)
     add_library(BowGoTSF SHARED
         tsf/dll_main.cpp
         tsf/BowGoTextService.cpp
+        tsf/lang_bar.cpp
+        tsf/badge_icon.cpp
     )
-    target_link_libraries(BowGoTSF PRIVATE bowgo_engine)
-    # TSF cần các thư viện COM/Text Services của Windows.
-    target_link_libraries(BowGoTSF PRIVATE ole32 oleaut32 uuid)
+    target_link_libraries(BowGoTSF PRIVATE bowgo_common)
+    # TSF cần các thư viện COM/Text Services + Win32 + GDI của Windows.
+    target_link_libraries(BowGoTSF PRIVATE ole32 oleaut32 uuid user32 advapi32 imm32 gdi32)
     set_target_properties(BowGoTSF PROPERTIES OUTPUT_NAME "BowGoTSF")
+    # DLL export các hàm COM chuẩn (DllGetClassObject...) qua .def.
+    if(MSVC)
+        target_sources(BowGoTSF PRIVATE tsf/BowGoTSF.def)
+    endif()
 endif()

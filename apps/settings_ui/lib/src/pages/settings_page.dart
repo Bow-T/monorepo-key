@@ -1533,6 +1533,11 @@ class _SettingsPageState extends State<SettingsPage> {
 
   /// Mở một trang con trong System Settings.
   Future<void> _openSettingsUrl(String url) async {
+    // Sửa lỗi quyền là luồng đặc thù macOS (TCC). Trên Windows không có bước này.
+    if (!Platform.isMacOS) {
+      if (mounted) _showSnack('Chức năng này chỉ có trên macOS.');
+      return;
+    }
     try {
       await Process.run('open', [url]);
       // Đọc lại trạng thái sớm để UI cập nhật ngay sau khi người dùng bật quyền.
@@ -1545,6 +1550,12 @@ class _SettingsPageState extends State<SettingsPage> {
   /// Bước 1 — nhẹ: bảo bộ gõ Swift tự khởi động lại qua menu/relaunch.
   /// Cách đơn giản & chắc: kill tiến trình "Bow Go" để nó được mở lại sạch.
   Future<void> _restartEngine() async {
+    if (!Platform.isMacOS) {
+      // Trên Windows: bộ gõ là DLL TSF do Windows nạp; "khởi động lại" tương
+      // đương chọn lại bộ gõ khác rồi chọn lại (Win+Space), không cần ở đây.
+      if (mounted) _showSnack('Trên Windows: đổi bộ gõ bằng Win+Space nếu cần.');
+      return;
+    }
     try {
       // Bộ gõ Swift có healthCheck tự bật lại tap; cách chắc là relaunch nó.
       await Process.run('pkill', ['-x', 'Bow Go']);
@@ -1560,6 +1571,10 @@ class _SettingsPageState extends State<SettingsPage> {
 
   /// Bước 2 — mạnh: reset quyền TCC cho bộ gõ rồi mở Settings + relaunch.
   Future<void> _repairPermissions(BuildContext context) async {
+    if (!Platform.isMacOS) {
+      if (mounted) _showSnack('Sửa lỗi quyền chỉ áp dụng cho macOS.');
+      return;
+    }
     final ok = await _confirmDialog(
       context,
       title: 'Sửa lỗi quyền?',

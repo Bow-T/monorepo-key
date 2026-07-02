@@ -48,6 +48,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Future<void> _openSettings(String url) async {
+    // Onboarding quyền là luồng macOS (TCC). Trên Windows không hiển thị màn
+    // này (status.json không tồn tại -> known=false -> vào thẳng settings).
+    if (!Platform.isMacOS) return;
     try {
       await Process.run('open', [url]);
       await _perm.refresh();

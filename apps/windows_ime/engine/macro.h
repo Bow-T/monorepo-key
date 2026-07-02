@@ -46,6 +46,12 @@ public:
     // Tra macro theo từ khoá thô. Trả nội dung ĐÃ BUNG, hoặc nullopt.
     std::optional<std::u32string> Expand(const std::u32string& keyword);
 
+    // Có macro cho từ khoá này không — KHÔNG bung, không đổi trạng thái (counter).
+    // Dùng cho bước "hỏi trước" (OnTestKeyDown bên TSF) trước khi Expand thật.
+    bool Has(const std::u32string& keyword) const {
+        return by_keyword_.find(keyword) != by_keyword_.end();
+    }
+
 private:
     std::u32string Render(const MacroDefinition& def);
     std::u32string FormatDateTime(const std::u32string& format);
