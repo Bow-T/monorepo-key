@@ -5,9 +5,10 @@
 // Rectangle, Loop: liệt kê các quyền, TỪNG dòng tự đổi sang ✓ theo realtime khi
 // người dùng bật quyền trong System Settings — không bật dialog mới, không chặn.
 //
-// Trạng thái quyền đọc từ status.json (bộ gõ Swift ghi ngầm), poll bởi
-// PermissionStatusService. Khi đủ cả 2 quyền, màn này hiện "Sẵn sàng" rồi cho phép
-// vào app.
+// Trạng thái quyền lấy từ PermissionStatusService — nguồn chính là kênh native
+// (app tự kiểm tra TCC realtime), dự phòng là status.json do bộ gõ ghi. Poll
+// định kỳ + làm mới ngay khi app được focus lại. Khi đủ cả 2 quyền, màn này
+// hiện "Sẵn sàng" rồi cho phép vào app.
 
 import 'dart:io';
 
