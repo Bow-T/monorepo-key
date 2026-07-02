@@ -16,6 +16,9 @@ dependencies:
   iconsax_flutter: ^1.0.0
   # Xác định thư mục dữ liệu dùng chung để ghi settings.json (bộ gõ cùng đọc).
   path_provider: ^2.1.4
+  # Hộp thoại chọn/lưu file (macOS + Windows) — dùng cho Xuất/Nhập danh sách
+  # cặp tự-sửa-lỗi khi chuyển máy. Plugin chính chủ Flutter, gọn nhẹ.
+  file_selector: ^1.0.3
   # Engine + công cụ chuyển mã dùng chung (spec chuẩn). Dùng cho công cụ chuyển mã.
   viet_engine:
     path: ../../packages/viet_engine
