@@ -169,8 +169,9 @@ file JSON làm "hợp đồng":
   bung khi gõ dấu `:` đóng. Bảng ở `EmojiShortcodes.table`. Mặc định tắt.
 - **`textTransformEnabled` + `textTransformHotkey…`** — biến đổi văn bản ĐÃ BÔI ĐEN
   (bỏ dấu / IN HOA / thường / Hoa đầu câu / chuyển mã TCVN3·VNI / **Tính** biểu thức
-  "5*3+2"→"17"). Phím tắt (mặc định ⌃⇧T) mở popup chọn thao tác tại con trỏ; hoặc menu
-  bar → Tính năng. Đọc/ghi vùng chọn qua Accessibility, fallback ⌘C→⌘V có khôi phục clipboard.
+  "5*3+2"→"17" / **Đọc số thành chữ** "123"→"một trăm hai mươi ba"). Phím tắt (mặc định
+  ⌃⇧T) mở popup chọn thao tác tại con trỏ; hoặc menu bar → Tính năng. Đọc/ghi vùng chọn
+  qua Accessibility, fallback ⌘C→⌘V có khôi phục clipboard. Logic `NumberToWords` có test.
 - **Sao lưu / khôi phục cấu hình** (UI, tab Sửa lỗi) — xuất TOÀN BỘ `settings.json` ra
   1 file JSON (bọc `_type: bowgo.settings`, bỏ `perApp` vì riêng máy) rồi nhập lại khi
   đổi máy / cài lại. Round-trip `toJson`↔`fromJson` được test bảo vệ.

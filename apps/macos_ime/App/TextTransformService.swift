@@ -37,6 +37,7 @@ enum TextTransformService {
         case fromTCVN3              // TCVN3 -> Unicode
         case fromVNI                // VNI-Windows -> Unicode
         case calc                   // tính biểu thức (bôi đen "5*3+2" -> "17")
+        case numberToWords          // đọc số thành chữ ("123" -> "một trăm hai mươi ba")
 
         /// Nhãn tiếng Việt hiển thị trên menu.
         var title: String {
@@ -51,6 +52,7 @@ enum TextTransformService {
             case .fromTCVN3:        return "TCVN3 → Unicode"
             case .fromVNI:          return "VNI → Unicode"
             case .calc:             return "Tính (= kết quả)"
+            case .numberToWords:    return "Đọc số thành chữ"
             }
         }
 
@@ -68,6 +70,8 @@ enum TextTransformService {
             case .fromVNI:          return TextConverter.convert(text, from: .vniWindows, to: .unicode)
             // Biểu thức hợp lệ -> kết quả; không hợp lệ -> giữ nguyên (no-op).
             case .calc:             return Calculator.eval(text) ?? text
+            // Số hợp lệ -> đọc thành chữ; không phải số -> giữ nguyên (no-op).
+            case .numberToWords:    return NumberToWords.convert(text) ?? text
             }
         }
     }
