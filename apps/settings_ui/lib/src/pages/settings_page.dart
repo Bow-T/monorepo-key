@@ -1229,13 +1229,21 @@ class _SettingsPageState extends State<SettingsPage> {
     final byWrong = <String, AutoCorrectPair>{
       for (final p in s.autoCorrectPairs) p.wrong: p,
     };
+    // Chốt trạng thái GỐC (trước khi nạp) để đếm cho đúng: nếu file có nhiều cặp
+    // trùng cùng 'wrong', mỗi 'wrong' chỉ tính một lần — so với danh sách cũ,
+    // không so với cặp vừa nạp trong cùng vòng lặp.
+    final originalByWrong = Map<String, AutoCorrectPair>.of(byWrong);
+    final touched = <String>{}; // các 'wrong' đã tính rồi, tránh đếm trùng
     var added = 0;
     var updated = 0;
     for (final p in imported) {
-      if (byWrong.containsKey(p.wrong)) {
-        if (byWrong[p.wrong]!.right != p.right) updated++;
-      } else {
-        added++;
+      if (touched.add(p.wrong)) {
+        final old = originalByWrong[p.wrong];
+        if (old == null) {
+          added++;
+        } else if (old.right != p.right) {
+          updated++;
+        }
       }
       byWrong[p.wrong] = p;
     }
