@@ -45,6 +45,32 @@ struct EmojiShortcodesTests {
             #expect(EmojiShortcodes.table[def.keyword] == def.content)
         }
     }
+
+    @Test("Từ khoá tiếng Việt (không dấu) tra đúng emoji")
+    func vietnameseKeywords() {
+        #expect(EmojiShortcodes.table[":khoc:"] == "😢")
+        #expect(EmojiShortcodes.table[":cuoi:"] == "😄")
+        #expect(EmojiShortcodes.table[":tim:"] == "❤️")
+        #expect(EmojiShortcodes.table[":lua:"] == "🔥")
+        #expect(EmojiShortcodes.table[":like:"] == "👍")
+        #expect(EmojiShortcodes.table[":meo:"] == "🐱")
+        #expect(EmojiShortcodes.table[":coviet:"] == "🇻🇳")
+    }
+
+    @Test("Từ khoá tiếng Việt chỉ gồm ký tự ASCII hợp lệ cho shortcode")
+    func vietnameseKeywordsAreAscii() {
+        // Keyword khớp theo phím thô -> phần giữa hai ':' PHẢI là ASCII không dấu.
+        let vietKeys = [":khoc:", ":cuoi:", ":tim:", ":lua:", ":like:", ":meo:",
+                        ":cauvong:", ":mattroi:", ":dienthoai:", ":coviet:"]
+        for key in vietKeys {
+            #expect(EmojiShortcodes.table[key] != nil, "thiếu \(key)")
+            let inner = key.dropFirst().dropLast()
+            for ch in inner {
+                #expect(ch.isASCII && EmojiShortcodes.isShortcodeChar(ch),
+                        "ký tự '\(ch)' trong \(key) không hợp lệ (phải ASCII không dấu)")
+            }
+        }
+    }
 }
 
 /// Mô phỏng CÁCH BỘ ĐIỀU KHIỂN lái matcher: mỗi ký tự ':' gọi onColon(), ký tự khác

@@ -166,7 +166,8 @@ file JSON làm "hợp đồng":
   trí + tra từ điển tĩnh các lỗi phổ biến ("giừo"→"giờ"). Thêm từ vào danh sách trong
   `AutoCorrectDictionary.words` để mở rộng. Mặc định tắt.
 - **`emojiShortcutsEnabled`** — bật để gõ emoji bằng shortcode kiểu Slack: `:cry:`→😢,
-  bung khi gõ dấu `:` đóng. Bảng ở `EmojiShortcodes.table`. Mặc định tắt.
+  bung khi gõ dấu `:` đóng. Bảng ở `EmojiShortcodes.table` (có cả TỪ KHOÁ TIẾNG VIỆT
+  không dấu: `:khoc:`→😢, `:cuoi:`→😄, `:tim:`→❤️, `:lua:`→🔥). Mặc định tắt.
 - **`textTransformEnabled` + `textTransformHotkey…`** — biến đổi văn bản ĐÃ BÔI ĐEN
   (bỏ dấu / IN HOA / thường / Hoa đầu câu / chuyển mã TCVN3·VNI / **Tính** biểu thức
   "5*3+2"→"17" / **Đọc số thành chữ** "123"→"một trăm hai mươi ba"). Phím tắt (mặc định
