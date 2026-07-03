@@ -38,6 +38,8 @@ enum TextTransformService {
         case fromVNI                // VNI-Windows -> Unicode
         case calc                   // tính biểu thức (bôi đen "5*3+2" -> "17")
         case numberToWords          // đọc số thành chữ ("123" -> "một trăm hai mươi ba")
+        case groupNumber            // thêm dấu phân nhóm ("1500000" -> "1.500.000")
+        case ungroupNumber          // bỏ dấu phân nhóm ("1.500.000" -> "1500000")
 
         /// Nhãn tiếng Việt hiển thị trên menu.
         var title: String {
@@ -53,6 +55,8 @@ enum TextTransformService {
             case .fromVNI:          return "VNI → Unicode"
             case .calc:             return "Tính (= kết quả)"
             case .numberToWords:    return "Đọc số thành chữ"
+            case .groupNumber:      return "Số: thêm dấu chấm"
+            case .ungroupNumber:    return "Số: bỏ dấu chấm"
             }
         }
 
@@ -72,6 +76,9 @@ enum TextTransformService {
             case .calc:             return Calculator.eval(text) ?? text
             // Số hợp lệ -> đọc thành chữ; không phải số -> giữ nguyên (no-op).
             case .numberToWords:    return NumberToWords.convert(text) ?? text
+            // Số hợp lệ -> thêm/bỏ dấu phân nhóm; không phải số -> giữ nguyên (no-op).
+            case .groupNumber:      return NumberGrouping.group(text) ?? text
+            case .ungroupNumber:    return NumberGrouping.ungroup(text) ?? text
             }
         }
     }
