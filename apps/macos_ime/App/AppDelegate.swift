@@ -284,6 +284,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         transformItem.submenu = transformSub
         featuresSub.addItem(transformItem)
 
+        let countItem = NSMenuItem(
+            title: "Đếm từ & ký tự đã chọn", action: #selector(countSelection), keyEquivalent: ""
+        )
+        countItem.target = self
+        setSymbol(countItem, "number.square")
+        featuresSub.addItem(countItem)
+
         // Tự sửa lỗi gõ nhanh (toggle có checkmark) — nằm trong submenu Tính năng.
         let autoCorrectItem = makeItem("Tự sửa lỗi gõ nhanh", #selector(toggleAutoCorrect))
         setSymbol(autoCorrectItem, "wand.and.stars")
@@ -560,6 +567,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let raw = sender.representedObject as? String,
               let transform = TextTransformService.Transform(rawValue: raw) else { return }
         TextTransformService.run(transform)
+    }
+
+    /// Đếm vùng bôi đen -> hiện toast số từ/ký tự/dòng (gọi từ menu hoặc phím tắt).
+    @objc func countSelection() {
+        SelectionCounter.run()
     }
 
     /// Popup chọn thao tác biến đổi tại vị trí con trỏ (gọi từ phím tắt ⌃⇧T).

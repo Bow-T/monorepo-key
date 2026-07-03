@@ -68,6 +68,11 @@ class Hotkey {
     modifiers: {HotkeyModifier.control, HotkeyModifier.shift},
   );
 
+  static const Hotkey defaultCountSelection = Hotkey(
+    keyCode: 8, // 'C'
+    modifiers: {HotkeyModifier.control, HotkeyModifier.shift},
+  );
+
   /// Phím tắt chỉ-modifier (keyCode 0): hợp lệ khi có ÍT NHẤT 2 modifier — để
   /// không nuốt nhầm một phím modifier đơn (vd chỉ Shift). Phím tắt có phím chính:
   /// hợp lệ khi có ít nhất 1 modifier.

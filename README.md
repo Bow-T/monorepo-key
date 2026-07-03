@@ -175,6 +175,9 @@ file JSON làm "hợp đồng":
   "5*3+2"→"17" / **Đọc số thành chữ** "123"→"một trăm hai mươi ba"). Phím tắt (mặc định
   ⌃⇧T) mở popup chọn thao tác tại con trỏ; hoặc menu bar → Tính năng. Đọc/ghi vùng chọn
   qua Accessibility, fallback ⌘C→⌘V có khôi phục clipboard. Logic `NumberToWords` có test.
+- **`countSelectionEnabled` + `countSelectionHotkey…`** — đếm từ/ký tự/dòng vùng ĐÃ BÔI
+  ĐEN, hiện toast (vd "12 TỪ · 58 KÝ TỰ · 2 DÒNG"). Phím tắt (mặc định ⌃⇧C) hoặc menu
+  bar → Tính năng. CHỈ đọc (AX, fallback ⌘C khôi phục clipboard). Logic `TextStats` có test.
 - **Sao lưu / khôi phục cấu hình** (UI, tab Sửa lỗi) — xuất TOÀN BỘ `settings.json` ra
   1 file JSON (bọc `_type: bowgo.settings`, bỏ `perApp` vì riêng máy) rồi nhập lại khi
   đổi máy / cài lại. Round-trip `toJson`↔`fromJson` được test bảo vệ.

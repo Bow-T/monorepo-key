@@ -43,6 +43,7 @@ void main() {
         symbolPickerEnabled: false,
         undoExpansionEnabled: false,
         stickerPickerEnabled: false,
+        countSelectionEnabled: false,
       );
 
       final back = BowSettings.fromJson(
@@ -98,4 +99,6 @@ void _expectEqual(BowSettings a, BowSettings b) {
   expect(a.undoExpansionEnabled, b.undoExpansionEnabled);
   expect(a.stickerPickerEnabled, b.stickerPickerEnabled);
   expect(a.stickerPickerHotkey.keyCode, b.stickerPickerHotkey.keyCode);
+  expect(a.countSelectionEnabled, b.countSelectionEnabled);
+  expect(a.countSelectionHotkey.keyCode, b.countSelectionHotkey.keyCode);
 }

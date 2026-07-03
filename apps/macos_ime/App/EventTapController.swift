@@ -74,6 +74,11 @@ final class EventTapController {
     private var stickerPickerHotkeyKeyCode: Int64 = 38 // J
     private var stickerPickerHotkeyModifiers: Set<String> = ["control", "shift"]
 
+    // Phím tắt đếm từ/ký tự vùng bôi đen
+    private var countSelectionEnabled = true
+    private var countSelectionHotkeyKeyCode: Int64 = 8 // C
+    private var countSelectionHotkeyModifiers: Set<String> = ["control", "shift"]
+
     // Gõ tắt emoji theo shortcode (:cry: -> 😢). Bung khi gõ dấu ':' đóng.
     private var emojiShortcutsEnabled = false
     /// Máy trạng thái theo dõi shortcode đang gõ dở (logic thuần, test được ở
@@ -547,6 +552,9 @@ final class EventTapController {
         stickerPickerEnabled = config.stickerPickerEnabled
         stickerPickerHotkeyKeyCode = config.stickerPickerHotkeyKeyCode
         stickerPickerHotkeyModifiers = config.stickerPickerHotkeyModifiers
+        countSelectionEnabled = config.countSelectionEnabled
+        countSelectionHotkeyKeyCode = config.countSelectionHotkeyKeyCode
+        countSelectionHotkeyModifiers = config.countSelectionHotkeyModifiers
         emojiShortcutsEnabled = config.emojiShortcutsEnabled
         if !emojiShortcutsEnabled { emojiMatcher.reset() }
         undoExpansionEnabled = config.undoExpansionEnabled
@@ -706,6 +714,24 @@ final class EventTapController {
         return active == stickerPickerHotkeyModifiers
     }
 
+    private func isCountSelectionHotkey(_ event: CGEvent) -> Bool {
+        guard countSelectionHotkeyKeyCode != 0 else { return false }
+        guard event.getIntegerValueField(.keyboardEventKeycode) == countSelectionHotkeyKeyCode else {
+            return false
+        }
+        guard !countSelectionHotkeyModifiers.isEmpty else { return false }
+
+        let flags = event.flags
+        let active: Set<String> = [
+            flags.contains(.maskControl)   ? "control" : nil,
+            flags.contains(.maskAlternate) ? "option"  : nil,
+            flags.contains(.maskShift)     ? "shift"   : nil,
+            flags.contains(.maskCommand)   ? "command" : nil,
+        ].compactMap { $0 }.reduce(into: Set()) { $0.insert($1) }
+
+        return active == countSelectionHotkeyModifiers
+    }
+
     // MARK: - Callback C (static, không bắt được self -> lấy qua refcon)
 
     private static let callback: CGEventTapCallBack = { proxy, type, event, refcon in
@@ -794,6 +820,12 @@ final class EventTapController {
             if stickerPickerEnabled && isStickerPickerHotkey(event) {
                 DispatchQueue.main.async {
                     AppDelegate.shared?.showStickerPicker()
+                }
+                return nil
+            }
+            if countSelectionEnabled && isCountSelectionHotkey(event) {
+                DispatchQueue.main.async {
+                    AppDelegate.shared?.countSelection()
                 }
                 return nil
             }
