@@ -163,8 +163,10 @@ file JSON làm "hợp đồng":
 - **`autoRestoreEnglish`** — bật để từ bị biến dạng & không hợp lệ tiếng Việt tự trả về
   phím thô khi chốt từ (heuristic theo luật âm tiết, không cần từ điển).
 - **`autoCorrect`** — bật để tự sửa lỗi gõ nhanh khi chốt từ: dời dấu thanh đặt sai vị
-  trí + tra từ điển tĩnh các lỗi phổ biến ("giừo"→"giờ"). Thêm từ vào danh sách trong
-  `AutoCorrectDictionary.words` để mở rộng. Mặc định tắt.
+  trí + tra từ điển tĩnh các lỗi phổ biến ("giừo"→"giờ", "đừơng"→"đường"). Thêm từ vào
+  `AutoCorrectDictionary.words` (từ đúng → tự sinh biến thể-lỗi) hoặc `overrides` (cặp
+  lỗi→đúng thủ công) để mở rộng. Có test bất-biến-an-toàn: vế sai KHÔNG được là từ đúng.
+  Mặc định tắt.
 - **`emojiShortcutsEnabled`** — bật để gõ emoji bằng shortcode kiểu Slack: `:cry:`→😢,
   bung khi gõ dấu `:` đóng. Bảng ở `EmojiShortcodes.table`. Mặc định tắt.
 - **`textTransformEnabled` + `textTransformHotkey…`** — biến đổi văn bản ĐÃ BÔI ĐEN

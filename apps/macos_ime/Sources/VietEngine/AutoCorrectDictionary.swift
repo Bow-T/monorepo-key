@@ -207,6 +207,30 @@ public extension AutoCorrectDictionary {
         "mấy", "thấy", "đấy", "cây", "mây", "bây", "gây", "dậy", "chạy",
         "tôi", "rồi", "mới", "với", "vội", "đội", "hỏi", "gọi", "nói", "mọi",
         "về", "lễ", "kể", "thế", "để", "nếu", "đều", "kêu", "nhiêu", "trên",
+        // ── MỞ RỘNG: âm tiết phổ biến hay gõ sai dấu / thiếu mũ ──────────────
+        // đại từ / hư từ thêm
+        "này", "kia", "ấy", "đó", "sao", "vậy", "thôi", "mà", "rằng", "vì",
+        "hay", "hoặc", "cũng", "chỉ", "mỗi", "vài", "dăm", "bấy", "bao",
+        // động từ hay dùng (mũ/móc/dấu hay lệch)
+        "nghĩ", "biểu", "hiện", "thiện", "liền", "chiếm", "khiến", "kiếm",
+        "tiếc", "việt", "kiệt", "thiệt", "quyết", "khuyết", "chuyển", "truyền",
+        "nguyện", "chuyện", "quyền", "luyện", "duyệt", "khuyên", "tuyên",
+        "chương", "nương", "sương", "gương", "hưởng", "vướng", "cưỡng", "ngưỡng",
+        "hưởng", "sưởng", "bưởng", "lưỡng", "trưởng", "dưỡng", "tưởng",
+        // đuôi -uôi / -ươi / - uơ hay bị lệch
+        "buổi", "chuồi", "ruổi", "xuôi", "đuôi", "cuối", "muội", "tuổi",
+        "tươi", "lưới", "dưới", "khưới", "bưởi", "gửi", "chửi", "mửa",
+        // đuôi mở oa/oe/uê/uy thêm
+        "loè", "khoè", "xoè", "hoè", "quờ", "thuê", "huê", "quê", "quen",
+        "quỳnh", "huỳnh", "quẩn", "quần", "khuỷu", "quậy", "quãng", "hoàng",
+        "khoảng", "thoáng", "choáng", "ngoáy", "xoáy", "hoặc", "ngoặc",
+        // âm tiết mang dấu ngã hay bị gõ thành hỏi (và ngược lại)
+        "cũng", "những", "mãi", "vẫn", "dẫn", "mẫu", "kẽ", "rõ", "vẽ", "sẽ",
+        "bão", "não", "hão", "lão", "cão", "chão", "gãy", "nãy", "hãy",
+        // âm tiết mang mũ hay quên
+        "công", "trông", "sông", "đông", "vông", "thông", "phông", "không",
+        "lâu", "sâu", "câu", "đâu", "mâu", "châu", "trâu", "hầu", "dầu",
+        "tầng", "vầng", "mầm", "nầm", "cầm", "nhầm", "chậm", "gậm", "ngậm",
     ]
 
     /// OVERRIDES thủ công — cặp (lỗi -> đúng) đặc thù, ưu tiên cao hơn bản sinh tự động.
@@ -217,5 +241,13 @@ public extension AutoCorrectDictionary {
         "ngừoi": "người",
         "đựoc": "được",
         "cuộcj": "cuộc",
+        // ── MỞ RỘNG: lỗi gõ nhanh phổ biến không suy ra được từ từ-đúng ──────
+        // (chỉ TỪ ĐƠN; vế trái là lỗi rõ ràng, vế phải là từ đúng duy nhất hợp lý)
+        // dấu đặt trên 'ư' của cụm ươ thay vì 'ơ' + thiếu móc (lỗi gõ nhanh kinh điển)
+        "đừơng": "đường", "trừơng": "trường", "hừơng": "hương", "thừơng": "thương",
+        "nứơc": "nước", "trứơc": "trước", "bứơc": "bước", "vứơt": "vượt",
+        "lừơi": "lười", "cừơi": "cười", "tứơi": "tươi", "dứơi": "dưới",
+        // cụm iê/yê: dấu ở nguyên âm trước thay vì sau (vế sai KHÔNG phải từ hợp lệ)
+        "tièn": "tiền", "bièt": "biết", "vièc": "việc", "hièu": "hiểu",
     ]
 }

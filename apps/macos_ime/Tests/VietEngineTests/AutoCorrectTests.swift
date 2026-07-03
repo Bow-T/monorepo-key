@@ -133,6 +133,30 @@ struct AutoCorrectDictionaryTests {
         #expect(pairs.contains { $0.wrong == "giừo" && $0.right == "giờ" })
         #expect(pairs.contains { $0.wrong == "nhièu" && $0.right == "nhiều" })
     }
+
+    @Test("Từ điển mở rộng: không cặp nào biến từ đúng thành từ khác")
+    func expandedDictSafety() {
+        // BẤT BIẾN AN TOÀN: vế 'wrong' KHÔNG được là một từ tiếng Việt viết đúng —
+        // nếu không, gõ đúng từ đó sẽ bị "sửa" nhầm. Kiểm cho TOÀN BỘ cặp built-in.
+        let dict = AutoCorrectDictionary()
+        for p in dict.allPairs() {
+            #expect(!AutoCorrectDictionary.isRealWord(p.wrong),
+                    "vế sai '\(p.wrong)' lại là từ đúng -> sẽ sửa nhầm khi gõ đúng")
+            #expect(p.wrong != p.right, "cặp no-op: \(p.wrong)")
+        }
+    }
+
+    @Test("Từ điển mở rộng: một số lỗi mới được sửa đúng")
+    func expandedDictCorrections() {
+        let dict = AutoCorrectDictionary(userPairs: [])
+        // Override mới (cụm ươ/iê hay lệch).
+        #expect(dict.lookup("đừơng") == "đường")
+        #expect(dict.lookup("nứơc") == "nước")
+        #expect(dict.lookup("cừơi") == "cười")
+        #expect(dict.lookup("tièn") == "tiền")
+        // Biến thể tự sinh từ 'words' mới (dấu rơi nhầm nguyên âm).
+        #expect(dict.lookup("nghĩ") == nil)   // từ ĐÚNG -> không sửa
+    }
 }
 
 @Suite("Auto-correct: an toàn")
