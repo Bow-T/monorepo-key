@@ -70,6 +70,38 @@ public enum EmojiShortcodes {
 
         // Ký hiệu tiện dụng khi gõ tiếng Việt
         ":vn:": "🇻🇳", ":flag_vn:": "🇻🇳", ":100point:": "💯",
+
+        // ── TỪ KHOÁ TIẾNG VIỆT (không dấu) — người Việt gõ tự nhiên hơn ──────
+        // Alias song song với keyword tiếng Anh; keyword phải là ASCII không dấu
+        // (shortcode khớp theo phím thô, xem isShortcodeChar).
+        // Mặt cười / cảm xúc
+        ":cuoi:": "😄", ":cuoito:": "😁", ":haha:": "😂", ":vuiqua:": "🤣",
+        ":nhaymat:": "😉", ":ngaingung:": "😊", ":ngau:": "😎", ":metim:": "😍",
+        ":honho:": "😘", ":suyngh:": "🤔", ":khinhbi:": "😒", ":buon:": "😔",
+        ":khoc:": "😢", ":khocthet:": "😭", ":gian:": "😠", ":tucgian:": "😡",
+        ":sohai:": "😱", ":sos:": "😨", ":ngu:": "😴", ":cuoinham:": "😏",
+        ":molsach:": "🤓", ":metmoi:": "🥺", ":tiec:": "🥳", ":solo:": "💀",
+        // Cử chỉ / bàn tay
+        ":like:": "👍", ":dislike:": "👎", ":oke:": "👌", ":votay:": "👏",
+        ":vaytay:": "👋", ":cauxin:": "🙏", ":comban:": "💪", ":chiphai:": "👉",
+        ":batay:": "🤝", ":vietchu:": "✍️",
+        // Trái tim / biểu tượng
+        ":tim:": "❤️", ":timxanh:": "💙", ":timtan:": "💔", ":lua:": "🔥",
+        ":laplanh:": "✨", ":sao:": "⭐", ":no:": "💥", ":set:": "⚡",
+        ":diem10:": "💯", ":anmung:": "🎉", ":quatang:": "🎁", ":dung:": "✅",
+        ":sai:": "❌", ":canhbao:": "⚠️", ":hoi:": "❓", ":bongden:": "💡",
+        ":chuong:": "🔔",
+        // Vật / hoạt động / đồ ăn
+        ":tenlua:": "🚀", ":caphe:": "☕", ":bia:": "🍺", ":banhpizza:": "🍕",
+        ":banhkem:": "🎂", ":com:": "🍚", ":mat:": "👀", ":nao:": "🧠",
+        ":maytinh:": "💻", ":dienthoai:": "📱", ":thu:": "📧", ":lich:": "📅",
+        ":dongho:": "🕐", ":ghichu:": "📝", ":sach:": "📚", ":conbo:": "🐛",
+        ":khoa:": "🔒", ":chiakhoa:": "🔑", ":kinhlup:": "🔍", ":colle:": "🔧",
+        // Thiên nhiên / con vật
+        ":mattroi:": "☀️", ":mattrang:": "🌙", ":cauvong:": "🌈", ":tuyet:": "❄️",
+        ":may:": "☁️", ":o:": "☔", ":cho:": "🐶", ":meo:": "🐱",
+        ":tho:": "🐰", ":gau:": "🐻", ":kylan:": "🦄", ":buom:": "🦋",
+        ":hoahong:": "🌹", ":huongduong:": "🌻", ":coviet:": "🇻🇳",
     ]
 
     /// Bộ `MacroDefinition` tĩnh để nạp vào MacroStore. Tất cả là staticText.
