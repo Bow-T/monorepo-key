@@ -671,6 +671,31 @@ class _SettingsPageState extends State<SettingsPage> {
         ],
         _tabDivider(),
 
+        _tabSectionTitle('ĐẾM VÙNG BÔI ĐEN'),
+        const SizedBox(height: AppSpacing.sm),
+        SettingRow(
+          title: 'BẬT ĐẾM TỪ & KÝ TỰ',
+          subtitle: s.countSelectionEnabled
+              ? 'Bôi đen → phím tắt → hiện số từ, ký tự, dòng'
+              : 'Bật để đếm nhanh vùng chữ đã bôi đen',
+          control: PixelSwitch(
+            value: s.countSelectionEnabled,
+            onChanged: (v) => _save(s.copyWith(countSelectionEnabled: v)),
+          ),
+        ),
+        if (s.countSelectionEnabled) ...[
+          const SizedBox(height: AppSpacing.sm),
+          SettingRow(
+            title: 'PHÍM TẮT ĐẾM',
+            subtitle: 'Đếm vùng đang bôi đen (⌃⇧C mặc định)',
+            control: HotkeyRecorder(
+              hotkey: s.countSelectionHotkey,
+              onChanged: (hk) => _save(s.copyWith(countSelectionHotkey: hk)),
+            ),
+          ),
+        ],
+        _tabDivider(),
+
         _buildPixelInfoCard(
           context,
           'LƯU Ý VỀ PHÍM TẮT',

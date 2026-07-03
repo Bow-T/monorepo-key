@@ -111,6 +111,8 @@ class BowSettings {
     this.undoExpansionEnabled = true,
     this.stickerPickerEnabled = true,
     this.stickerPickerHotkey = Hotkey.defaultStickerPicker,
+    this.countSelectionEnabled = true,
+    this.countSelectionHotkey = Hotkey.defaultCountSelection,
   });
 
   /// Bộ gõ có đang bật không (toggle toàn cục).
@@ -187,6 +189,12 @@ class BowSettings {
   /// Bật/tắt bảng dán sticker (emoji ảnh).
   final bool stickerPickerEnabled;
 
+  /// Bật/tắt đếm từ/ký tự vùng bôi đen (hiện toast).
+  final bool countSelectionEnabled;
+
+  /// Phím tắt đếm vùng bôi đen.
+  final Hotkey countSelectionHotkey;
+
   /// Phím tắt mở bảng dán sticker.
   final Hotkey stickerPickerHotkey;
 
@@ -216,6 +224,8 @@ class BowSettings {
     bool? undoExpansionEnabled,
     bool? stickerPickerEnabled,
     Hotkey? stickerPickerHotkey,
+    bool? countSelectionEnabled,
+    Hotkey? countSelectionHotkey,
   }) {
     return BowSettings(
       enabled: enabled ?? this.enabled,
@@ -243,6 +253,8 @@ class BowSettings {
       undoExpansionEnabled: undoExpansionEnabled ?? this.undoExpansionEnabled,
       stickerPickerEnabled: stickerPickerEnabled ?? this.stickerPickerEnabled,
       stickerPickerHotkey: stickerPickerHotkey ?? this.stickerPickerHotkey,
+      countSelectionEnabled: countSelectionEnabled ?? this.countSelectionEnabled,
+      countSelectionHotkey: countSelectionHotkey ?? this.countSelectionHotkey,
     );
   }
 
@@ -273,6 +285,8 @@ class BowSettings {
         'undoExpansionEnabled': undoExpansionEnabled,
         'stickerPickerEnabled': stickerPickerEnabled,
         ...stickerPickerHotkey.toJsonWithPrefix('stickerPickerHotkey'),
+        'countSelectionEnabled': countSelectionEnabled,
+        ...countSelectionHotkey.toJsonWithPrefix('countSelectionHotkey'),
       };
 
   factory BowSettings.fromJson(Map<String, dynamic> j) => BowSettings(
@@ -317,5 +331,8 @@ class BowSettings {
         stickerPickerEnabled: j['stickerPickerEnabled'] as bool? ?? true,
         stickerPickerHotkey: Hotkey.fromJsonWithPrefix(
             j, 'stickerPickerHotkey', Hotkey.defaultStickerPicker),
+        countSelectionEnabled: j['countSelectionEnabled'] as bool? ?? true,
+        countSelectionHotkey: Hotkey.fromJsonWithPrefix(
+            j, 'countSelectionHotkey', Hotkey.defaultCountSelection),
       );
 }

@@ -110,6 +110,11 @@ struct BowConfig: Equatable {
     var stickerPickerHotkeyKeyCode: Int64 = 38 // J
     var stickerPickerHotkeyModifiers: Set<String> = ["control", "shift"]
 
+    /// Đếm từ/ký tự vùng bôi đen -> hiện toast. Phím tắt (mặc định ⌃⇧C). Mặc định bật.
+    var countSelectionEnabled: Bool = true
+    var countSelectionHotkeyKeyCode: Int64 = 8 // C
+    var countSelectionHotkeyModifiers: Set<String> = ["control", "shift"]
+
     static func decode(_ data: Data) -> BowConfig? {
         guard
             let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -177,6 +182,11 @@ struct BowConfig: Equatable {
         if let stk = obj["stickerPickerHotkeyKeyCode"] as? Int { cfg.stickerPickerHotkeyKeyCode = Int64(stk) }
         if let stm = obj["stickerPickerHotkeyModifiers"] as? [String] {
             cfg.stickerPickerHotkeyModifiers = Set(stm)
+        }
+        if let ce = obj["countSelectionEnabled"] as? Bool { cfg.countSelectionEnabled = ce }
+        if let cck = obj["countSelectionHotkeyKeyCode"] as? Int { cfg.countSelectionHotkeyKeyCode = Int64(cck) }
+        if let ccm = obj["countSelectionHotkeyModifiers"] as? [String] {
+            cfg.countSelectionHotkeyModifiers = Set(ccm)
         }
         return cfg
     }
