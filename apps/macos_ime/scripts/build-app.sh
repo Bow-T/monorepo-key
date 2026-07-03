@@ -75,14 +75,20 @@ HELPERS_DIR="$APP_DIR/Contents/Helpers"
 mkdir -p "$HELPERS_DIR"
 rm -rf "$HELPERS_DIR/Bow Go.app"
 cp -R "build/macos/Build/Products/Release/Bow Go.app" "$HELPERS_DIR/"
-codesign --force --sign - \
-    --identifier "com.bowgo.app" \
-    "$HELPERS_DIR/Bow Go.app"
 cd "$ROOT"
 
-echo "==> 4/4  Code sign (ad-hoc)…"
+echo "==> 4/4  Code sign (ad-hoc, từ TRONG ra NGOÀI)…"
 # Ký ad-hoc (-) đủ để chạy & cấp quyền trên máy của chính bạn.
 # Khi phân phối cho người khác, thay bằng Developer ID + notarize.
+#
+# QUAN TRỌNG — ký "inside-out" và KHÔNG dùng `--deep`:
+#   TCC định danh app bằng (bundle id trong Info.plist) + (identifier trong chữ
+#   ký). Hai cái này PHẢI khớp nhau. `--deep` ký đè lên MỌI bundle nhúng và áp
+#   chung `--identifier` của bundle ngoài ("com.bowgo.keyboard") lên cả Helper —
+#   trong khi Info.plist của Helper là "com.bowgo.app". Lệch identifier ⟺ plist
+#   khiến TCC coi app là "lạ": cấp quyền xong vẫn báo chưa cấp. Vì vậy phải ký
+#   TỪNG bundle với đúng identifier của nó, Helper TRƯỚC rồi mới tới app ngoài,
+#   và bỏ hẳn `--deep`. (Apple cũng đã khuyến cáo ngừng dùng --deep.)
 #
 # CỐ Ý KHÔNG dùng `--options runtime` (Hardened Runtime):
 #   Hardened Runtime khiến TCC siết chặt việc đối chiếu danh tính code. Với chữ ký
@@ -90,7 +96,19 @@ echo "==> 4/4  Code sign (ad-hoc)…"
 #   coi như app khác -> THU HỒI quyền Accessibility/Input Monitoring đã cấp, dù công
 #   tắc trong Settings vẫn xanh. Bỏ runtime giúp quyền bám ổn định hơn giữa các lần
 #   build cục bộ. (Khi phân phối thật thì bật lại runtime + Developer ID + notarize.)
+
+# 1) Ký Helper (Settings UI) TRƯỚC. Ở ĐÂY --deep là an toàn: mọi thứ bên trong
+#    Helper (Flutter framework nhúng…) đều thuộc cùng một danh tính com.bowgo.app,
+#    nên áp chung identifier xuống nested không gây lệch với plist như trước.
+#    Ký nested xong ở bước này để bước 2 (app ngoài) không cần đụng tới chúng.
 codesign --force --deep --sign - \
+    --identifier "com.bowgo.app" \
+    "$HELPERS_DIR/Bow Go.app"
+
+# 2) Ký app NGOÀI (bộ gõ) SAU, KHÔNG --deep. Helper đã tự ký hợp lệ ở bước 1 nên
+#    codesign chỉ cần "seal" nó vào bundle ngoài mà KHÔNG re-sign / ghi đè
+#    identifier của nó. Đây là mấu chốt để plist ⟺ chữ ký của Helper luôn khớp.
+codesign --force --sign - \
     --identifier "$BUNDLE_ID" \
     "$APP_DIR"
 
