@@ -115,4 +115,26 @@ struct MacroDynamic {
                                environment: env)
         #expect(store.expand(keyword: "rr") == "b")
     }
+
+    @Test("Clipboard: chèn nội dung clipboard tiêm vào")
+    func clipboard() {
+        let env = MacroStore.Environment(clipboard: { "https://example.com" })
+        let store = MacroStore([.init(keyword: "cb", content: "", type: .clipboard)],
+                               environment: env)
+        #expect(store.expand(keyword: "cb") == "https://example.com")
+    }
+
+    @Test("Calc: bung kết quả biểu thức trong content")
+    func calc() {
+        let store = MacroStore([
+            .init(keyword: "gia", content: "150000*3", type: .calc),
+        ])
+        #expect(store.expand(keyword: "gia") == "450000")
+    }
+
+    @Test("Calc: biểu thức sai -> giữ nguyên content (an toàn)")
+    func calcInvalidKeepsContent() {
+        let store = MacroStore([.init(keyword: "x", content: "khong-phai-toan", type: .calc)])
+        #expect(store.expand(keyword: "x") == "khong-phai-toan")
+    }
 }

@@ -28,6 +28,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var vniMenuItem: NSMenuItem?
     private var autoRestoreMenuItem: NSMenuItem?
     private var macroMenuItem: NSMenuItem?
+    private var emojiMenuItem: NSMenuItem?
+    private var undoMenuItem: NSMenuItem?
     private var autoCorrectMenuItem: NSMenuItem?
     private var launchAtLoginMenuItem: NSMenuItem?
     private var screenshotMenuItem: NSMenuItem?
@@ -37,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         Self.shared = self
         Self.registerPixelFonts()
+        StatsTracker.shared.load()   // đọc thống kê gõ tích luỹ (nếu có)
         setupMenuBar()
         setupSmartSwitch()
 
@@ -104,6 +107,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 // Cập nhật trạng thái quyền cho app UI (Flutter) đọc.
                 Permissions.writeStatus()
+                // Flush thống kê gõ ra đĩa nếu có thay đổi (nhẹ, bỏ qua nếu không).
+                StatsTracker.shared.flush()
                 if self.tapController.isStarted {
                     self.tapController.ensureAlive()
                 } else if Permissions.ready() {
@@ -123,6 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         tapController.stop()
         smartSwitch.stop()
         healthCheckTimer?.invalidate()
+        StatsTracker.shared.flush()   // ghi nốt thống kê trước khi thoát
     }
 
     // MARK: - Smart Switch
@@ -218,6 +224,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(macroItem)
         self.macroMenuItem = macroItem
 
+        let emojiItem = makeItem("Gõ tắt emoji (:cry: → 😢)", #selector(toggleEmojiShortcuts))
+        menu.addItem(emojiItem)
+        self.emojiMenuItem = emojiItem
+
+        let undoItem = makeItem("Undo khi bung (Backspace)", #selector(toggleUndoExpansion))
+        menu.addItem(undoItem)
+        self.undoMenuItem = undoItem
+
         menu.addItem(.separator())
 
         // 4c. Submenu: Tính năng (chứa các tiện ích như Lịch sử Copy)
@@ -232,6 +246,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setSymbol(clipboardItem, "doc.on.clipboard")
         featuresSub.addItem(clipboardItem)
 
+        let symbolPickerItem = NSMenuItem(
+            title: "Gõ nhanh ký tự & emoji", action: #selector(openSymbolPicker), keyEquivalent: ""
+        )
+        symbolPickerItem.target = self
+        setSymbol(symbolPickerItem, "character.textbox")
+        featuresSub.addItem(symbolPickerItem)
+
+        let stickerPickerItem = NSMenuItem(
+            title: "Dán sticker (emoji ảnh)", action: #selector(openStickerPicker), keyEquivalent: ""
+        )
+        stickerPickerItem.target = self
+        setSymbol(stickerPickerItem, "face.smiling")
+        featuresSub.addItem(stickerPickerItem)
+
         // Chụp màn hình (chọn vùng + chú thích + OCR). Ẩn khi tắt trong Cài đặt.
         let screenshotItem = NSMenuItem(
             title: "Chụp màn hình", action: #selector(openScreenshotCapture), keyEquivalent: ""
@@ -240,6 +268,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setSymbol(screenshotItem, "camera.viewfinder")
         featuresSub.addItem(screenshotItem)
         self.screenshotMenuItem = screenshotItem
+
+        // Biến đổi chữ đã bôi đen (bỏ dấu / IN HOA / chuyển mã…) — submenu.
+        let transformItem = NSMenuItem(title: "Biến đổi chữ đã chọn", action: nil, keyEquivalent: "")
+        setSymbol(transformItem, "textformat.abc")
+        let transformSub = NSMenu()
+        for transform in TextTransformService.Transform.allCases {
+            let mi = NSMenuItem(
+                title: transform.title, action: #selector(runTextTransform(_:)), keyEquivalent: ""
+            )
+            mi.target = self
+            mi.representedObject = transform.rawValue
+            transformSub.addItem(mi)
+        }
+        transformItem.submenu = transformSub
+        featuresSub.addItem(transformItem)
 
         // Tự sửa lỗi gõ nhanh (toggle có checkmark) — nằm trong submenu Tính năng.
         let autoCorrectItem = makeItem("Tự sửa lỗi gõ nhanh", #selector(toggleAutoCorrect))
@@ -334,6 +377,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         autoRestoreMenuItem?.state = tapController.autoRestoreEnglishOn ? .on : .off
         macroMenuItem?.state = tapController.macroOn ? .on : .off
+        emojiMenuItem?.state = tapController.emojiShortcutsOn ? .on : .off
+        undoMenuItem?.state = tapController.undoExpansionOn ? .on : .off
         autoCorrectMenuItem?.state = tapController.autoCorrectOn ? .on : .off
         // Trạng thái login item đọc TRỰC TIẾP từ hệ thống (nguồn chân lý — người dùng
         // có thể đã tắt thủ công ở System Settings > Login Items).
@@ -489,6 +534,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateMenuTitle()
     }
 
+    @objc private func toggleEmojiShortcuts() {
+        let on = !tapController.emojiShortcutsOn
+        tapController.setEmojiShortcuts(on)
+        settingsStore.writeEmojiShortcutsEnabled(on)
+        updateMenuTitle()
+    }
+
+    @objc private func toggleUndoExpansion() {
+        let on = !tapController.undoExpansionOn
+        tapController.setUndoExpansion(on)
+        settingsStore.writeUndoExpansionEnabled(on)
+        updateMenuTitle()
+    }
+
     @objc private func toggleLaunchAtLogin() {
         // Đảo theo trạng thái THỰC của hệ thống (nguồn chân lý), rồi ghi vào file.
         let desired = !LoginItem.isEnabled
@@ -497,8 +556,79 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateMenuTitle()
     }
 
+    @objc private func runTextTransform(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let transform = TextTransformService.Transform(rawValue: raw) else { return }
+        TextTransformService.run(transform)
+    }
+
+    /// Popup chọn thao tác biến đổi tại vị trí con trỏ (gọi từ phím tắt ⌃⇧T).
+    /// Bôi đen chữ ở app bất kỳ -> ⌃⇧T -> chọn thao tác -> thay ngay tại chỗ.
+    func showTextTransformMenu() {
+        // Ghi nhớ app đang focus: NSMenu popup sẽ kích hoạt app ta, nên trước khi
+        // chạy transform phải trả focus về app cũ (để ⌘C/⌘V fallback gõ đúng chỗ).
+        let previousApp = NSWorkspace.shared.frontmostApplication
+
+        let menu = NSMenu()
+        let header = NSMenuItem(title: "Biến đổi chữ đã chọn", action: nil, keyEquivalent: "")
+        header.isEnabled = false
+        menu.addItem(header)
+        menu.addItem(.separator())
+
+        for transform in TextTransformService.Transform.allCases {
+            let mi = NSMenuItem(
+                title: transform.title,
+                action: #selector(runTextTransformFromPopup(_:)),
+                keyEquivalent: ""
+            )
+            mi.target = self
+            mi.representedObject = TransformPopupContext(
+                transform: transform, previousApp: previousApp
+            )
+            menu.addItem(mi)
+        }
+
+        // Hiện menu ngay tại con trỏ chuột.
+        let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
+        // popUp(positioning:at:in:) dùng toạ độ view; nil view -> toạ độ màn hình gốc
+        // trên-trái. Đổi từ toạ độ AppKit (gốc dưới-trái) sang cho đúng vị trí chuột.
+        let height = screen?.frame.height ?? 0
+        let point = NSPoint(x: mouse.x, y: height - mouse.y)
+        menu.popUp(positioning: nil, at: point, in: nil)
+    }
+
+    /// Bọc thao tác + app trước đó để trả focus rồi mới biến đổi.
+    private final class TransformPopupContext: NSObject {
+        let transform: TextTransformService.Transform
+        let previousApp: NSRunningApplication?
+        init(transform: TextTransformService.Transform, previousApp: NSRunningApplication?) {
+            self.transform = transform
+            self.previousApp = previousApp
+        }
+    }
+
+    @objc private func runTextTransformFromPopup(_ sender: NSMenuItem) {
+        guard let ctx = sender.representedObject as? TransformPopupContext else { return }
+        // Trả focus về app cũ trước, rồi chạy transform (AX/⌘C cần app đó ở phía trước).
+        if let app = ctx.previousApp, app.isTerminated == false {
+            app.activate()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            TextTransformService.run(ctx.transform)
+        }
+    }
+
     @objc private func openClipboardHistory() {
         showClipboardHistory()
+    }
+
+    @objc private func openSymbolPicker() {
+        showSymbolPicker()
+    }
+
+    @objc private func openStickerPicker() {
+        showStickerPicker()
     }
 
     @objc private func openScreenshotCapture() {
@@ -706,6 +836,107 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         ClipboardHistoryWindow.shared = window
         window.showWindow()
+    }
+
+    // MARK: - Bảng gõ nhanh ký tự & emoji (picker)
+
+    /// Mở/đóng bảng gõ nhanh ký tự đặc biệt & emoji. Chọn một ô -> chèn vào ô đang
+    /// gõ của app trước đó (qua clipboard + ⌘V, đáng tin ở mọi app) rồi đóng.
+    func showSymbolPicker() {
+        // Đang mở -> đóng (toggle).
+        if let window = SymbolPickerWindow.shared {
+            window.close(restoreFocus: true)
+            return
+        }
+
+        // Ghi nhớ app đang focus để trả lại + chèn đúng chỗ sau khi chọn.
+        let previousApp = NSWorkspace.shared.frontmostApplication
+
+        let window = SymbolPickerWindow(
+            recentItems: RecentPickerStore.recentSymbols(),
+            onPick: { symbol in
+                SymbolPickerWindow.shared?.close(restoreFocus: false)
+                RecentPickerStore.useSymbol(symbol)   // ghi nhớ "gần đây"
+
+                // Đưa ký tự vào clipboard rồi trả focus + dán vào app trước.
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(symbol, forType: .string)
+
+                if let app = previousApp, app.isTerminated == false {
+                    app.activate()
+                } else {
+                    NSApp.hide(nil)
+                }
+                // Trì hoãn để focus kịp trả về trước khi dán.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                    KeyOutput.simulatePaste()
+                }
+            },
+            onClose: {
+                SymbolPickerWindow.shared?.close(restoreFocus: true)
+            }
+        )
+        SymbolPickerWindow.shared = window
+        window.showWindow()
+    }
+
+    // MARK: - Bảng dán sticker (emoji ảnh)
+
+    /// Mở/đóng bảng dán sticker. Chọn một sticker -> DÁN ẢNH (đã thu nhỏ) vào ô đang
+    /// gõ của app trước (qua clipboard hình ảnh + ⌘V) rồi đóng.
+    func showStickerPicker() {
+        if let window = StickerPickerWindow.shared {
+            window.close(restoreFocus: true)
+            return
+        }
+
+        let previousApp = NSWorkspace.shared.frontmostApplication
+
+        let window = StickerPickerWindow(
+            recentSlugs: RecentPickerStore.recentStickers(),
+            onPick: { sticker in
+                StickerPickerWindow.shared?.close(restoreFocus: false)
+                RecentPickerStore.useSticker(sticker.slug)   // ghi nhớ "gần đây"
+
+                guard let full = StickerStore.image(for: sticker) else {
+                    if let app = previousApp, app.isTerminated == false { app.activate() }
+                    return
+                }
+                // Ảnh gốc 256×256 quá to để dán inline -> thu về ~72px.
+                let pasteImage = Self.resized(full, to: NSSize(width: 72, height: 72))
+
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.writeObjects([pasteImage])
+
+                if let app = previousApp, app.isTerminated == false {
+                    app.activate()
+                } else {
+                    NSApp.hide(nil)
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                    KeyOutput.simulatePaste()
+                }
+            },
+            onClose: {
+                StickerPickerWindow.shared?.close(restoreFocus: true)
+            }
+        )
+        StickerPickerWindow.shared = window
+        window.showWindow()
+    }
+
+    /// Thu ảnh về kích thước `size` (giữ chất lượng), trả NSImage mới.
+    private static func resized(_ image: NSImage, to size: NSSize) -> NSImage {
+        let out = NSImage(size: size)
+        out.lockFocus()
+        NSGraphicsContext.current?.imageInterpolation = .high
+        image.draw(in: NSRect(origin: .zero, size: size),
+                   from: NSRect(origin: .zero, size: image.size),
+                   operation: .copy, fraction: 1.0)
+        out.unlockFocus()
+        return out
     }
 }
 

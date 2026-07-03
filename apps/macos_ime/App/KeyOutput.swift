@@ -275,14 +275,24 @@ enum KeyOutput {
 
     /// Giả lập tổ hợp phím Command + V để paste dữ liệu hiện tại từ clipboard.
     static func simulatePaste() {
+        simulateCommandKey(virtualKey: 9)  // 'V'
+    }
+
+    /// Giả lập tổ hợp phím Command + C để copy vùng đang bôi đen vào clipboard.
+    /// Dùng cho biến đổi văn bản đã chọn khi Accessibility không đọc được selection.
+    static func simulateCopy() {
+        simulateCommandKey(virtualKey: 8)  // 'C'
+    }
+
+    /// Gửi ⌘+<phím> (down rồi up), đánh dấu marker để event tap của ta bỏ qua.
+    private static func simulateCommandKey(virtualKey: CGKeyCode) {
         let source = makeSource()
-        // Phím 'V' có keyCode là 9 trên macOS
-        let down = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: true)
+        let down = CGEvent(keyboardEventSource: source, virtualKey: virtualKey, keyDown: true)
         down?.flags = .maskCommand
         down?.setIntegerValueField(.eventSourceUserData, value: marker)
         down?.post(tap: .cghidEventTap)
 
-        let up = CGEvent(keyboardEventSource: source, virtualKey: 9, keyDown: false)
+        let up = CGEvent(keyboardEventSource: source, virtualKey: virtualKey, keyDown: false)
         up?.flags = []
         up?.setIntegerValueField(.eventSourceUserData, value: marker)
         up?.post(tap: .cghidEventTap)

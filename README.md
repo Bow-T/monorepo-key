@@ -103,6 +103,8 @@ Tính năng engine đã có:
 - **Tự sửa lỗi gõ nhanh**: khi chốt từ, dời dấu thanh đặt sai vị trí + tra từ điển
   tĩnh lỗi phổ biến (vd "giừo"→"giờ", "nhièu"→"nhiều"). Tắt mặc định.
 - **Kiểm tra chính tả** tiếng Việt theo luật âm tiết (gạch chân từ sai)
+- **Gõ tắt emoji**: gõ `:cry:` → 😢, `:fire:` → 🔥, `:vn:` → 🇻🇳 (bung khi gõ dấu `:`
+  đóng). Tái dùng bảng `EmojiShortcodes` + máy trạng thái test được. Tắt mặc định.
 
 ---
 
@@ -140,18 +142,57 @@ file JSON làm "hợp đồng":
     { "keyword": "vn", "content": "Việt Nam" },
     { "keyword": "email", "content": "ban@example.com" },
     { "keyword": "td", "content": "dd/MM/yyyy", "type": "date" }
-  ]
+  ],
+
+  "emojiShortcutsEnabled": false,
+  "textTransformEnabled": true,
+  "textTransformHotkeyKeyCode": 17, "textTransformHotkeyModifiers": ["control","shift"],
+  "symbolPickerEnabled": true,
+  "symbolPickerHotkeyKeyCode": 40, "symbolPickerHotkeyModifiers": ["control","shift"],
+  "undoExpansionEnabled": true,
+  "stickerPickerEnabled": true,
+  "stickerPickerHotkeyKeyCode": 38, "stickerPickerHotkeyModifiers": ["control","shift"]
 }
 ```
 
 - **`macros`** — gõ tắt: gõ `keyword` (phím thô ASCII) + space/return/tab → thay bằng
   `content`. `type`: `staticText` (mặc định) · `date` · `time` · `dateTime` · `random`
-  (content = "a, b, c") · `counter` (content = tiền tố). Tắt toàn bộ bằng `macroEnabled:false`.
+  (content = "a, b, c") · `counter` (content = tiền tố) · `clipboard` (dán nội dung đang
+  copy) · `calc` (content là biểu thức, vd "150000*3" → "450000"). Tắt bằng `macroEnabled:false`.
+  Chọn loại ngay trong UI (dialog Thêm/Sửa gõ tắt).
 - **`autoRestoreEnglish`** — bật để từ bị biến dạng & không hợp lệ tiếng Việt tự trả về
   phím thô khi chốt từ (heuristic theo luật âm tiết, không cần từ điển).
 - **`autoCorrect`** — bật để tự sửa lỗi gõ nhanh khi chốt từ: dời dấu thanh đặt sai vị
   trí + tra từ điển tĩnh các lỗi phổ biến ("giừo"→"giờ"). Thêm từ vào danh sách trong
   `AutoCorrectDictionary.words` để mở rộng. Mặc định tắt.
+- **`emojiShortcutsEnabled`** — bật để gõ emoji bằng shortcode kiểu Slack: `:cry:`→😢,
+  bung khi gõ dấu `:` đóng. Bảng ở `EmojiShortcodes.table`. Mặc định tắt.
+- **`textTransformEnabled` + `textTransformHotkey…`** — biến đổi văn bản ĐÃ BÔI ĐEN
+  (bỏ dấu / IN HOA / thường / Hoa đầu câu / chuyển mã TCVN3·VNI / **Tính** biểu thức
+  "5*3+2"→"17"). Phím tắt (mặc định ⌃⇧T) mở popup chọn thao tác tại con trỏ; hoặc menu
+  bar → Tính năng. Đọc/ghi vùng chọn qua Accessibility, fallback ⌘C→⌘V có khôi phục clipboard.
+- **Sao lưu / khôi phục cấu hình** (UI, tab Sửa lỗi) — xuất TOÀN BỘ `settings.json` ra
+  1 file JSON (bọc `_type: bowgo.settings`, bỏ `perApp` vì riêng máy) rồi nhập lại khi
+  đổi máy / cài lại. Round-trip `toJson`↔`fromJson` được test bảo vệ.
+- **Thống kê gõ** (UI, tab Thống kê) — đếm cục bộ: số phím, số từ tiếng Việt, phím tiết
+  kiệm nhờ gõ tắt/emoji, chuỗi ngày (streak), tỉ lệ Việt/Anh. Bộ gõ đếm trong bộ nhớ,
+  flush ra `stats.json` RIÊNG (cùng thư mục settings.json) mỗi ~5s; UI đọc & hiển thị
+  pixel-art. KHÔNG lưu nội dung, KHÔNG gửi đi đâu. Logic `TypingStats` (streak) có test.
+- **Bảng gõ nhanh ký tự & emoji** (`symbolPicker…`) — phím tắt (mặc định ⌃⇧K) hoặc menu
+  bar mở overlay pixel-art chọn ký tự đặc biệt (→ ✓ ★ ₫…) & emoji, chèn vào ô đang gõ
+  qua clipboard + ⌘V. Dữ liệu `SymbolCatalog` (emoji chung nguồn với gõ tắt). Bật mặc định.
+- **Hoàn tác khi bung** (`undoExpansionEnabled`) — ngay sau khi macro/emoji/tự-sửa/tự-
+  khôi-phục-Anh bung, nhấn Backspace lập tức để khôi phục chuỗi GỐC (vd "vn " ←
+  "Việt Nam ", ":cry:" ← 😢). Chỉ đúng 1 nhịp; phím khác huỷ. Logic `ExpansionUndo`
+  (thuần, test). Bật mặc định.
+- **Bảng dán sticker** (`stickerPicker…`) — phím tắt (mặc định ⌃⇧J) hoặc menu bar mở
+  overlay chọn EMOJI ẢNH (bộ 18 PNG 256×256 ở `assets/emojis`), click → dán ẢNH (thu
+  ~72px) vào tin nhắn/ghi chú qua clipboard hình ảnh + ⌘V. Khác bảng ⌃⇧K (chèn text
+  Unicode). Ảnh copy vào bundle `Resources/emojis/` lúc build. `StickerCatalog` có test
+  (mỗi slug khớp file thật). Bật mặc định.
+- **Gần đây (MRU) cho bảng picker** — cả bảng sticker (⌃⇧J) lẫn bảng ký tự/emoji (⌃⇧K)
+  nhớ mục hay dùng, hiện hàng "GẦN ĐÂY" ở đầu. Logic `RecentItems` (thuần, test); lưu
+  qua `UserDefaults` (riêng máy, KHÔNG đụng settings.json/stats.json). Không cần cấu hình.
 
 - **Flutter GHI** (auto-save mỗi khi đổi cài đặt) — `settings_ui/lib/src/models/settings.dart`.
 - **Swift ĐỌC + watch file** (`DispatchSource`) → áp ngay không cần restart — `macos_ime/App/SettingsStore.swift`.

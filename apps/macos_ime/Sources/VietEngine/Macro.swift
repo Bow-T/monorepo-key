@@ -21,6 +21,8 @@ public enum MacroSnippetType: Equatable {
     case dateTime              // ngày giờ
     case random                // chọn ngẫu nhiên từ danh sách phân tách bởi ','
     case counter               // bộ đếm tăng dần theo prefix
+    case clipboard             // chèn nội dung clipboard hiện tại
+    case calc                  // tính biểu thức trong `content` (vd "5*3+2" -> "17")
 }
 
 /// Một định nghĩa macro: từ khoá -> nội dung.
@@ -93,6 +95,8 @@ public final class MacroStore {
         case .dateTime:   return formatDateTime(def.content.isEmpty ? "dd/MM/yyyy HH:mm" : def.content)
         case .random:     return randomValue(from: def.content)
         case .counter:    return counterValue(prefix: def.content)
+        case .clipboard:  return env.clipboard()
+        case .calc:       return Calculator.eval(def.content) ?? def.content
         }
     }
 
