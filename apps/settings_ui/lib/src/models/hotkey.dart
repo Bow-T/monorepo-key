@@ -53,6 +53,21 @@ class Hotkey {
     modifiers: {HotkeyModifier.control, HotkeyModifier.shift},
   );
 
+  static const Hotkey defaultTextTransform = Hotkey(
+    keyCode: 17, // 'T'
+    modifiers: {HotkeyModifier.control, HotkeyModifier.shift},
+  );
+
+  static const Hotkey defaultSymbolPicker = Hotkey(
+    keyCode: 40, // 'K'
+    modifiers: {HotkeyModifier.control, HotkeyModifier.shift},
+  );
+
+  static const Hotkey defaultStickerPicker = Hotkey(
+    keyCode: 38, // 'J'
+    modifiers: {HotkeyModifier.control, HotkeyModifier.shift},
+  );
+
   /// Phím tắt chỉ-modifier (keyCode 0): hợp lệ khi có ÍT NHẤT 2 modifier — để
   /// không nuốt nhầm một phím modifier đơn (vd chỉ Shift). Phím tắt có phím chính:
   /// hợp lệ khi có ít nhất 1 modifier.

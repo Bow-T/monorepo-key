@@ -44,6 +44,13 @@ if [ -d "$ROOT/Assets/fonts" ]; then
   cp "$ROOT/Assets/fonts/"*.ttf "$RES_DIR/" 2>/dev/null || true
 fi
 
+# Sticker (emoji ảnh) cho bảng dán sticker — nằm ở gốc monorepo (assets/emojis).
+EMOJI_SRC="$ROOT/../../assets/emojis"
+if [ -d "$EMOJI_SRC" ]; then
+  mkdir -p "$RES_DIR/emojis"
+  cp "$EMOJI_SRC/"*.png "$RES_DIR/emojis/" 2>/dev/null || true
+fi
+
 echo "==> 3/4  Viết Info.plist…"
 cat > "$APP_DIR/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

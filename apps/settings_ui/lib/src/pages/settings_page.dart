@@ -15,6 +15,7 @@ import 'package:viet_engine/viet_engine.dart' hide InputMethod, ToneStyle;
 
 import '../models/settings.dart';
 import '../services/permission_status_service.dart';
+import '../services/stats_service.dart';
 import '../services/preview_engine.dart';
 import '../services/settings_service.dart';
 import '../services/update_service.dart';
@@ -24,7 +25,7 @@ import '../widgets/pixel.dart';
 import '../widgets/pixel_controls.dart';
 
 /// Các tab chức năng trong menu cài đặt.
-enum SettingsTab { general, shortcuts, clipboard, screenshot, macros, autocorrect, convert, troubleshoot, update, about }
+enum SettingsTab { general, shortcuts, clipboard, screenshot, macros, autocorrect, convert, stats, troubleshoot, update, about }
 
 /// Các phép biến đổi cho công cụ chuyển mã.
 enum _Op { none, removeDiacritics, upper, lower, capWords, capFirst }
@@ -42,6 +43,7 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   final _service = SettingsService.instance;
   final _permStatus = PermissionStatusService.instance;
+  final _stats = StatsService.instance;
   final _testController = TextEditingController();
   String _preview = '';
 
@@ -69,6 +71,7 @@ class _SettingsPageState extends State<SettingsPage> {
     super.initState();
     _service.addListener(_onSettings);
     _permStatus.addListener(_onPermStatus);
+    _stats.addListener(_onStats);
     _testController.addListener(_recomputePreview);
     _input.addListener(() => setState(() {}));
     _autoCorrectSearch.addListener(() => setState(() {}));
@@ -78,6 +81,7 @@ class _SettingsPageState extends State<SettingsPage> {
   void dispose() {
     _service.removeListener(_onSettings);
     _permStatus.removeListener(_onPermStatus);
+    _stats.removeListener(_onStats);
     _testController.dispose();
     _input.dispose();
     _autoCorrectSearch.dispose();
@@ -85,6 +89,10 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _onPermStatus() {
+    if (mounted) setState(() {});
+  }
+
+  void _onStats() {
     if (mounted) setState(() {});
   }
 
@@ -236,6 +244,7 @@ class _SettingsPageState extends State<SettingsPage> {
             _buildSidebarTab(SettingsTab.macros, Iconsax.document_text, 'GÕ TẮT'),
             _buildSidebarTab(SettingsTab.autocorrect, Iconsax.magicpen, 'TỰ SỬA LỖI'),
             _buildSidebarTab(SettingsTab.convert, Iconsax.arrow_swap_horizontal, 'CHUYỂN MÃ'),
+            _buildSidebarTab(SettingsTab.stats, Iconsax.chart_2, 'THỐNG KÊ'),
             _buildSidebarTab(SettingsTab.troubleshoot, Iconsax.setting_2, 'SỬA LỖI'),
             _buildSidebarTab(SettingsTab.update, Iconsax.cloud_change, 'CẬP NHẬT'),
             _buildSidebarTab(SettingsTab.about, Iconsax.info_circle, 'THÔNG TIN'),
@@ -320,6 +329,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 SettingsTab.macros => _buildMacrosTab(context),
                 SettingsTab.autocorrect => _buildAutoCorrectTab(context),
                 SettingsTab.convert => _buildConvertTab(context),
+                SettingsTab.stats => _buildStatsTab(context),
                 SettingsTab.troubleshoot => _buildTroubleshootTab(context),
                 SettingsTab.update => _buildUpdateTab(context),
                 SettingsTab.about => _buildAboutTab(context),
@@ -586,6 +596,81 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         _tabDivider(),
 
+        _tabSectionTitle('BIẾN ĐỔI CHỮ ĐÃ CHỌN'),
+        const SizedBox(height: AppSpacing.sm),
+        SettingRow(
+          title: 'BẬT BIẾN ĐỔI CHỮ',
+          subtitle: s.textTransformEnabled
+              ? 'Bôi đen chữ → phím tắt → bỏ dấu/IN HOA/chuyển mã'
+              : 'Bật để biến đổi nhanh vùng chữ đã bôi đen',
+          control: PixelSwitch(
+            value: s.textTransformEnabled,
+            onChanged: (v) => _save(s.copyWith(textTransformEnabled: v)),
+          ),
+        ),
+        if (s.textTransformEnabled) ...[
+          const SizedBox(height: AppSpacing.sm),
+          SettingRow(
+            title: 'PHÍM TẮT BIẾN ĐỔI CHỮ',
+            subtitle: 'Mở bảng chọn thao tác tại con trỏ (⌃⇧T mặc định)',
+            control: HotkeyRecorder(
+              hotkey: s.textTransformHotkey,
+              onChanged: (hk) => _save(s.copyWith(textTransformHotkey: hk)),
+            ),
+          ),
+        ],
+        _tabDivider(),
+
+        _tabSectionTitle('GÕ NHANH KÝ TỰ & EMOJI'),
+        const SizedBox(height: AppSpacing.sm),
+        SettingRow(
+          title: 'BẬT BẢNG GÕ NHANH',
+          subtitle: s.symbolPickerEnabled
+              ? 'Mở bảng chọn ký tự đặc biệt & emoji để chèn nhanh'
+              : 'Bật để mở bảng chọn ký tự bằng phím tắt',
+          control: PixelSwitch(
+            value: s.symbolPickerEnabled,
+            onChanged: (v) => _save(s.copyWith(symbolPickerEnabled: v)),
+          ),
+        ),
+        if (s.symbolPickerEnabled) ...[
+          const SizedBox(height: AppSpacing.sm),
+          SettingRow(
+            title: 'PHÍM TẮT BẢNG KÝ TỰ',
+            subtitle: 'Mở bảng ký tự tại con trỏ (⌃⇧K mặc định)',
+            control: HotkeyRecorder(
+              hotkey: s.symbolPickerHotkey,
+              onChanged: (hk) => _save(s.copyWith(symbolPickerHotkey: hk)),
+            ),
+          ),
+        ],
+        _tabDivider(),
+
+        _tabSectionTitle('DÁN STICKER (EMOJI ẢNH)'),
+        const SizedBox(height: AppSpacing.sm),
+        SettingRow(
+          title: 'BẬT BẢNG STICKER',
+          subtitle: s.stickerPickerEnabled
+              ? 'Chọn emoji ảnh để dán ẢNH vào tin nhắn/ghi chú'
+              : 'Bật để mở bảng dán sticker bằng phím tắt',
+          control: PixelSwitch(
+            value: s.stickerPickerEnabled,
+            onChanged: (v) => _save(s.copyWith(stickerPickerEnabled: v)),
+          ),
+        ),
+        if (s.stickerPickerEnabled) ...[
+          const SizedBox(height: AppSpacing.sm),
+          SettingRow(
+            title: 'PHÍM TẮT BẢNG STICKER',
+            subtitle: 'Mở bảng sticker tại con trỏ (⌃⇧J mặc định)',
+            control: HotkeyRecorder(
+              hotkey: s.stickerPickerHotkey,
+              onChanged: (hk) => _save(s.copyWith(stickerPickerHotkey: hk)),
+            ),
+          ),
+        ],
+        _tabDivider(),
+
         _buildPixelInfoCard(
           context,
           'LƯU Ý VỀ PHÍM TẮT',
@@ -751,6 +836,28 @@ class _SettingsPageState extends State<SettingsPage> {
           control: PixelSwitch(
             value: s.macroEnabled,
             onChanged: (v) => _save(s.copyWith(macroEnabled: v)),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        SettingRow(
+          title: 'GÕ TẮT EMOJI',
+          subtitle: s.emojiShortcutsEnabled
+              ? 'Gõ :cry: → 😢 · :fire: → 🔥 · :vn: → 🇻🇳'
+              : 'Bật để gõ emoji bằng shortcode kiểu :tên:',
+          control: PixelSwitch(
+            value: s.emojiShortcutsEnabled,
+            onChanged: (v) => _save(s.copyWith(emojiShortcutsEnabled: v)),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        SettingRow(
+          title: 'HOÀN TÁC KHI BUNG',
+          subtitle: s.undoExpansionEnabled
+              ? 'Backspace ngay sau bung → về lại chữ gốc (vn ← Việt Nam)'
+              : 'Bật để Backspace hoàn tác gõ tắt/emoji/tự-sửa vừa bung',
+          control: PixelSwitch(
+            value: s.undoExpansionEnabled,
+            onChanged: (v) => _save(s.copyWith(undoExpansionEnabled: v)),
           ),
         ),
         if (s.macroEnabled) ...[
@@ -1270,6 +1377,101 @@ class _SettingsPageState extends State<SettingsPage> {
     return result;
   }
 
+  // ── Sao lưu / khôi phục TOÀN BỘ cấu hình ──────────────────────────────────
+
+  /// Xuất toàn bộ cài đặt ra 1 file JSON. Bọc `_type`/`_version` để nhận diện khi
+  /// nhập; body chính là `settings.toJson()` (đầy đủ mọi khoá). KHÔNG kèm `perApp`
+  /// vì đó là bộ nhớ riêng từng máy (do bộ gõ quản lý).
+  Future<void> _exportAllSettings(BuildContext context) async {
+    final body = s.toJson()..remove('perApp');
+    final payload = <String, dynamic>{
+      '_type': 'bowgo.settings',
+      '_version': 1,
+      'settings': body,
+    };
+    final jsonStr = const JsonEncoder.withIndent('  ').convert(payload);
+
+    try {
+      final location = await getSaveLocation(
+        suggestedName: 'bowgo-cai-dat.json',
+        acceptedTypeGroups: const [
+          XTypeGroup(label: 'JSON', extensions: ['json']),
+        ],
+      );
+      if (location == null) return; // người dùng huỷ
+
+      var path = location.path;
+      if (!path.toLowerCase().endsWith('.json')) path = '$path.json';
+      await File(path).writeAsString(jsonStr);
+
+      if (!context.mounted) return;
+      _showSnack('Đã xuất toàn bộ cài đặt ra file.');
+    } catch (e) {
+      if (!context.mounted) return;
+      _showSnack('Không xuất được: $e', error: true);
+    }
+  }
+
+  /// Nhập toàn bộ cài đặt từ file đã xuất. Ghi đè cấu hình hiện tại (có xác nhận),
+  /// nhưng GIỮ NGUYÊN `perApp` của máy này. Chấp nhận cả file bọc `_type` lẫn file
+  /// settings.json thô.
+  Future<void> _importAllSettings(BuildContext context) async {
+    final BowSettings imported;
+    try {
+      final file = await openFile(
+        acceptedTypeGroups: const [
+          XTypeGroup(label: 'JSON', extensions: ['json']),
+        ],
+      );
+      if (file == null) return; // người dùng huỷ
+
+      final raw = await file.readAsString();
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) throw const FormatException('Không phải JSON hợp lệ');
+      // File bọc -> lấy trường "settings"; file thô -> dùng thẳng.
+      final map = decoded['settings'] is Map
+          ? (decoded['settings'] as Map).cast<String, dynamic>()
+          : decoded.cast<String, dynamic>();
+      imported = BowSettings.fromJson(map);
+    } catch (e) {
+      if (!context.mounted) return;
+      _showSnack('File không hợp lệ: $e', error: true);
+      return;
+    }
+
+    if (!context.mounted) return;
+    final ok = await _confirmImportAll(context);
+    if (ok != true) return;
+
+    // Giữ perApp hiện tại (bộ nhớ riêng máy) — không nằm trong file xuất.
+    _save(imported.copyWith(perApp: s.perApp));
+    _showSnack('Đã khôi phục toàn bộ cài đặt từ file.');
+  }
+
+  /// Xác nhận trước khi ghi đè toàn bộ cấu hình (thao tác không hoàn tác được).
+  Future<bool?> _confirmImportAll(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Ghi đè toàn bộ cài đặt?'),
+        content: const Text(
+          'Cấu hình hiện tại (bộ gõ, gõ tắt, tự sửa lỗi, phím tắt…) sẽ bị thay '
+          'bằng nội dung trong file. Thao tác này không hoàn tác được.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Huỷ'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Ghi đè'),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Hỏi người dùng chọn Gộp hay Ghi đè khi nhập vào danh sách đã có sẵn.
   Future<_ImportMode?> _askImportMode(BuildContext context, int count) {
     return showDialog<_ImportMode>(
@@ -1483,6 +1685,166 @@ class _SettingsPageState extends State<SettingsPage> {
 
   // ── Tab 6: Thông tin ────────────────────────────────────────────────────
 
+  // ── Tab: Thống kê gõ ────────────────────────────────────────────────────
+
+  Widget _buildStatsTab(BuildContext context) {
+    final st = _stats.value;
+
+    if (!st.known) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _tabSectionTitle('THỐNG KÊ GÕ'),
+          const SizedBox(height: AppSpacing.sm),
+          _buildPixelInfoCard(
+            context,
+            'CHƯA CÓ SỐ LIỆU',
+            'Hãy mở bộ gõ Bow Go và gõ vài từ. Sau đó số liệu sẽ hiện ở đây '
+                '(cập nhật mỗi vài giây). Mọi thống kê chỉ lưu trên máy này.',
+          ),
+        ],
+      );
+    }
+
+    final ratioPct = (st.vietRatio * 100).round();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Chuỗi ngày (streak) — điểm nhấn tạo động lực.
+        _buildStreakBanner(context, st.streak, st.wordsToday),
+        _tabDivider(),
+
+        _tabSectionTitle('TỔNG QUAN'),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            _buildStatCard(context, Iconsax.keyboard, 'PHÍM ĐÃ GÕ',
+                _formatCount(st.keystrokes), AppColors.blue),
+            _buildStatCard(context, Iconsax.text, 'TỪ TIẾNG VIỆT',
+                _formatCount(st.vietWords), AppColors.green),
+            _buildStatCard(context, Iconsax.flash, 'PHÍM TIẾT KIỆM',
+                _formatCount(st.charsSaved), AppColors.yellow),
+            _buildStatCard(context, Iconsax.chart, 'TỈ LỆ TIẾNG VIỆT',
+                '$ratioPct%', AppColors.cyan),
+          ],
+        ),
+        _tabDivider(),
+
+        _buildPixelInfoCard(
+          context,
+          'RIÊNG TƯ TUYỆT ĐỐI',
+          'Thống kê chỉ đếm SỐ LƯỢNG (phím, từ) — KHÔNG lưu nội dung bạn gõ, '
+              'KHÔNG gửi đi đâu. Tất cả nằm trong file stats.json trên máy này. '
+              '"Phím tiết kiệm" là số ký tự bạn khỏi phải gõ nhờ gõ tắt & emoji.',
+        ),
+      ],
+    );
+  }
+
+  /// Banner chuỗi ngày liên tiếp (streak) — to, nổi bật, tạo động lực.
+  Widget _buildStreakBanner(BuildContext context, int streak, int wordsToday) {
+    final t = context.tokens;
+    return PixelPanel(
+      padding: const EdgeInsets.all(16),
+      fill: t.panel,
+      shadowOffset: AppBorders.shadowSm,
+      borderColor: AppColors.red,
+      child: Row(
+        children: [
+          const Icon(Iconsax.flash_1, color: AppColors.red, size: 32),
+          const SizedBox(width: 14),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$streak NGÀY LIÊN TIẾP',
+                style: const TextStyle(
+                  fontFamily: AppFonts.head,
+                  fontSize: 12,
+                  color: AppColors.red,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                streak > 0
+                    ? 'Hôm nay đã gõ $wordsToday từ tiếng Việt. Giữ chuỗi nhé!'
+                    : 'Gõ tiếng Việt hôm nay để bắt đầu chuỗi ngày.',
+                style: TextStyle(
+                  fontFamily: AppFonts.body,
+                  fontSize: 14,
+                  color: t.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Ô số liệu pixel: icon + nhãn + số lớn, viền màu theo loại.
+  Widget _buildStatCard(BuildContext context, IconData icon, String label,
+      String value, Color color) {
+    final t = context.tokens;
+    return SizedBox(
+      width: 175,
+      child: PixelPanel(
+        padding: const EdgeInsets.all(14),
+        fill: t.panel,
+        shadowOffset: AppBorders.shadowSm,
+        borderColor: color,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: color, size: 14),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontFamily: AppFonts.head,
+                      fontSize: 7,
+                      color: t.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              value,
+              style: TextStyle(
+                fontFamily: AppFonts.head,
+                fontSize: 16,
+                color: t.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Định dạng số lớn gọn: 1234 -> "1.234", 1_200_000 -> "1.2M".
+  String _formatCount(int n) {
+    if (n >= 1000000) {
+      final m = n / 1000000;
+      return '${m.toStringAsFixed(m >= 10 ? 0 : 1)}M';
+    }
+    final str = n.toString();
+    // Chèn dấu chấm ngăn cách hàng nghìn (kiểu VN).
+    final buf = StringBuffer();
+    for (var i = 0; i < str.length; i++) {
+      if (i > 0 && (str.length - i) % 3 == 0) buf.write('.');
+      buf.write(str[i]);
+    }
+    return buf.toString();
+  }
+
   // ── Tab: Sửa lỗi ────────────────────────────────────────────────────────
 
   Widget _buildTroubleshootTab(BuildContext context) {
@@ -1564,6 +1926,55 @@ class _SettingsPageState extends State<SettingsPage> {
             'Vì sao cần "Sửa lỗi quyền"? Mỗi lần cập nhật app, macOS có thể '
             'quên quyền cũ dù công tắc vẫn xanh. Thao tác này xoá quyền cũ rồi '
             'mở Cài đặt để bạn bật lại — gắn quyền với bản app hiện tại.',
+            style: TextStyle(
+              fontFamily: AppFonts.body,
+              fontSize: 14,
+              height: 1.2,
+              color: t.textMuted,
+            ),
+          ),
+        ),
+        _tabDivider(),
+
+        // ── Sao lưu & khôi phục toàn bộ cấu hình ─────────────────────────
+        _tabSectionTitle('SAO LƯU & KHÔI PHỤC'),
+        const SizedBox(height: AppSpacing.sm),
+        SettingRow(
+          title: 'XUẤT TOÀN BỘ CÀI ĐẶT',
+          subtitle: 'Lưu bộ gõ + gõ tắt + tự sửa lỗi + phím tắt ra 1 file',
+          control: PixelButton(
+            label: 'XUẤT',
+            icon: Iconsax.export_1,
+            color: AppColors.blue,
+            small: true,
+            expand: false,
+            height: 32,
+            onPressed: () => _exportAllSettings(context),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        SettingRow(
+          title: 'NHẬP CÀI ĐẶT TỪ FILE',
+          subtitle: 'Khôi phục cấu hình đã xuất (đổi máy / cài lại)',
+          control: PixelButton(
+            label: 'NHẬP',
+            icon: Iconsax.import_1,
+            color: AppColors.green,
+            small: true,
+            expand: false,
+            height: 32,
+            onPressed: () => _importAllSettings(context),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        PixelPanel(
+          padding: const EdgeInsets.all(14),
+          fill: t.inset,
+          shadowOffset: AppBorders.shadowSm,
+          borderWidth: AppBorders.thin,
+          child: Text(
+            'File xuất là JSON thuần, gồm mọi cài đặt trừ bộ nhớ bật/tắt theo app '
+            '(perApp) — cái đó riêng từng máy. Nhập vào sẽ ghi đè cấu hình hiện tại.',
             style: TextStyle(
               fontFamily: AppFonts.body,
               fontSize: 14,
@@ -2228,61 +2639,93 @@ class _SettingsPageState extends State<SettingsPage> {
     final existing = index != null ? s.macros[index] : null;
     final keywordCtrl = TextEditingController(text: existing?.keyword ?? '');
     final contentCtrl = TextEditingController(text: existing?.content ?? '');
+    var type = existing?.type ?? 'staticText';
 
     final result = await showDialog<MacroEntry>(
       context: context,
       builder: (ctx) {
         final t = ctx.tokens;
-        return AlertDialog(
-          backgroundColor: t.panel,
-          shape: const RoundedRectangleBorder(
-            side: BorderSide(color: Colors.black, width: AppBorders.thin),
-            borderRadius: BorderRadius.zero,
-          ),
-          title: Text(index == null ? 'THÊM GÕ TẮT' : 'SỬA GÕ TẮT',
-              style: Theme.of(ctx).textTheme.labelSmall),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('TỪ KHOÁ (vd: vn)',
-                  style: Theme.of(ctx)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: t.textMuted, fontSize: 13)),
-              const SizedBox(height: 4),
-              _dialogField(ctx, keywordCtrl, 'vn'),
-              const SizedBox(height: 12),
-              Text('NỘI DUNG (vd: Việt Nam)',
-                  style: Theme.of(ctx)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: t.textMuted, fontSize: 13)),
-              const SizedBox(height: 4),
-              _dialogField(ctx, contentCtrl, 'Việt Nam'),
-            ],
-          ),
-          actions: [
-            PixelButton(
-              label: 'HUỶ',
-              color: AppColors.stone,
-              small: true,
-              expand: false,
-              onPressed: () => Navigator.pop(ctx),
-            ),
-            PixelButton(
-              label: 'LƯU',
-              color: AppColors.green,
-              small: true,
-              expand: false,
-              onPressed: () {
-                final kw = keywordCtrl.text.trim();
-                final ct = contentCtrl.text;
-                if (kw.isEmpty) return;
-                Navigator.pop(ctx, MacroEntry(keyword: kw, content: ct));
-              },
-            ),
-          ],
+        return StatefulBuilder(
+          builder: (ctx, setDialog) {
+            // Gợi ý nội dung theo loại đang chọn.
+            final contentHint = switch (type) {
+              'date' => 'dd/MM/yyyy',
+              'time' => 'HH:mm:ss',
+              'dateTime' => 'dd/MM/yyyy HH:mm',
+              'random' => 'a, b, c',
+              'counter' => '#',
+              'calc' => '150000*3',
+              'clipboard' => '(không cần — dán clipboard)',
+              _ => 'Việt Nam',
+            };
+            return AlertDialog(
+              backgroundColor: t.panel,
+              shape: const RoundedRectangleBorder(
+                side: BorderSide(color: Colors.black, width: AppBorders.thin),
+                borderRadius: BorderRadius.zero,
+              ),
+              title: Text(index == null ? 'THÊM GÕ TẮT' : 'SỬA GÕ TẮT',
+                  style: Theme.of(ctx).textTheme.labelSmall),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('TỪ KHOÁ (vd: vn)',
+                      style: Theme.of(ctx)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: t.textMuted, fontSize: 13)),
+                  const SizedBox(height: 4),
+                  _dialogField(ctx, keywordCtrl, 'vn'),
+                  const SizedBox(height: 12),
+                  Text('LOẠI',
+                      style: Theme.of(ctx)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: t.textMuted, fontSize: 13)),
+                  const SizedBox(height: 4),
+                  _macroTypeDropdown(ctx, type, (v) => setDialog(() => type = v)),
+                  const SizedBox(height: 12),
+                  Text('NỘI DUNG',
+                      style: Theme.of(ctx)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: t.textMuted, fontSize: 13)),
+                  const SizedBox(height: 4),
+                  // Loại clipboard không cần nội dung.
+                  if (type == 'clipboard')
+                    Text('Sẽ dán nội dung đang copy khi gõ từ khoá.',
+                        style: Theme.of(ctx)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(color: t.textMuted, fontSize: 13))
+                  else
+                    _dialogField(ctx, contentCtrl, contentHint),
+                ],
+              ),
+              actions: [
+                PixelButton(
+                  label: 'HUỶ',
+                  color: AppColors.stone,
+                  small: true,
+                  expand: false,
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+                PixelButton(
+                  label: 'LƯU',
+                  color: AppColors.green,
+                  small: true,
+                  expand: false,
+                  onPressed: () {
+                    final kw = keywordCtrl.text.trim();
+                    final ct = type == 'clipboard' ? '' : contentCtrl.text;
+                    if (kw.isEmpty) return;
+                    Navigator.pop(ctx, MacroEntry(keyword: kw, content: ct, type: type));
+                  },
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -2297,6 +2740,45 @@ class _SettingsPageState extends State<SettingsPage> {
       next.add(result);
     }
     _save(s.copyWith(macros: next));
+  }
+
+  /// Dropdown chọn LOẠI macro. Giá trị chuỗi khớp `type` phía Swift (parseMacroType).
+  Widget _macroTypeDropdown(
+      BuildContext context, String value, ValueChanged<String> onChanged) {
+    final t = context.tokens;
+    const options = <(String, String)>[
+      ('staticText', 'Văn bản cố định'),
+      ('date', 'Ngày'),
+      ('time', 'Giờ'),
+      ('dateTime', 'Ngày giờ'),
+      ('random', 'Ngẫu nhiên'),
+      ('counter', 'Bộ đếm'),
+      ('clipboard', 'Dán clipboard'),
+      ('calc', 'Tính toán'),
+    ];
+    return Container(
+      decoration: BoxDecoration(
+        color: t.inset,
+        border: Border.all(color: t.outline, width: AppBorders.thin),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          isExpanded: true,
+          dropdownColor: t.panel,
+          style: TextStyle(
+              fontFamily: AppFonts.body, fontSize: 16, color: t.textPrimary),
+          items: [
+            for (final (val, label) in options)
+              DropdownMenuItem(value: val, child: Text(label)),
+          ],
+          onChanged: (v) {
+            if (v != null) onChanged(v);
+          },
+        ),
+      ),
+    );
   }
 
   Widget _dialogField(BuildContext context, TextEditingController ctrl, String hint) {

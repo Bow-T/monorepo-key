@@ -19,6 +19,7 @@ import 'src/pages/onboarding_screen.dart';
 import 'src/pages/settings_page.dart';
 import 'src/services/permission_status_service.dart';
 import 'src/services/settings_service.dart';
+import 'src/services/stats_service.dart';
 import 'src/services/windows_runtime.dart';
 import 'src/theme/app_theme.dart';
 
@@ -45,6 +46,7 @@ Future<void> main() async {
 
   await SettingsService.instance.load();
   await PermissionStatusService.instance.start();
+  await StatsService.instance.start();
   runApp(const BowSettingsApp());
 
   // Windows: bật app đồng hành (tray + hotkey + clipboard nền). No-op nơi khác.

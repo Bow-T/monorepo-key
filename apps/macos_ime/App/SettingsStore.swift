@@ -84,6 +84,32 @@ struct BowConfig: Equatable {
     var screenshotHotkeyKeyCode: Int64 = 1 // S
     var screenshotHotkeyModifiers: Set<String> = ["control", "shift"]
 
+    /// Biến đổi văn bản đã bôi đen (bỏ dấu / IN HOA / chuyển mã…). Phím tắt bật
+    /// popup chọn thao tác tại vị trí con trỏ. Mặc định ⌃⇧T (T = Transform).
+    var textTransformEnabled: Bool = true
+    var textTransformHotkeyKeyCode: Int64 = 17 // T
+    var textTransformHotkeyModifiers: Set<String> = ["control", "shift"]
+
+    /// Gõ tắt emoji theo shortcode (:cry: -> 😢). Bung khi gõ dấu ':' đóng.
+    /// Mặc định TẮT để không ảnh hưởng người không dùng emoji.
+    var emojiShortcutsEnabled: Bool = false
+
+    /// Bảng gõ nhanh ký tự đặc biệt & emoji (picker). Phím tắt (mặc định ⌃⇧K)
+    /// mở overlay chọn ký tự tại con trỏ. Mặc định bật.
+    var symbolPickerEnabled: Bool = true
+    var symbolPickerHotkeyKeyCode: Int64 = 40 // K
+    var symbolPickerHotkeyModifiers: Set<String> = ["control", "shift"]
+
+    /// Undo ngay sau khi bung gõ tắt/emoji/tự-sửa: nhấn Backspace lập tức để khôi
+    /// phục chuỗi gốc (vd "vn " -> "Việt Nam ", Backspace -> "vn "). Mặc định bật.
+    var undoExpansionEnabled: Bool = true
+
+    /// Bảng dán sticker (emoji ảnh). Phím tắt (mặc định ⌃⇧J) mở overlay chọn sticker
+    /// để dán ẢNH vào ô đang gõ. Mặc định bật.
+    var stickerPickerEnabled: Bool = true
+    var stickerPickerHotkeyKeyCode: Int64 = 38 // J
+    var stickerPickerHotkeyModifiers: Set<String> = ["control", "shift"]
+
     static func decode(_ data: Data) -> BowConfig? {
         guard
             let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -135,17 +161,36 @@ struct BowConfig: Equatable {
         if let smods = obj["screenshotHotkeyModifiers"] as? [String] {
             cfg.screenshotHotkeyModifiers = Set(smods)
         }
+        if let tte = obj["textTransformEnabled"] as? Bool { cfg.textTransformEnabled = tte }
+        if let ttk = obj["textTransformHotkeyKeyCode"] as? Int { cfg.textTransformHotkeyKeyCode = Int64(ttk) }
+        if let ttmods = obj["textTransformHotkeyModifiers"] as? [String] {
+            cfg.textTransformHotkeyModifiers = Set(ttmods)
+        }
+        if let em = obj["emojiShortcutsEnabled"] as? Bool { cfg.emojiShortcutsEnabled = em }
+        if let sp = obj["symbolPickerEnabled"] as? Bool { cfg.symbolPickerEnabled = sp }
+        if let spk = obj["symbolPickerHotkeyKeyCode"] as? Int { cfg.symbolPickerHotkeyKeyCode = Int64(spk) }
+        if let spm = obj["symbolPickerHotkeyModifiers"] as? [String] {
+            cfg.symbolPickerHotkeyModifiers = Set(spm)
+        }
+        if let ue = obj["undoExpansionEnabled"] as? Bool { cfg.undoExpansionEnabled = ue }
+        if let st = obj["stickerPickerEnabled"] as? Bool { cfg.stickerPickerEnabled = st }
+        if let stk = obj["stickerPickerHotkeyKeyCode"] as? Int { cfg.stickerPickerHotkeyKeyCode = Int64(stk) }
+        if let stm = obj["stickerPickerHotkeyModifiers"] as? [String] {
+            cfg.stickerPickerHotkeyModifiers = Set(stm)
+        }
         return cfg
     }
 
     private static func parseMacroType(_ s: String?) -> MacroSnippetType {
         switch s {
-        case "date":     return .date
-        case "time":     return .time
-        case "dateTime": return .dateTime
-        case "random":   return .random
-        case "counter":  return .counter
-        default:         return .staticText
+        case "date":      return .date
+        case "time":      return .time
+        case "dateTime":  return .dateTime
+        case "random":    return .random
+        case "counter":   return .counter
+        case "clipboard": return .clipboard
+        case "calc":      return .calc
+        default:          return .staticText
         }
     }
 }
@@ -254,6 +299,22 @@ final class SettingsStore {
         update { obj in
             if (obj["macroEnabled"] as? Bool) == enabled { return false }
             obj["macroEnabled"] = enabled
+            return true
+        }
+    }
+
+    func writeEmojiShortcutsEnabled(_ enabled: Bool) {
+        update { obj in
+            if (obj["emojiShortcutsEnabled"] as? Bool) == enabled { return false }
+            obj["emojiShortcutsEnabled"] = enabled
+            return true
+        }
+    }
+
+    func writeUndoExpansionEnabled(_ enabled: Bool) {
+        update { obj in
+            if (obj["undoExpansionEnabled"] as? Bool) == enabled { return false }
+            obj["undoExpansionEnabled"] = enabled
             return true
         }
     }

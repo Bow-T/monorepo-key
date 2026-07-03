@@ -59,6 +59,31 @@ final class EventTapController {
     private var screenshotHotkeyKeyCode: Int64 = 1 // S
     private var screenshotHotkeyModifiers: Set<String> = ["control", "shift"]
 
+    // Phím tắt biến đổi văn bản đã bôi đen (popup chọn thao tác)
+    private var textTransformEnabled = true
+    private var textTransformHotkeyKeyCode: Int64 = 17 // T
+    private var textTransformHotkeyModifiers: Set<String> = ["control", "shift"]
+
+    // Phím tắt bảng gõ nhanh ký tự & emoji (picker)
+    private var symbolPickerEnabled = true
+    private var symbolPickerHotkeyKeyCode: Int64 = 40 // K
+    private var symbolPickerHotkeyModifiers: Set<String> = ["control", "shift"]
+
+    // Phím tắt bảng dán sticker (emoji ảnh)
+    private var stickerPickerEnabled = true
+    private var stickerPickerHotkeyKeyCode: Int64 = 38 // J
+    private var stickerPickerHotkeyModifiers: Set<String> = ["control", "shift"]
+
+    // Gõ tắt emoji theo shortcode (:cry: -> 😢). Bung khi gõ dấu ':' đóng.
+    private var emojiShortcutsEnabled = false
+    /// Máy trạng thái theo dõi shortcode đang gõ dở (logic thuần, test được ở
+    /// EmojiShortcodesTests). Bộ điều khiển chỉ lo đồng bộ màn hình.
+    private var emojiMatcher = EmojiShortcodeMatcher()
+
+    // Undo ngay sau khi bung (Backspace lập tức -> khôi phục chuỗi gốc).
+    private var undoExpansionEnabled = true
+    private var expansionUndo = ExpansionUndo()
+
     // Trạng thái để theo dõi phím tắt Control+Shift (chỉ phím bổ trợ, không kèm chữ)
     private var bothDown = false
     private var cancelShortcut = false
@@ -454,6 +479,9 @@ final class EventTapController {
     /// Gõ tắt (macro) có đang bật không.
     var macroOn: Bool { macroEnabled }
 
+    /// Gõ tắt emoji có đang bật không.
+    var emojiShortcutsOn: Bool { emojiShortcutsEnabled }
+
     /// Bật/tắt tự khôi phục tiếng Anh (gọi từ menu). Tái tạo engine.
     func setAutoRestoreEnglish(_ on: Bool) {
         autoRestoreEnglish = on
@@ -471,6 +499,21 @@ final class EventTapController {
         macroEnabled = on
         rebuildMacroStore()
         rebuildEngine()
+    }
+
+    /// Bật/tắt gõ tắt emoji (gọi từ menu).
+    func setEmojiShortcuts(_ on: Bool) {
+        emojiShortcutsEnabled = on
+        if !on { emojiMatcher.reset() }
+    }
+
+    /// Undo-sau-bung có đang bật không.
+    var undoExpansionOn: Bool { undoExpansionEnabled }
+
+    /// Bật/tắt undo-sau-bung (gọi từ menu).
+    func setUndoExpansion(_ on: Bool) {
+        undoExpansionEnabled = on
+        if !on { expansionUndo.disarm() }
     }
 
     /// Áp toàn bộ cấu hình đọc từ file (gọi lúc khởi động & mỗi khi UI lưu).
@@ -495,6 +538,19 @@ final class EventTapController {
         screenshotEnabled = config.screenshotEnabled
         screenshotHotkeyKeyCode = config.screenshotHotkeyKeyCode
         screenshotHotkeyModifiers = config.screenshotHotkeyModifiers
+        textTransformEnabled = config.textTransformEnabled
+        textTransformHotkeyKeyCode = config.textTransformHotkeyKeyCode
+        textTransformHotkeyModifiers = config.textTransformHotkeyModifiers
+        symbolPickerEnabled = config.symbolPickerEnabled
+        symbolPickerHotkeyKeyCode = config.symbolPickerHotkeyKeyCode
+        symbolPickerHotkeyModifiers = config.symbolPickerHotkeyModifiers
+        stickerPickerEnabled = config.stickerPickerEnabled
+        stickerPickerHotkeyKeyCode = config.stickerPickerHotkeyKeyCode
+        stickerPickerHotkeyModifiers = config.stickerPickerHotkeyModifiers
+        emojiShortcutsEnabled = config.emojiShortcutsEnabled
+        if !emojiShortcutsEnabled { emojiMatcher.reset() }
+        undoExpansionEnabled = config.undoExpansionEnabled
+        if !undoExpansionEnabled { expansionUndo.disarm() }
         rebuildEngine()
     }
 
@@ -508,7 +564,12 @@ final class EventTapController {
     private var macroEnabled = true
 
     private func rebuildMacroStore() {
-        macroStore = (macroEnabled && !macroDefs.isEmpty) ? MacroStore(macroDefs) : nil
+        guard macroEnabled && !macroDefs.isEmpty else { macroStore = nil; return }
+        // Tiêm hàm đọc clipboard cho macro loại `clipboard` (đọc pasteboard hệ thống).
+        let env = MacroStore.Environment(clipboard: {
+            NSPasteboard.general.string(forType: .string) ?? ""
+        })
+        macroStore = MacroStore(macroDefs, environment: env)
     }
 
     /// Dựng lại từ điển tự-sửa từ cặp người dùng cấu hình.
@@ -591,6 +652,60 @@ final class EventTapController {
         return active == screenshotHotkeyModifiers
     }
 
+    private func isTextTransformHotkey(_ event: CGEvent) -> Bool {
+        guard textTransformHotkeyKeyCode != 0 else { return false }
+        guard event.getIntegerValueField(.keyboardEventKeycode) == textTransformHotkeyKeyCode else {
+            return false
+        }
+        guard !textTransformHotkeyModifiers.isEmpty else { return false }
+
+        let flags = event.flags
+        let active: Set<String> = [
+            flags.contains(.maskControl)   ? "control" : nil,
+            flags.contains(.maskAlternate) ? "option"  : nil,
+            flags.contains(.maskShift)     ? "shift"   : nil,
+            flags.contains(.maskCommand)   ? "command" : nil,
+        ].compactMap { $0 }.reduce(into: Set()) { $0.insert($1) }
+
+        return active == textTransformHotkeyModifiers
+    }
+
+    private func isSymbolPickerHotkey(_ event: CGEvent) -> Bool {
+        guard symbolPickerHotkeyKeyCode != 0 else { return false }
+        guard event.getIntegerValueField(.keyboardEventKeycode) == symbolPickerHotkeyKeyCode else {
+            return false
+        }
+        guard !symbolPickerHotkeyModifiers.isEmpty else { return false }
+
+        let flags = event.flags
+        let active: Set<String> = [
+            flags.contains(.maskControl)   ? "control" : nil,
+            flags.contains(.maskAlternate) ? "option"  : nil,
+            flags.contains(.maskShift)     ? "shift"   : nil,
+            flags.contains(.maskCommand)   ? "command" : nil,
+        ].compactMap { $0 }.reduce(into: Set()) { $0.insert($1) }
+
+        return active == symbolPickerHotkeyModifiers
+    }
+
+    private func isStickerPickerHotkey(_ event: CGEvent) -> Bool {
+        guard stickerPickerHotkeyKeyCode != 0 else { return false }
+        guard event.getIntegerValueField(.keyboardEventKeycode) == stickerPickerHotkeyKeyCode else {
+            return false
+        }
+        guard !stickerPickerHotkeyModifiers.isEmpty else { return false }
+
+        let flags = event.flags
+        let active: Set<String> = [
+            flags.contains(.maskControl)   ? "control" : nil,
+            flags.contains(.maskAlternate) ? "option"  : nil,
+            flags.contains(.maskShift)     ? "shift"   : nil,
+            flags.contains(.maskCommand)   ? "command" : nil,
+        ].compactMap { $0 }.reduce(into: Set()) { $0.insert($1) }
+
+        return active == stickerPickerHotkeyModifiers
+    }
+
     // MARK: - Callback C (static, không bắt được self -> lấy qua refcon)
 
     private static let callback: CGEventTapCallBack = { proxy, type, event, refcon in
@@ -633,6 +748,7 @@ final class EventTapController {
         if type == .leftMouseDown || type == .rightMouseDown || type == .otherMouseDown {
             cancelShortcut = true
             resetSyllable()
+            emojiMatcher.reset()
             return Unmanaged.passUnretained(event)
         }
 
@@ -663,9 +779,39 @@ final class EventTapController {
                 }
                 return nil
             }
+            if textTransformEnabled && isTextTransformHotkey(event) {
+                DispatchQueue.main.async {
+                    AppDelegate.shared?.showTextTransformMenu()
+                }
+                return nil
+            }
+            if symbolPickerEnabled && isSymbolPickerHotkey(event) {
+                DispatchQueue.main.async {
+                    AppDelegate.shared?.showSymbolPicker()
+                }
+                return nil
+            }
+            if stickerPickerEnabled && isStickerPickerHotkey(event) {
+                DispatchQueue.main.async {
+                    AppDelegate.shared?.showStickerPicker()
+                }
+                return nil
+            }
             if isToggleHotkey(event) {
                 toggleEnabledState()
                 return nil
+            }
+        }
+
+        // THỐNG KÊ (bộ gõ TẮT): đếm phím chữ/số gõ khi đang ở chế độ tiếng Anh, để
+        // tính tỉ lệ Việt/Anh. Chỉ xét keyDown không kèm modifier (phím gõ thật).
+        if !enabled, type == .keyDown {
+            let f = event.flags
+            if !f.contains(.maskCommand), !f.contains(.maskControl), !f.contains(.maskAlternate) {
+                let kc = event.getIntegerValueField(.keyboardEventKeycode)
+                if let c = KeyCodeMap.character(for: kc, shift: false), c.isLetter || c.isNumber {
+                    StatsTracker.shared.recordKeystroke(vietnamese: false)
+                }
             }
         }
 
@@ -677,13 +823,30 @@ final class EventTapController {
         // Có Cmd/Ctrl/Option -> phím tắt, không phải gõ chữ. Reset & cho đi qua.
         if flags.contains(.maskCommand) || flags.contains(.maskControl) || flags.contains(.maskAlternate) {
             resetSyllable()
+            emojiMatcher.reset()
+            expansionUndo.disarm()   // phím tắt -> huỷ cửa sổ undo
             return Unmanaged.passUnretained(event)
         }
 
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
 
+        // UNDO BUNG: nếu vừa bung gõ tắt/emoji/tự-sửa và phím này là Backspace -> khôi
+        // phục chuỗi gốc thay vì xoá 1 ký tự. Chỉ đúng MỘT nhịp ngay sau bung.
+        if undoExpansionEnabled, keyCode == KeyCodeMap.delete,
+           let undo = expansionUndo.consumeBackspace() {
+            emojiMatcher.reset()
+            resetSyllable()
+            // Xoá chuỗi đã hiện (deleteCount), gõ lại chuỗi gốc.
+            KeyOutput.replace(backspaces: undo.deleteCount, with: undo.restore, proxy: proxy,
+                              erase: eraseStrategy())
+            return nil  // nuốt Backspace gốc (ta đã tự khôi phục)
+        }
+        // Phím KHÁC ngay sau bung -> huỷ trạng thái undo (chỉ 1 nhịp).
+        if undoExpansionEnabled, expansionUndo.isArmed { expansionUndo.disarm() }
+
         // Backspace: lùi trong engine, ĐỒNG BỘ màn hình = engine.
         if keyCode == KeyCodeMap.delete {
+            emojiMatcher.reset()   // sửa chữ giữa chừng -> huỷ shortcode đang gõ dở
             if let rebuilt = engine.backspace() {
                 // Engine đã dựng lại âm tiết (lùi tới khi hiển thị bớt 1 ký tự).
                 // KHÔNG để phím Backspace gốc đi qua rồi giả định nó xoá đúng 1 ký tự:
@@ -709,6 +872,9 @@ final class EventTapController {
 
         // Phím ngắt âm tiết (space, return, tab, esc) -> chốt từ.
         if KeyCodeMap.isWordBreak(keyCode) {
+            emojiMatcher.reset()   // ngắt từ -> shortcode dở dang (nếu có) bị huỷ
+            // THỐNG KÊ: một từ tiếng Việt được chốt khi có âm tiết đã hiển thị.
+            if !currentDisplay.isEmpty { StatsTracker.shared.recordVietWord() }
             // GÕ TẮT: trước khi chốt, thử khớp macro theo phím thô của cả từ.
             // Chỉ bung với phím ngắt thực sự chèn ký tự (space/return/tab), không esc.
             let macroBreak = keyCode == KeyCodeMap.space
@@ -717,8 +883,14 @@ final class EventTapController {
                let content = store.expand(keyword: String(wordRawKeys)) {
                 let backspaces = committedLength      // xoá từ khoá đã hiển thị
                 let breakChar = KeyCodeMap.wordBreakCharacter(for: keyCode)
+                // THỐNG KÊ: ký tự tiết kiệm = độ dài nội dung - độ dài từ khoá.
+                StatsTracker.shared.recordCharsSaved(content.count - wordRawKeys.count)
+                let rawKeys = String(wordRawKeys)
                 resetSyllable()
                 wordRawKeys.removeAll()
+                // UNDO: shown = "content+break", gốc = "từ khoá thô + break".
+                armUndo(shown: content + String(breakChar),
+                        original: rawKeys + String(breakChar))
                 // Xoá từ khoá, gõ nội dung macro, rồi gõ chính phím ngắt từ.
                 KeyOutput.replace(backspaces: backspaces,
                                   with: content + String(breakChar), proxy: proxy,
@@ -733,7 +905,11 @@ final class EventTapController {
                    rawKeys: String(wordRawKeys), display: currentDisplay) {
                 let backspaces = committedLength
                 let breakChar = KeyCodeMap.wordBreakCharacter(for: keyCode)
+                let vietDisplay = currentDisplay
                 resetSyllable()
+                // UNDO: khôi phục về bản tiếng Việt vừa bị đổi thành phím thô.
+                armUndo(shown: raw + String(breakChar),
+                        original: vietDisplay + String(breakChar))
                 KeyOutput.replace(backspaces: backspaces, with: raw + String(breakChar), proxy: proxy,
                                   erase: eraseStrategy())
                 return nil  // nuốt phím ngắt gốc (ta đã tự gõ nó kèm từ khôi phục)
@@ -746,7 +922,11 @@ final class EventTapController {
                let result = AutoCorrect.correctWord(currentDisplay, dictionary: autoCorrectDict) {
                 let backspaces = committedLength
                 let breakChar = KeyCodeMap.wordBreakCharacter(for: keyCode)
+                let beforeCorrect = currentDisplay
                 resetSyllable()
+                // UNDO: khôi phục về từ TRƯỚC khi tự-sửa (vd "giừo" thay vì "giờ").
+                armUndo(shown: result.corrected + String(breakChar),
+                        original: beforeCorrect + String(breakChar))
                 KeyOutput.replace(backspaces: backspaces,
                                   with: result.corrected + String(breakChar), proxy: proxy,
                                   erase: eraseStrategy())
@@ -772,7 +952,30 @@ final class EventTapController {
                 ?? KeyCodeMap.character(for: keyCode, shift: shift) else {
             // Phím ta không xử lý -> chốt từ, cho đi qua.
             resetSyllable()
+            emojiMatcher.reset()
             return Unmanaged.passUnretained(event)
+        }
+
+        // GÕ TẮT EMOJI: xử lý dấu ':' TRƯỚC engine (':' vốn là ngắt-từ với engine).
+        // Nếu ':' đóng khớp shortcode -> bung emoji, nuốt phím gốc.
+        if emojiShortcutsEnabled, ch == ":" {
+            if let (emoji, deleteCount, shortcode) = emojiMatcher.onColon() {
+                // THỐNG KÊ: đã hiện ':code' (deleteCount) + ':' đóng = deleteCount+1 phím,
+                // thay bằng emoji (thường 1 ký tự) -> tiết kiệm phần chênh.
+                StatsTracker.shared.recordCharsSaved(deleteCount + 1 - emoji.count)
+                resetSyllable()
+                // UNDO: khôi phục về shortcode gốc ":code:" nếu Backspace ngay.
+                armUndo(shown: emoji, original: shortcode)
+                KeyOutput.replace(backspaces: deleteCount, with: emoji, proxy: proxy,
+                                  erase: eraseStrategy())
+                return nil
+            }
+            // Không khớp -> onColon() đã mở buffer ":" mới. ':' đi qua tự nhiên.
+        }
+
+        // THỐNG KÊ (bộ gõ BẬT): đếm phím chữ/số gõ khi đang gõ tiếng Việt.
+        if ch.isLetter || ch.isNumber {
+            StatsTracker.shared.recordKeystroke(vietnamese: true)
         }
 
         // Ghi phím thô của từ (cho macro + tự khôi phục tiếng Anh). Chỉ chữ/số ASCII.
@@ -786,6 +989,9 @@ final class EventTapController {
             committedLength = 0
             wordRawKeys.removeAll()
             currentDisplay = ""
+            // Ngắt-từ KHÔNG phải ':' (space/dấu câu) huỷ shortcode đang gõ dở.
+            // (Dấu ':' đã được onColon() xử lý ở trên, không rơi xuống đây khi mở.)
+            if ch != ":" { emojiMatcher.reset() }
             return Unmanaged.passUnretained(event)
         }
 
@@ -807,6 +1013,14 @@ final class EventTapController {
         committedLength = rendered.count
         currentDisplay = rendered
 
+        // GÕ TẮT EMOJI: nối ký tự vào buffer CHỈ KHI engine gõ ra đúng 1 ký tự thô
+        // (không biến đổi tiếng Việt). Nếu Telex vừa biến đổi (vd 'oo'->'ô', 'dd'->'đ')
+        // thì buffer không còn khớp màn hình -> matcher tự huỷ, tránh xoá nhầm khi bung.
+        if emojiShortcutsEnabled {
+            let renderedSelf = (rendered.count == backspaces + 1) && (rendered.last == ch)
+            emojiMatcher.onCharacter(ch, renderedSelf: renderedSelf)
+        }
+
         KeyOutput.replace(backspaces: backspaces, with: rendered, proxy: proxy,
                           erase: eraseStrategy())
         // Trả nil = "nuốt" phím gốc, không cho hệ thống nhận ký tự thô.
@@ -821,6 +1035,14 @@ final class EventTapController {
             Task { @MainActor in notify(now) }
         }
     }
+
+    /// Vũ trang undo cho lần bung vừa rồi (nếu tính năng đang bật). `shown` = chuỗi
+    /// đã hiện, `original` = chuỗi gốc để khôi phục khi Backspace ngay sau đó.
+    private func armUndo(shown: String, original: String) {
+        guard undoExpansionEnabled else { return }
+        expansionUndo.arm(shown: shown, original: original)
+    }
+
 }
 
 private extension CGEvent {

@@ -103,6 +103,14 @@ class BowSettings {
     this.clipboardHistoryHotkey = Hotkey.defaultClipboard,
     this.screenshotEnabled = true,
     this.screenshotHotkey = Hotkey.defaultScreenshot,
+    this.textTransformEnabled = true,
+    this.textTransformHotkey = Hotkey.defaultTextTransform,
+    this.emojiShortcutsEnabled = false,
+    this.symbolPickerEnabled = true,
+    this.symbolPickerHotkey = Hotkey.defaultSymbolPicker,
+    this.undoExpansionEnabled = true,
+    this.stickerPickerEnabled = true,
+    this.stickerPickerHotkey = Hotkey.defaultStickerPicker,
   });
 
   /// Bộ gõ có đang bật không (toggle toàn cục).
@@ -158,6 +166,30 @@ class BowSettings {
   /// Phím tắt bắt đầu chụp màn hình.
   final Hotkey screenshotHotkey;
 
+  /// Bật/tắt biến đổi văn bản đã bôi đen (bỏ dấu / IN HOA / chuyển mã…).
+  final bool textTransformEnabled;
+
+  /// Phím tắt bật popup chọn thao tác biến đổi văn bản.
+  final Hotkey textTransformHotkey;
+
+  /// Bật/tắt gõ tắt emoji theo shortcode (:cry: → 😢).
+  final bool emojiShortcutsEnabled;
+
+  /// Bật/tắt bảng gõ nhanh ký tự đặc biệt & emoji (picker).
+  final bool symbolPickerEnabled;
+
+  /// Phím tắt mở bảng gõ nhanh ký tự.
+  final Hotkey symbolPickerHotkey;
+
+  /// Undo ngay sau khi bung gõ tắt/emoji/tự-sửa (Backspace lập tức khôi phục gốc).
+  final bool undoExpansionEnabled;
+
+  /// Bật/tắt bảng dán sticker (emoji ảnh).
+  final bool stickerPickerEnabled;
+
+  /// Phím tắt mở bảng dán sticker.
+  final Hotkey stickerPickerHotkey;
+
   BowSettings copyWith({
     bool? enabled,
     InputMethod? method,
@@ -176,6 +208,14 @@ class BowSettings {
     Hotkey? clipboardHistoryHotkey,
     bool? screenshotEnabled,
     Hotkey? screenshotHotkey,
+    bool? textTransformEnabled,
+    Hotkey? textTransformHotkey,
+    bool? emojiShortcutsEnabled,
+    bool? symbolPickerEnabled,
+    Hotkey? symbolPickerHotkey,
+    bool? undoExpansionEnabled,
+    bool? stickerPickerEnabled,
+    Hotkey? stickerPickerHotkey,
   }) {
     return BowSettings(
       enabled: enabled ?? this.enabled,
@@ -195,6 +235,14 @@ class BowSettings {
       clipboardHistoryHotkey: clipboardHistoryHotkey ?? this.clipboardHistoryHotkey,
       screenshotEnabled: screenshotEnabled ?? this.screenshotEnabled,
       screenshotHotkey: screenshotHotkey ?? this.screenshotHotkey,
+      textTransformEnabled: textTransformEnabled ?? this.textTransformEnabled,
+      textTransformHotkey: textTransformHotkey ?? this.textTransformHotkey,
+      emojiShortcutsEnabled: emojiShortcutsEnabled ?? this.emojiShortcutsEnabled,
+      symbolPickerEnabled: symbolPickerEnabled ?? this.symbolPickerEnabled,
+      symbolPickerHotkey: symbolPickerHotkey ?? this.symbolPickerHotkey,
+      undoExpansionEnabled: undoExpansionEnabled ?? this.undoExpansionEnabled,
+      stickerPickerEnabled: stickerPickerEnabled ?? this.stickerPickerEnabled,
+      stickerPickerHotkey: stickerPickerHotkey ?? this.stickerPickerHotkey,
     );
   }
 
@@ -217,6 +265,14 @@ class BowSettings {
         ...clipboardHistoryHotkey.toJsonWithPrefix('clipboardHistoryHotkey'),
         'screenshotEnabled': screenshotEnabled,
         ...screenshotHotkey.toJsonWithPrefix('screenshotHotkey'),
+        'textTransformEnabled': textTransformEnabled,
+        ...textTransformHotkey.toJsonWithPrefix('textTransformHotkey'),
+        'emojiShortcutsEnabled': emojiShortcutsEnabled,
+        'symbolPickerEnabled': symbolPickerEnabled,
+        ...symbolPickerHotkey.toJsonWithPrefix('symbolPickerHotkey'),
+        'undoExpansionEnabled': undoExpansionEnabled,
+        'stickerPickerEnabled': stickerPickerEnabled,
+        ...stickerPickerHotkey.toJsonWithPrefix('stickerPickerHotkey'),
       };
 
   factory BowSettings.fromJson(Map<String, dynamic> j) => BowSettings(
@@ -250,5 +306,16 @@ class BowSettings {
         screenshotEnabled: j['screenshotEnabled'] as bool? ?? true,
         screenshotHotkey: Hotkey.fromJsonWithPrefix(
             j, 'screenshotHotkey', Hotkey.defaultScreenshot),
+        textTransformEnabled: j['textTransformEnabled'] as bool? ?? true,
+        textTransformHotkey: Hotkey.fromJsonWithPrefix(
+            j, 'textTransformHotkey', Hotkey.defaultTextTransform),
+        emojiShortcutsEnabled: j['emojiShortcutsEnabled'] as bool? ?? false,
+        symbolPickerEnabled: j['symbolPickerEnabled'] as bool? ?? true,
+        symbolPickerHotkey: Hotkey.fromJsonWithPrefix(
+            j, 'symbolPickerHotkey', Hotkey.defaultSymbolPicker),
+        undoExpansionEnabled: j['undoExpansionEnabled'] as bool? ?? true,
+        stickerPickerEnabled: j['stickerPickerEnabled'] as bool? ?? true,
+        stickerPickerHotkey: Hotkey.fromJsonWithPrefix(
+            j, 'stickerPickerHotkey', Hotkey.defaultStickerPicker),
       );
 }
