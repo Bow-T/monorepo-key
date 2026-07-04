@@ -33,6 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var autoCorrectMenuItem: NSMenuItem?
     private var launchAtLoginMenuItem: NSMenuItem?
     private var screenshotMenuItem: NSMenuItem?
+    private var aiMenuItem: NSMenuItem?
     private var healthCheckTimer: Timer?
     private var launchedWithoutPermissions = false
 
@@ -59,6 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 ClipboardManager.shared.start()
             }
             screenshotMenuItem?.isHidden = !cfg.screenshotEnabled
+            applyAIConfig(cfg)
         }
         updateMenuTitle()
         settingsStore.onChange = { [weak self] cfg in
@@ -75,6 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 ClipboardManager.shared.stop()
             }
             self.screenshotMenuItem?.isHidden = !cfg.screenshotEnabled
+            self.applyAIConfig(cfg)
 
             self.updateMenuTitle()
             NSLog("[App] Đã áp cấu hình mới từ UI.")
@@ -283,6 +286,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         transformItem.submenu = transformSub
         featuresSub.addItem(transformItem)
+
+        // Trợ lý AI trên vùng bôi đen (dịch / tóm tắt / sửa ngữ pháp / hỏi tự do).
+        // Ẩn khi tắt trong Cài đặt (mặc định tắt cho tới khi người dùng nhập key).
+        let aiItem = NSMenuItem(title: "Trợ lý AI (chữ đã chọn)", action: nil, keyEquivalent: "")
+        setSymbol(aiItem, "sparkles")
+        let aiSub = NSMenu()
+        for operation in AIOperation.allCases {
+            let mi = NSMenuItem(
+                title: operation.title, action: #selector(runAIOperation(_:)), keyEquivalent: ""
+            )
+            mi.target = self
+            mi.representedObject = operation.rawValue
+            aiSub.addItem(mi)
+        }
+        aiSub.addItem(.separator())
+        // Nhập API key cho từng hãng (lưu Keychain của bộ gõ).
+        let claudeKeyItem = NSMenuItem(
+            title: "Nhập API key Claude…", action: #selector(enterClaudeKey), keyEquivalent: ""
+        )
+        claudeKeyItem.target = self
+        aiSub.addItem(claudeKeyItem)
+        let openaiKeyItem = NSMenuItem(
+            title: "Nhập API key OpenAI…", action: #selector(enterOpenAIKey), keyEquivalent: ""
+        )
+        openaiKeyItem.target = self
+        aiSub.addItem(openaiKeyItem)
+        aiItem.submenu = aiSub
+        featuresSub.addItem(aiItem)
+        self.aiMenuItem = aiItem
 
         let countItem = NSMenuItem(
             title: "Đếm từ & ký tự đã chọn", action: #selector(countSelection), keyEquivalent: ""
@@ -629,6 +661,106 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
             TextTransformService.run(ctx.transform)
         }
+    }
+
+    // MARK: - Trợ lý AI
+
+    /// Áp cấu hình AI vào service + ẩn/hiện menu (gọi lúc khởi động & khi UI đổi).
+    private func applyAIConfig(_ cfg: BowConfig) {
+        AIAssistantService.config = AIAssistantService.Config(
+            provider: AIProvider(rawValue: cfg.aiProvider) ?? .claude,
+            claudeModel: cfg.aiClaudeModel,
+            openaiModel: cfg.aiOpenAIModel
+        )
+        aiMenuItem?.isHidden = !cfg.aiEnabled
+    }
+
+    /// Chạy thao tác AI từ menu bar. App ta đang là frontmost khi menu mở, nên
+    /// truyền app trước đó để service trả focus rồi mới đọc vùng chọn.
+    @objc private func runAIOperation(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let operation = AIOperation(rawValue: raw) else { return }
+        // Từ menu bar: frontmost hiện là ứng dụng người dùng vừa dùng (menu bar
+        // không đổi frontmostApplication), nên dùng luôn.
+        let previousApp = NSWorkspace.shared.frontmostApplication
+        AIAssistantService.run(operation, previousApp: previousApp)
+    }
+
+    /// Popup chọn thao tác AI tại con trỏ (gọi từ phím tắt ⌃⇧G). Bôi đen chữ ->
+    /// ⌃⇧G -> chọn thao tác -> kết quả hiện trong popup.
+    func showAIMenu() {
+        // Ghi nhớ app đang focus: NSMenu popup sẽ kích hoạt app ta, cần trả focus
+        // về app cũ trước khi đọc vùng chọn.
+        let previousApp = NSWorkspace.shared.frontmostApplication
+
+        let menu = NSMenu()
+        let header = NSMenuItem(title: "Trợ lý AI — chữ đã chọn", action: nil, keyEquivalent: "")
+        header.isEnabled = false
+        menu.addItem(header)
+        menu.addItem(.separator())
+
+        for operation in AIOperation.allCases {
+            let mi = NSMenuItem(
+                title: operation.title,
+                action: #selector(runAIOperationFromPopup(_:)),
+                keyEquivalent: ""
+            )
+            mi.target = self
+            mi.representedObject = AIPopupContext(operation: operation, previousApp: previousApp)
+            menu.addItem(mi)
+        }
+
+        let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
+        let height = screen?.frame.height ?? 0
+        let point = NSPoint(x: mouse.x, y: height - mouse.y)
+        menu.popUp(positioning: nil, at: point, in: nil)
+    }
+
+    /// Bọc thao tác + app trước để trả focus rồi mới đọc vùng chọn & gọi AI.
+    private final class AIPopupContext: NSObject {
+        let operation: AIOperation
+        let previousApp: NSRunningApplication?
+        init(operation: AIOperation, previousApp: NSRunningApplication?) {
+            self.operation = operation
+            self.previousApp = previousApp
+        }
+    }
+
+    @objc private func runAIOperationFromPopup(_ sender: NSMenuItem) {
+        guard let ctx = sender.representedObject as? AIPopupContext else { return }
+        AIAssistantService.run(ctx.operation, previousApp: ctx.previousApp)
+    }
+
+    @objc private func enterClaudeKey() { promptAndSaveKey(for: .claude) }
+    @objc private func enterOpenAIKey() { promptAndSaveKey(for: .openai) }
+
+    /// Hộp thoại nhập & lưu API key vào Keychain của bộ gõ cho một hãng.
+    private func promptAndSaveKey(for provider: AIProvider) {
+        let alert = NSAlert()
+        alert.messageText = "API key \(provider.title)"
+        alert.informativeText = """
+        Dán API key của bạn. Key được lưu an toàn trong Keychain của máy — KHÔNG \
+        ghi vào file cài đặt. Để trống rồi bấm Lưu để xoá key đã lưu.
+
+        Lưu ý: văn bản bạn chọn sẽ được gửi tới máy chủ \(provider.title) khi dùng Trợ lý AI.
+        """
+        alert.addButton(withTitle: "Lưu")
+        alert.addButton(withTitle: "Huỷ")
+
+        // Dùng ô mật khẩu để không lộ key trên màn hình.
+        let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 340, height: 24))
+        field.placeholderString = provider == .claude ? "sk-ant-…" : "sk-…"
+        if let existing = AIKeychain.read(provider) { field.stringValue = existing }
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        let key = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        AIKeychain.write(key, for: provider)
+        ToastHUD.show(key.isEmpty ? "ĐÃ XOÁ API KEY" : "ĐÃ LƯU API KEY \(provider.title.uppercased())")
     }
 
     @objc private func openClipboardHistory() {

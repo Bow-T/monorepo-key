@@ -44,6 +44,10 @@ void main() {
         undoExpansionEnabled: false,
         stickerPickerEnabled: false,
         countSelectionEnabled: false,
+        aiEnabled: true,
+        aiProvider: 'openai',
+        aiClaudeModel: 'claude-sonnet-5',
+        aiOpenAIModel: 'gpt-5',
       );
 
       final back = BowSettings.fromJson(
@@ -101,4 +105,9 @@ void _expectEqual(BowSettings a, BowSettings b) {
   expect(a.stickerPickerHotkey.keyCode, b.stickerPickerHotkey.keyCode);
   expect(a.countSelectionEnabled, b.countSelectionEnabled);
   expect(a.countSelectionHotkey.keyCode, b.countSelectionHotkey.keyCode);
+  expect(a.aiEnabled, b.aiEnabled);
+  expect(a.aiHotkey.keyCode, b.aiHotkey.keyCode);
+  expect(a.aiProvider, b.aiProvider);
+  expect(a.aiClaudeModel, b.aiClaudeModel);
+  expect(a.aiOpenAIModel, b.aiOpenAIModel);
 }

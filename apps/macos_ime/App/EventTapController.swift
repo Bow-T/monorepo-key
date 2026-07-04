@@ -79,6 +79,11 @@ final class EventTapController {
     private var countSelectionHotkeyKeyCode: Int64 = 8 // C
     private var countSelectionHotkeyModifiers: Set<String> = ["control", "shift"]
 
+    // Phím tắt trợ lý AI (mở popup chọn thao tác trên vùng bôi đen)
+    private var aiEnabled = false
+    private var aiHotkeyKeyCode: Int64 = 5 // G
+    private var aiHotkeyModifiers: Set<String> = ["control", "shift"]
+
     // Gõ tắt emoji theo shortcode (:cry: -> 😢). Bung khi gõ dấu ':' đóng.
     private var emojiShortcutsEnabled = false
     /// Máy trạng thái theo dõi shortcode đang gõ dở (logic thuần, test được ở
@@ -555,6 +560,9 @@ final class EventTapController {
         countSelectionEnabled = config.countSelectionEnabled
         countSelectionHotkeyKeyCode = config.countSelectionHotkeyKeyCode
         countSelectionHotkeyModifiers = config.countSelectionHotkeyModifiers
+        aiEnabled = config.aiEnabled
+        aiHotkeyKeyCode = config.aiHotkeyKeyCode
+        aiHotkeyModifiers = config.aiHotkeyModifiers
         emojiShortcutsEnabled = config.emojiShortcutsEnabled
         if !emojiShortcutsEnabled { emojiMatcher.reset() }
         undoExpansionEnabled = config.undoExpansionEnabled
@@ -732,6 +740,24 @@ final class EventTapController {
         return active == countSelectionHotkeyModifiers
     }
 
+    private func isAIHotkey(_ event: CGEvent) -> Bool {
+        guard aiHotkeyKeyCode != 0 else { return false }
+        guard event.getIntegerValueField(.keyboardEventKeycode) == aiHotkeyKeyCode else {
+            return false
+        }
+        guard !aiHotkeyModifiers.isEmpty else { return false }
+
+        let flags = event.flags
+        let active: Set<String> = [
+            flags.contains(.maskControl)   ? "control" : nil,
+            flags.contains(.maskAlternate) ? "option"  : nil,
+            flags.contains(.maskShift)     ? "shift"   : nil,
+            flags.contains(.maskCommand)   ? "command" : nil,
+        ].compactMap { $0 }.reduce(into: Set()) { $0.insert($1) }
+
+        return active == aiHotkeyModifiers
+    }
+
     // MARK: - Callback C (static, không bắt được self -> lấy qua refcon)
 
     private static let callback: CGEventTapCallBack = { proxy, type, event, refcon in
@@ -826,6 +852,12 @@ final class EventTapController {
             if countSelectionEnabled && isCountSelectionHotkey(event) {
                 DispatchQueue.main.async {
                     AppDelegate.shared?.countSelection()
+                }
+                return nil
+            }
+            if aiEnabled && isAIHotkey(event) {
+                DispatchQueue.main.async {
+                    AppDelegate.shared?.showAIMenu()
                 }
                 return nil
             }
