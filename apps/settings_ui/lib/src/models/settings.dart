@@ -113,6 +113,11 @@ class BowSettings {
     this.stickerPickerHotkey = Hotkey.defaultStickerPicker,
     this.countSelectionEnabled = true,
     this.countSelectionHotkey = Hotkey.defaultCountSelection,
+    this.aiEnabled = false,
+    this.aiHotkey = Hotkey.defaultAI,
+    this.aiProvider = 'claude',
+    this.aiClaudeModel = 'claude-opus-4-8',
+    this.aiOpenAIModel = 'gpt-4o',
   });
 
   /// Bộ gõ có đang bật không (toggle toàn cục).
@@ -198,6 +203,22 @@ class BowSettings {
   /// Phím tắt mở bảng dán sticker.
   final Hotkey stickerPickerHotkey;
 
+  /// Bật/tắt trợ lý AI trên vùng bôi đen (dịch / tóm tắt / sửa ngữ pháp / hỏi tự do).
+  /// API key KHÔNG nằm ở đây — lưu trong macOS Keychain qua kênh native riêng.
+  final bool aiEnabled;
+
+  /// Phím tắt mở popup trợ lý AI.
+  final Hotkey aiHotkey;
+
+  /// Hãng AI đang chọn: "claude" hoặc "openai". Khớp khoá "aiProvider" phía Swift.
+  final String aiProvider;
+
+  /// Model Claude tuỳ chỉnh. Khớp khoá "aiClaudeModel".
+  final String aiClaudeModel;
+
+  /// Model OpenAI tuỳ chỉnh. Khớp khoá "aiOpenAIModel".
+  final String aiOpenAIModel;
+
   BowSettings copyWith({
     bool? enabled,
     InputMethod? method,
@@ -226,6 +247,11 @@ class BowSettings {
     Hotkey? stickerPickerHotkey,
     bool? countSelectionEnabled,
     Hotkey? countSelectionHotkey,
+    bool? aiEnabled,
+    Hotkey? aiHotkey,
+    String? aiProvider,
+    String? aiClaudeModel,
+    String? aiOpenAIModel,
   }) {
     return BowSettings(
       enabled: enabled ?? this.enabled,
@@ -255,6 +281,11 @@ class BowSettings {
       stickerPickerHotkey: stickerPickerHotkey ?? this.stickerPickerHotkey,
       countSelectionEnabled: countSelectionEnabled ?? this.countSelectionEnabled,
       countSelectionHotkey: countSelectionHotkey ?? this.countSelectionHotkey,
+      aiEnabled: aiEnabled ?? this.aiEnabled,
+      aiHotkey: aiHotkey ?? this.aiHotkey,
+      aiProvider: aiProvider ?? this.aiProvider,
+      aiClaudeModel: aiClaudeModel ?? this.aiClaudeModel,
+      aiOpenAIModel: aiOpenAIModel ?? this.aiOpenAIModel,
     );
   }
 
@@ -287,6 +318,11 @@ class BowSettings {
         ...stickerPickerHotkey.toJsonWithPrefix('stickerPickerHotkey'),
         'countSelectionEnabled': countSelectionEnabled,
         ...countSelectionHotkey.toJsonWithPrefix('countSelectionHotkey'),
+        'aiEnabled': aiEnabled,
+        ...aiHotkey.toJsonWithPrefix('aiHotkey'),
+        'aiProvider': aiProvider,
+        'aiClaudeModel': aiClaudeModel,
+        'aiOpenAIModel': aiOpenAIModel,
       };
 
   factory BowSettings.fromJson(Map<String, dynamic> j) => BowSettings(
@@ -334,5 +370,14 @@ class BowSettings {
         countSelectionEnabled: j['countSelectionEnabled'] as bool? ?? true,
         countSelectionHotkey: Hotkey.fromJsonWithPrefix(
             j, 'countSelectionHotkey', Hotkey.defaultCountSelection),
+        aiEnabled: j['aiEnabled'] as bool? ?? false,
+        aiHotkey: Hotkey.fromJsonWithPrefix(j, 'aiHotkey', Hotkey.defaultAI),
+        aiProvider: (j['aiProvider'] as String?) == 'openai' ? 'openai' : 'claude',
+        aiClaudeModel: (j['aiClaudeModel'] as String?)?.isNotEmpty == true
+            ? j['aiClaudeModel'] as String
+            : 'claude-opus-4-8',
+        aiOpenAIModel: (j['aiOpenAIModel'] as String?)?.isNotEmpty == true
+            ? j['aiOpenAIModel'] as String
+            : 'gpt-4o',
       );
 }

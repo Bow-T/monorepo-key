@@ -696,6 +696,67 @@ class _SettingsPageState extends State<SettingsPage> {
         ],
         _tabDivider(),
 
+        _tabSectionTitle('TRỢ LÝ AI'),
+        const SizedBox(height: AppSpacing.sm),
+        SettingRow(
+          title: 'BẬT TRỢ LÝ AI',
+          subtitle: s.aiEnabled
+              ? 'Bôi đen → phím tắt → dịch, tóm tắt, sửa ngữ pháp, hỏi tự do'
+              : 'Cần nhập API key ở menu bar bộ gõ trước khi dùng',
+          control: PixelSwitch(
+            value: s.aiEnabled,
+            onChanged: (v) => _save(s.copyWith(aiEnabled: v)),
+          ),
+        ),
+        if (s.aiEnabled) ...[
+          const SizedBox(height: AppSpacing.sm),
+          SettingRow(
+            title: 'HÃNG AI',
+            subtitle: s.aiProvider == 'openai'
+                ? 'Dùng ChatGPT (OpenAI)'
+                : 'Dùng Claude (Anthropic)',
+            control: PixelSegmented<String>(
+              color: AppColors.cyan,
+              value: s.aiProvider,
+              options: const [
+                ('claude', 'CLAUDE'),
+                ('openai', 'CHATGPT'),
+              ],
+              onChanged: (v) => _save(s.copyWith(aiProvider: v)),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          SettingRow(
+            title: 'MODEL',
+            subtitle: s.aiProvider == 'openai' ? s.aiOpenAIModel : s.aiClaudeModel,
+            control: PixelButton(
+              label: 'SỬA',
+              small: true,
+              expand: false,
+              height: 32,
+              onPressed: () => _editAIModel(context),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          SettingRow(
+            title: 'PHÍM TẮT AI',
+            subtitle: 'Mở bảng chọn thao tác AI (⌃⇧G mặc định)',
+            control: HotkeyRecorder(
+              hotkey: s.aiHotkey,
+              onChanged: (hk) => _save(s.copyWith(aiHotkey: hk)),
+            ),
+          ),
+        ],
+        _tabDivider(),
+
+        _buildPixelInfoCard(
+          context,
+          'TRỢ LÝ AI — API KEY & RIÊNG TƯ',
+          '• Nhập API key ở MENU BAR bộ gõ: biểu tượng Bow Go → Tính năng → Trợ lý AI → "Nhập API key…". Key lưu an toàn trong Keychain, KHÔNG ghi vào file cài đặt.\n'
+          '• Văn bản bạn bôi đen sẽ được GỬI tới máy chủ của hãng AI đã chọn (Anthropic/OpenAI) để xử lý.\n'
+          '• Kết quả hiện trong cửa sổ popup có nút Copy — KHÔNG ghi đè văn bản gốc.',
+        ),
+
         _buildPixelInfoCard(
           context,
           'LƯU Ý VỀ PHÍM TẮT',
@@ -2658,6 +2719,59 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
     );
+  }
+
+  /// Dialog sửa MODEL của hãng AI đang chọn (Claude/OpenAI). Để trống -> về mặc định.
+  Future<void> _editAIModel(BuildContext context) async {
+    final isOpenAI = s.aiProvider == 'openai';
+    final current = isOpenAI ? s.aiOpenAIModel : s.aiClaudeModel;
+    final defaultModel = isOpenAI ? 'gpt-4o' : 'claude-opus-4-8';
+    final ctrl = TextEditingController(text: current);
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final t = ctx.tokens;
+        return AlertDialog(
+          backgroundColor: t.panel,
+          shape: const RoundedRectangleBorder(
+            side: BorderSide(color: Colors.black, width: AppBorders.thin),
+            borderRadius: BorderRadius.zero,
+          ),
+          title: Text(isOpenAI ? 'MODEL OPENAI' : 'MODEL CLAUDE',
+              style: Theme.of(ctx).textTheme.labelSmall),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('TÊN MODEL (để trống = mặc định $defaultModel)',
+                  style: Theme.of(ctx)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: t.textMuted, fontSize: 13)),
+              const SizedBox(height: 4),
+              _dialogField(ctx, ctrl, defaultModel),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('HUỶ', style: Theme.of(ctx).textTheme.labelSmall),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+              child: Text('LƯU', style: Theme.of(ctx).textTheme.labelSmall),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == null) return;
+    final model = result.isEmpty ? defaultModel : result;
+    _save(isOpenAI
+        ? s.copyWith(aiOpenAIModel: model)
+        : s.copyWith(aiClaudeModel: model));
   }
 
   Future<void> _editMacro(BuildContext context, int? index) async {

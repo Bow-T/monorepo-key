@@ -225,23 +225,22 @@ final class ScreenshotController {
     // MARK: - Quyền
 
     private func showPermissionAlert() {
-        NSApp.activate(ignoringOtherApps: true)
-        let alert = NSAlert()
-        alert.messageText = "Cần quyền Ghi màn hình"
-        alert.informativeText = """
-        Tính năng chụp màn hình cần quyền "Screen Recording" (Ghi màn hình) — \
-        quyền riêng, ngoài 2 quyền gõ phím đã cấp.
+        PixelAlertWindow.present(
+            title: "Cần quyền Ghi màn hình",
+            message: """
+            Tính năng chụp màn hình cần quyền "Screen Recording" (Ghi màn hình) — quyền riêng, ngoài 2 quyền gõ phím đã cấp.
 
-          1. Bấm "Mở System Settings" rồi BẬT Bow Go trong danh sách.
-          2. macOS sẽ đề nghị mở lại app — chọn "Quit & Reopen".
-          3. Nhấn lại phím tắt chụp màn hình.
-        """
-        alert.addButton(withTitle: "Mở System Settings")
-        alert.addButton(withTitle: "Để sau")
-        alert.alertStyle = .informational
-        if alert.runModal() == .alertFirstButtonReturn {
-            Permissions.openSettings(.screenRecording)
-        }
+              1. Bấm "Mở System Settings" rồi BẬT Bow Go trong danh sách.
+              2. macOS sẽ đề nghị mở lại app — chọn "Quit & Reopen".
+              3. Nhấn lại phím tắt chụp màn hình.
+            """,
+            buttons: [
+                PixelAlertButton("ĐỂ SAU", kind: .normal) {},
+                PixelAlertButton("MỞ SYSTEM SETTINGS", kind: .primary) {
+                    Permissions.openSettings(.screenRecording)
+                },
+            ]
+        )
     }
 
 }

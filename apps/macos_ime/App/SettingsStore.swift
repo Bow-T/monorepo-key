@@ -115,6 +115,18 @@ struct BowConfig: Equatable {
     var countSelectionHotkeyKeyCode: Int64 = 8 // C
     var countSelectionHotkeyModifiers: Set<String> = ["control", "shift"]
 
+    /// Trợ lý AI trên vùng bôi đen (dịch / tóm tắt / sửa ngữ pháp / hỏi tự do).
+    /// Phím tắt (mặc định ⌃⇧G) mở popup chọn thao tác. API key lưu Keychain — KHÔNG
+    /// vào file này. `aiProvider` = "claude"|"openai"; model tuỳ chỉnh mỗi hãng.
+    /// Mặc định TẮT (cần người dùng nhập API key trước khi dùng). (G = Gợi ý AI;
+    /// tránh keyCode 0 vốn là quy ước "chỉ-modifier".)
+    var aiEnabled: Bool = false
+    var aiHotkeyKeyCode: Int64 = 5 // G
+    var aiHotkeyModifiers: Set<String> = ["control", "shift"]
+    var aiProvider: String = "claude"
+    var aiClaudeModel: String = "claude-opus-4-8"
+    var aiOpenAIModel: String = "gpt-4o"
+
     static func decode(_ data: Data) -> BowConfig? {
         guard
             let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -188,6 +200,14 @@ struct BowConfig: Equatable {
         if let ccm = obj["countSelectionHotkeyModifiers"] as? [String] {
             cfg.countSelectionHotkeyModifiers = Set(ccm)
         }
+        if let ai = obj["aiEnabled"] as? Bool { cfg.aiEnabled = ai }
+        if let aik = obj["aiHotkeyKeyCode"] as? Int { cfg.aiHotkeyKeyCode = Int64(aik) }
+        if let aim = obj["aiHotkeyModifiers"] as? [String] { cfg.aiHotkeyModifiers = Set(aim) }
+        if let ap = obj["aiProvider"] as? String, ap == "claude" || ap == "openai" {
+            cfg.aiProvider = ap
+        }
+        if let cm = obj["aiClaudeModel"] as? String, !cm.isEmpty { cfg.aiClaudeModel = cm }
+        if let om = obj["aiOpenAIModel"] as? String, !om.isEmpty { cfg.aiOpenAIModel = om }
         return cfg
     }
 

@@ -202,6 +202,17 @@ file JSON làm "hợp đồng":
 - **Gần đây (MRU) cho bảng picker** — cả bảng sticker (⌃⇧J) lẫn bảng ký tự/emoji (⌃⇧K)
   nhớ mục hay dùng, hiện hàng "GẦN ĐÂY" ở đầu. Logic `RecentItems` (thuần, test); lưu
   qua `UserDefaults` (riêng máy, KHÔNG đụng settings.json/stats.json). Không cần cấu hình.
+- **Trợ lý AI** (`aiEnabled` + `aiHotkey…` + `aiProvider`/`aiClaudeModel`/`aiOpenAIModel`) —
+  bôi đen chữ ở app bất kỳ → phím tắt (mặc định ⌃⇧G) hoặc menu bar → Tính năng → chọn
+  thao tác: **Dịch Anh↔Việt · Tóm tắt/giải thích** (kể cả phân tích chat Slack tiếng
+  Anh) **· Sửa ngữ pháp/viết lại · Hỏi tự do**. Hỗ trợ CẢ Claude (Anthropic) LẪN OpenAI —
+  người dùng chọn hãng + model ở Cài đặt. Kết quả hiện trong POPUP pixel-art có nút Copy,
+  KHÔNG ghi đè văn bản gốc. Logic dựng request/parse thuần ở `AIClient`/`AIProvider`/
+  `AIOperation` (VietEngine, có test — 16 case); gọi mạng qua `URLSession` ở
+  `AIAssistantService`; popup `AIResultWindow`. **API key lưu Keychain của bộ gõ** (qua
+  menu bar → "Nhập API key…"), KHÔNG ghi vào settings.json — hai app ký ad-hoc khác
+  bundle không chia sẻ được Keychain nên UI Flutter chỉ chọn hãng/model/phím tắt. Mặc
+  định TẮT. Riêng tư: văn bản bôi đen được GỬI tới máy chủ hãng AI đã chọn.
 
 - **Flutter GHI** (auto-save mỗi khi đổi cài đặt) — `settings_ui/lib/src/models/settings.dart`.
 - **Swift ĐỌC + watch file** (`DispatchSource`) → áp ngay không cần restart — `macos_ime/App/SettingsStore.swift`.
