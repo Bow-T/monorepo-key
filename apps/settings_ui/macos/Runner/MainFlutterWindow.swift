@@ -10,11 +10,12 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
 
-    // Kênh để UI Flutter tự kiểm tra quyền TCC TRỰC TIẾP trong tiến trình của
-    // chính nó — thay vì phụ thuộc status.json mà bộ gõ Swift ghi ngầm mỗi vài
-    // giây. Đọc thẳng như thế là realtime, không trễ, không kẹt trạng thái cũ
-    // khi bộ gõ relaunch hoặc chạy nhiều instance.
-    PermissionChannel.register(with: flutterViewController)
+    // KHÔNG đăng ký kênh kiểm-tra-quyền native nữa. Gọi AXIsProcessTrusted /
+    // CGPreflight* trong tiến trình app Cài đặt sẽ khiến macOS ĐĂNG KÝ app này
+    // vào danh sách quyền (Accessibility/Input Monitoring…) như một entry "Bow
+    // Go" thừa — dù app Cài đặt KHÔNG cần các quyền đó (chỉ bộ gõ cần). Thay vào
+    // đó, app Cài đặt chỉ ĐỌC status.json do bộ gõ ghi (mỗi ~1s), nên nó không
+    // bao giờ chạm TCC API và không xuất hiện trong danh sách quyền.
 
     super.awakeFromNib()
   }

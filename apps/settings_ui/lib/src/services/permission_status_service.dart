@@ -1,28 +1,26 @@
 // permission_status_service.dart
 // ------------------------------
 // Trạng thái quyền TCC (Accessibility / Input Monitoring) để UI hiển thị quyền
-// nào đã/chưa cấp. Có HAI nguồn, theo thứ tự ưu tiên:
+// nào đã/chưa cấp. Nguồn DUY NHẤT là file do bộ gõ Swift ghi:
 //
-//   1. NGUỒN CHÍNH — kênh native `bowgo/permissions` (macOS). UI tự gọi thẳng
-//      AXIsProcessTrusted / CGPreflightListenEventAccess trong tiến trình của
-//      chính nó. Realtime, luôn đúng, không trễ.
+//     ~/Library/Application Support/BowGo/status.json
+//     { "accessibility": Bool, "inputMonitoring": Bool, "screenRecording": Bool, "ready": Bool }
 //
-//   2. DỰ PHÒNG — file do bộ gõ Swift ghi ngầm:
-//        ~/Library/Application Support/BowGo/status.json
-//        { "accessibility": Bool, "inputMonitoring": Bool, "ready": Bool }
-//      Dùng khi native trả về lỗi/null. Trên Windows (không có kênh native lẫn
-//      file) trạng thái là [PermissionStatus.unknown] và UI bỏ qua onboarding.
+// Vì sao KHÔNG để app Cài đặt tự kiểm tra quyền qua kênh native? Gọi
+// AXIsProcessTrusted / CGPreflight* trong tiến trình app Cài đặt sẽ khiến macOS
+// ĐĂNG KÝ app này vào danh sách quyền (Accessibility/Input Monitoring…) như một
+// entry "Bow Go" THỪA — dù app Cài đặt không cần các quyền đó (chỉ BỘ GÕ cần).
+// Vì vậy ta chỉ ĐỌC status.json. Bộ gõ ghi file này mỗi ~1s (và ngay khi trạng
+// thái đổi), nên UI phản ánh gần như tức thì mà không chạm TCC API.
 //
-// Vì sao cần nguồn (1): status.json chỉ được ghi lại mỗi ~5s và có thể "đóng
-// băng" ở trạng thái cũ đúng lúc bộ gõ relaunch để áp quyền mới, hoặc bị nhiều
-// instance ghi đè nhau -> UI báo "chưa cấp" dù người dùng đã cấp xong.
+// Trên Windows (không có file) trạng thái là [PermissionStatus.unknown]
+// (known=false) và UI bỏ qua bước onboarding quyền.
 
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 
 import 'bow_paths.dart';
 
@@ -72,10 +70,6 @@ class PermissionStatusService extends ChangeNotifier {
   PermissionStatusService._();
   static final PermissionStatusService instance = PermissionStatusService._();
 
-  /// Kênh native để tự kiểm tra quyền TCC trong tiến trình app UI (macOS).
-  /// Xem Runner/PermissionChannel.swift.
-  static const _channel = MethodChannel('bowgo/permissions');
-
   PermissionStatus _value = const PermissionStatus.unknown();
   PermissionStatus get value => _value;
 
@@ -84,16 +78,15 @@ class PermissionStatusService extends ChangeNotifier {
 
   /// Bắt đầu đọc + poll. Gọi một lần khi mở app.
   ///
-  /// Nguồn chính là kênh native (macOS); status.json chỉ là dự phòng. Trên
-  /// Windows, TSF không cần cấp quyền kiểu TCC nên cả hai nguồn đều không có;
-  /// khi đó trạng thái là [PermissionStatus.unknown] (known=false) và UI bỏ
-  /// qua bước onboarding quyền.
+  /// Nguồn duy nhất là status.json do bộ gõ ghi (mỗi ~1s). Trên Windows, TSF
+  /// không cần cấp quyền kiểu TCC nên không có file; khi đó trạng thái là
+  /// [PermissionStatus.unknown] (known=false) và UI bỏ qua bước onboarding quyền.
   Future<void> start() async {
     // Dùng chung thư mục "BowGo" như settings.json (xem [BowPaths]).
     _file = await BowPaths.sharedFile('status.json');
     await _read();
-    // Poll mỗi 1s — kiểm tra native rất rẻ (chỉ đọc TCC), phản ánh gần như tức
-    // thì khi người dùng vừa bật quyền trong System Settings.
+    // Poll file mỗi 1s — bộ gõ cũng ghi mỗi ~1s nên độ trễ tối đa ~2s, đủ realtime
+    // cho onboarding mà app Cài đặt KHÔNG phải chạm TCC API (tránh entry quyền thừa).
     _timer ??= Timer.periodic(const Duration(seconds: 1), (_) => _read());
   }
 
@@ -101,31 +94,7 @@ class PermissionStatusService extends ChangeNotifier {
   Future<void> refresh() => _read();
 
   Future<void> _read() async {
-    // 1) Nguồn chính: hỏi thẳng native. Luôn đúng & realtime.
-    final native = await _readNative();
-    if (native != null) {
-      _apply(native);
-      return;
-    }
-    // 2) Dự phòng: đọc status.json do bộ gõ Swift ghi.
     await _readStatusFile();
-  }
-
-  /// Hỏi kênh native. Trả null nếu không có kênh (Windows) hoặc gặp lỗi.
-  Future<PermissionStatus?> _readNative() async {
-    if (!Platform.isMacOS) return null;
-    try {
-      final raw = await _channel.invokeMapMethod<String, dynamic>('check');
-      if (raw == null) return null;
-      return PermissionStatus(
-        accessibility: raw['accessibility'] == true,
-        inputMonitoring: raw['inputMonitoring'] == true,
-        screenRecording: raw['screenRecording'] == true,
-      );
-    } catch (_) {
-      // Kênh chưa đăng ký / bản build cũ -> để dự phòng status.json xử lý.
-      return null;
-    }
   }
 
   Future<void> _readStatusFile() async {
