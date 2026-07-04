@@ -185,29 +185,32 @@ struct AIResultView: View {
             .padding(16)
 
         case .result(let text):
-            ScrollView {
-                Text(text)
-                    .font(.pixelBody(18))
-                    .foregroundColor(t.textPrimary)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(14)
-            }
+            // NSTextView read-only, selectable -> bôi đen + ⌘C chắc chắn hoạt động
+            // ở mọi trường hợp (SwiftUI .textSelection trong NSPanel borderless đôi
+            // khi không kích hoạt drag-to-select).
+            SelectableText(
+                text: text,
+                fontName: Pixel.body,
+                fontSize: 18,
+                color: NSColor(t.textPrimary)
+            )
+            .padding(14)
 
         case .failed(let msg):
-            VStack(spacing: 10) {
-                Spacer()
-                Text("⚠︎")
-                    .font(.system(size: 28))
-                    .foregroundColor(Pixel.red)
-                Text(msg)
-                    .font(.pixelBody(18))
-                    .foregroundColor(t.textPrimary)
-                    .multilineTextAlignment(.center)
-                Spacer()
+            ScrollView {
+                VStack(spacing: 10) {
+                    Text("⚠︎")
+                        .font(.system(size: 28))
+                        .foregroundColor(Pixel.red)
+                    Text(msg)
+                        .font(.pixelBody(18))
+                        .foregroundColor(t.textPrimary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(16)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(16)
         }
     }
 
@@ -242,5 +245,53 @@ struct AIResultView: View {
         pb.setString(text, forType: .string)
         copied = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
+    }
+}
+
+// MARK: - Text chọn được (NSTextView read-only)
+
+/// Bọc NSTextView read-only + selectable để người dùng BÔI ĐEN & ⌘C từng phần nội
+/// dung AI (SwiftUI `.textSelection` trong NSPanel borderless đôi khi không kích
+/// hoạt drag-to-select). Cuộn dọc, tự xuống dòng theo bề rộng.
+struct SelectableText: NSViewRepresentable {
+    let text: String
+    let fontName: String
+    let fontSize: CGFloat
+    let color: NSColor
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scroll = NSScrollView()
+        scroll.hasVerticalScroller = true
+        scroll.drawsBackground = false
+        scroll.borderType = .noBorder
+
+        let tv = NSTextView()
+        tv.isEditable = false
+        tv.isSelectable = true            // bôi đen được
+        tv.drawsBackground = false
+        tv.textContainerInset = .zero
+        tv.isVerticallyResizable = true
+        tv.isHorizontallyResizable = false
+        tv.autoresizingMask = [.width]
+        tv.textContainer?.widthTracksTextView = true
+        tv.textContainer?.lineFragmentPadding = 0
+        // Cho phép ⌘C (copy) và ⌘A (chọn hết) mặc định của NSTextView.
+
+        scroll.documentView = tv
+        return scroll
+    }
+
+    func updateNSView(_ scroll: NSScrollView, context: Context) {
+        guard let tv = scroll.documentView as? NSTextView else { return }
+        let font = NSFont(name: fontName, size: fontSize) ?? .systemFont(ofSize: fontSize)
+        if tv.string != text {
+            tv.string = text
+        }
+        // Áp font + màu cho toàn bộ nội dung.
+        tv.font = font
+        tv.textColor = color
+        let full = NSRange(location: 0, length: (tv.string as NSString).length)
+        tv.textStorage?.addAttribute(.font, value: font, range: full)
+        tv.textStorage?.addAttribute(.foregroundColor, value: color, range: full)
     }
 }

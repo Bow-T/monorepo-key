@@ -121,11 +121,12 @@ enum AIAssistantService {
             AIResultWindow.update(error: AIError.emptyResponse.vietnameseMessage)
             return
         }
-        // HTTP != 2xx: cố bóc thông điệp lỗi từ thân, nếu không thì báo mã.
+        // HTTP != 2xx: dùng ĐÚNG mã HTTP + thông điệp thật từ máy chủ (nếu có) để
+        // AIError.vietnameseMessage diễn giải rõ nguyên nhân (vd 429 = hết quota).
         if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-            let detail = (try? AIClient.parseResponse(provider: provider, data: data))
-                ?? "Lỗi từ máy chủ AI (mã \(http.statusCode))."
-            AIResultWindow.update(error: detail)
+            let detail = AIClient.extractErrorMessage(from: data)
+            let err = AIError.http(http.statusCode, detail)
+            AIResultWindow.update(error: err.vietnameseMessage)
             return
         }
         do {

@@ -114,11 +114,38 @@ public enum AIError: Error, Sendable, Equatable {
     /// Thông báo tiếng Việt gọn cho người dùng.
     public var vietnameseMessage: String {
         switch self {
-        case .missingAPIKey: return "Chưa nhập API key. Vào Cài đặt → Trợ lý AI."
-        case .emptyResponse: return "AI không trả về nội dung."
-        case .http(let code, _): return "Lỗi từ máy chủ AI (mã \(code))."
-        case .decode: return "Không đọc được phản hồi từ AI."
-        case .network(let msg): return "Lỗi mạng: \(msg)"
+        case .missingAPIKey:
+            return "Chưa nhập API key. Vào menu bar → Trợ lý AI → Nhập API key."
+        case .emptyResponse:
+            return "AI không trả về nội dung."
+        case .http(let code, let detail):
+            return Self.httpMessage(code: code, detail: detail)
+        case .decode:
+            return "Không đọc được phản hồi từ AI."
+        case .network(let msg):
+            return "Lỗi mạng: \(msg)"
+        }
+    }
+
+    /// Diễn giải lỗi HTTP theo mã, kèm gợi ý xử lý. Ưu tiên thông điệp thật từ máy
+    /// chủ nếu có (thường nói rõ hết quota / key sai…).
+    private static func httpMessage(code: Int, detail: String) -> String {
+        let d = detail.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch code {
+        case 401:
+            return "API key không hợp lệ hoặc đã bị thu hồi. Kiểm tra lại key ở menu bar → Trợ lý AI."
+        case 402:
+            return "Tài khoản AI đã hết tiền/credit. Nạp thêm trên trang của hãng (OpenAI/Anthropic)."
+        case 429:
+            // 429 hay gặp nhất: hết quota (chưa nạp tiền) hoặc gọi quá nhanh.
+            let base = "Bị giới hạn (mã 429): tài khoản AI hết hạn mức/credit, hoặc gọi quá nhanh. "
+                + "Kiểm tra billing & quota trên trang của hãng, đợi một lát rồi thử lại."
+            return d.isEmpty ? base : "\(base)\n\nMáy chủ báo: \(d)"
+        case 500...599:
+            return "Máy chủ AI đang lỗi (mã \(code)). Thử lại sau ít phút."
+        default:
+            let base = "Lỗi từ máy chủ AI (mã \(code))."
+            return d.isEmpty ? base : "\(base)\n\n\(d)"
         }
     }
 }
@@ -219,6 +246,20 @@ public enum AIClient {
         case .claude:  return try parseClaude(data)
         case .openai:  return try parseOpenAI(data)
         }
+    }
+
+    /// Bóc thông điệp lỗi mà máy chủ trả trong `{ "error": { "message": ... } }`
+    /// (cả Claude lẫn OpenAI dùng dạng này). Trả rỗng nếu không có/không đọc được.
+    /// Dùng khi HTTP != 2xx để hiện đúng nguyên nhân (vd hết quota) cho người dùng.
+    public static func extractErrorMessage(from data: Data) -> String {
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return ""
+        }
+        if let err = obj["error"] as? [String: Any] {
+            return (err["message"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        }
+        // Một số dạng khác: { "message": "..." } ở cấp gốc.
+        return (obj["message"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     /// Claude: `{ "content": [ {"type":"text","text":"..."}, ... ] }`.

@@ -184,3 +184,39 @@ struct AIParseResponseTests {
         }
     }
 }
+
+@Suite("AI: bóc & diễn giải lỗi HTTP")
+struct AIErrorMessageTests {
+
+    @Test("Bóc message lỗi từ body { error: { message } }")
+    func extractsErrorMessage() {
+        let json = #"{"error":{"message":"You exceeded your current quota","type":"insufficient_quota"}}"#.data(using: .utf8)!
+        #expect(AIClient.extractErrorMessage(from: json) == "You exceeded your current quota")
+    }
+
+    @Test("Body không có error -> chuỗi rỗng")
+    func noErrorField() {
+        let json = #"{"choices":[]}"#.data(using: .utf8)!
+        #expect(AIClient.extractErrorMessage(from: json) == "")
+    }
+
+    @Test("429 -> diễn giải hết quota + kèm message máy chủ")
+    func message429() {
+        let msg = AIError.http(429, "You exceeded your current quota").vietnameseMessage
+        #expect(msg.contains("429"))
+        #expect(msg.contains("hạn mức") || msg.contains("credit"))
+        #expect(msg.contains("You exceeded your current quota"))
+    }
+
+    @Test("401 -> nói key không hợp lệ")
+    func message401() {
+        let msg = AIError.http(401, "").vietnameseMessage
+        #expect(msg.contains("key") || msg.contains("Key"))
+    }
+
+    @Test("500 -> nói máy chủ lỗi")
+    func message500() {
+        let msg = AIError.http(503, "").vietnameseMessage
+        #expect(msg.contains("503") || msg.contains("Máy chủ"))
+    }
+}

@@ -35,6 +35,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var screenshotMenuItem: NSMenuItem?
     private var aiMenuItem: NSMenuItem?
     private var healthCheckTimer: Timer?
+    /// Timer riêng ghi status.json mỗi ~1s cho app Cài đặt (Flutter) đọc — để UI
+    /// phản ánh quyền gần như tức thì mà KHÔNG cần app Flutter tự gọi TCC API
+    /// (việc đó khiến nó xuất hiện trong danh sách quyền như một entry thừa).
+    private var statusWriteTimer: Timer?
     private var launchedWithoutPermissions = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -125,12 +129,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.updateMenuTitle()
             }
         }
+
+        // Ghi status.json mỗi 1s để app Cài đặt (Flutter) đọc trạng thái quyền gần
+        // như tức thì — thay cho việc app Flutter tự gọi TCC API (vốn đăng ký nó
+        // vào danh sách quyền như một entry "Bow Go" thừa). writeStatus() chỉ thật
+        // sự ghi khi trạng thái đổi nên gọi dày không tốn I/O.
+        statusWriteTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+            Task { @MainActor in Permissions.writeStatus() }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         tapController.stop()
         smartSwitch.stop()
         healthCheckTimer?.invalidate()
+        statusWriteTimer?.invalidate()
         StatsTracker.shared.flush()   // ghi nốt thống kê trước khi thoát
     }
 
