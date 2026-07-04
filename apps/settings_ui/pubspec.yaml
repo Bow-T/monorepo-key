@@ -2,7 +2,7 @@ name: bow_settings
 description: "Bow Go — UI cài đặt bộ gõ tiếng Việt (phong cách pixel)."
 publish_to: 'none'
 
-version: 1.0.5+2
+version: 1.0.6+3
 
 environment:
   sdk: ^3.11.1
