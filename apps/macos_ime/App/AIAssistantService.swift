@@ -57,10 +57,13 @@ enum AIAssistantService {
                 return
             }
 
-            // Hỏi tự do: xin câu hỏi qua hộp thoại. Các thao tác khác: chạy luôn.
+            // Hỏi tự do: xin câu hỏi qua hộp thoại pixel-art (bất đồng bộ). Các thao
+            // tác khác: chạy luôn.
             if operation.needsUserPrompt {
-                guard let prompt = askUserPrompt(), !prompt.isEmpty else { return }
-                perform(operation, selection: selection, userPrompt: prompt)
+                AIKeyPromptWindow.presentAsk { prompt in
+                    guard !prompt.isEmpty else { return }
+                    perform(operation, selection: selection, userPrompt: prompt)
+                }
             } else {
                 perform(operation, selection: selection, userPrompt: nil)
             }
@@ -132,26 +135,6 @@ enum AIAssistantService {
             let msg = (error as? AIError)?.vietnameseMessage ?? "Không đọc được phản hồi."
             AIResultWindow.update(error: msg)
         }
-    }
-
-    // MARK: - Hỏi tự do (nhập prompt)
-
-    /// Hộp thoại xin câu hỏi cho thao tác "Hỏi tự do". Nil nếu người dùng huỷ.
-    private static func askUserPrompt() -> String? {
-        let alert = NSAlert()
-        alert.messageText = "Hỏi AI về đoạn đã chọn"
-        alert.informativeText = "Nhập yêu cầu của bạn (ví dụ: dịch, giải thích thuật ngữ này…)."
-        alert.addButton(withTitle: "Gửi")
-        alert.addButton(withTitle: "Huỷ")
-
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
-        field.placeholderString = "Yêu cầu của bạn…"
-        alert.accessoryView = field
-        alert.window.initialFirstResponder = field
-
-        NSApp.activate(ignoringOtherApps: true)
-        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
-        return field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // MARK: - Đọc vùng chọn (CHỈ ĐỌC — tái dùng pattern SelectionCounter)

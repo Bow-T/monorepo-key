@@ -197,6 +197,29 @@ class AppTheme {
       highlightColor: Colors.transparent,
       extensions: <ThemeExtension<dynamic>>[tokens],
       textTheme: _textTheme(tokens),
+      // Mọi AlertDialog: khung PIXEL vuông góc + panel color + viền đen cứng,
+      // để dialog không set shape riêng vẫn đồng bộ phong cách (không bo góc
+      // Material mặc định).
+      dialogTheme: DialogThemeData(
+        backgroundColor: tokens.panel,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.zero,
+          side: BorderSide(color: tokens.outline, width: AppBorders.thin),
+        ),
+        titleTextStyle: TextStyle(
+          fontFamily: AppFonts.head,
+          color: tokens.textPrimary,
+          fontSize: 11,
+          height: 1.5,
+        ),
+        contentTextStyle: TextStyle(
+          fontFamily: AppFonts.body,
+          color: tokens.textSecondary,
+          fontSize: 17,
+          height: 1.2,
+        ),
+      ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         backgroundColor: tokens.isDark ? AppColors.crtPanel : AppColors.ink,

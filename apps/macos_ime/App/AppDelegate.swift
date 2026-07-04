@@ -735,32 +735,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func enterClaudeKey() { promptAndSaveKey(for: .claude) }
     @objc private func enterOpenAIKey() { promptAndSaveKey(for: .openai) }
 
-    /// Hộp thoại nhập & lưu API key vào Keychain của bộ gõ cho một hãng.
+    /// Hộp thoại pixel-art nhập & lưu API key vào Keychain của bộ gõ cho một hãng.
     private func promptAndSaveKey(for provider: AIProvider) {
-        let alert = NSAlert()
-        alert.messageText = "API key \(provider.title)"
-        alert.informativeText = """
-        Dán API key của bạn. Key được lưu an toàn trong Keychain của máy — KHÔNG \
-        ghi vào file cài đặt. Để trống rồi bấm Lưu để xoá key đã lưu.
-
-        Lưu ý: văn bản bạn chọn sẽ được gửi tới máy chủ \(provider.title) khi dùng Trợ lý AI.
-        """
-        alert.addButton(withTitle: "Lưu")
-        alert.addButton(withTitle: "Huỷ")
-
-        // Dùng ô mật khẩu để không lộ key trên màn hình.
-        let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 340, height: 24))
-        field.placeholderString = provider == .claude ? "sk-ant-…" : "sk-…"
-        if let existing = AIKeychain.read(provider) { field.stringValue = existing }
-        alert.accessoryView = field
-        alert.window.initialFirstResponder = field
-
-        NSApp.activate(ignoringOtherApps: true)
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-
-        let key = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        AIKeychain.write(key, for: provider)
-        ToastHUD.show(key.isEmpty ? "ĐÃ XOÁ API KEY" : "ĐÃ LƯU API KEY \(provider.title.uppercased())")
+        let existing = AIKeychain.read(provider) ?? ""
+        AIKeyPromptWindow.presentKey(provider: provider, existingKey: existing) { key in
+            AIKeychain.write(key, for: provider)
+            ToastHUD.show(key.isEmpty
+                ? "ĐÃ XOÁ API KEY"
+                : "ĐÃ LƯU API KEY \(provider.title.uppercased())")
+        }
     }
 
     @objc private func openClipboardHistory() {
@@ -868,23 +851,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// không được — nguyên nhân là quyền "mồ côi" do app ký ad-hoc đổi hash sau
     /// mỗi lần build/cập nhật.
     @objc private func repairPermissions() {
-        let alert = NSAlert()
-        alert.messageText = "Sửa lỗi quyền gõ tiếng Việt?"
-        alert.informativeText = """
-        Thao tác này sẽ:
-          1. Xoá (reset) quyền cũ của Bow Go: Accessibility + Input Monitoring \
-        + Screen Recording (chụp màn hình).
-          2. Mở System Settings để bạn BẬT LẠI quyền cho Bow Go.
-          3. Tự khởi động lại app.
+        PixelAlertWindow.present(
+            title: "Sửa lỗi quyền gõ tiếng Việt?",
+            message: """
+            Thao tác này sẽ:
+              1. Xoá (reset) quyền cũ của Bow Go: Accessibility + Input Monitoring + Screen Recording (chụp màn hình).
+              2. Mở System Settings để bạn BẬT LẠI quyền cho Bow Go.
+              3. Tự khởi động lại app.
 
-        Dùng khi đã cấp quyền mà vẫn không gõ được tiếng Việt / không chụp được màn hình.
-        """
-        alert.addButton(withTitle: "Sửa ngay")
-        alert.addButton(withTitle: "Huỷ")
-        alert.alertStyle = .warning
+            Dùng khi đã cấp quyền mà vẫn không gõ được tiếng Việt / không chụp được màn hình.
+            """,
+            buttons: [
+                PixelAlertButton("HUỶ", kind: .normal) {},
+                PixelAlertButton("SỬA NGAY", kind: .destructive) { [weak self] in
+                    self?.performPermissionRepair()
+                },
+            ]
+        )
+    }
 
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-
+    /// Thực thi reset quyền + mở Settings + hiện hướng dẫn rồi relaunch.
+    private func performPermissionRepair() {
         let bundleId = Bundle.main.bundleIdentifier ?? "com.bowgo.keyboard"
         // tccutil reset cho từng loại quyền (ScreenCapture = Ghi màn hình, cho
         // tính năng chụp màn hình — cũng bị "mồ côi" sau mỗi lần build lại).
@@ -907,19 +894,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Permissions.openSettings(.accessibility)
 
         // Hướng dẫn rồi relaunch.
-        let done = NSAlert()
-        done.messageText = "Đã reset quyền"
-        done.informativeText = """
-        Trong System Settings vừa mở:
-          • Accessibility: bật Bow Go (thêm bằng dấu + nếu chưa có)
-          • Input Monitoring: bật Bow Go
-          • Screen Recording: bật Bow Go (nếu dùng chụp màn hình)
+        PixelAlertWindow.present(
+            title: "Đã reset quyền",
+            message: """
+            Trong System Settings vừa mở:
+              • Accessibility: bật Bow Go (thêm bằng dấu + nếu chưa có)
+              • Input Monitoring: bật Bow Go
+              • Screen Recording: bật Bow Go (nếu dùng chụp màn hình)
 
-        Bấm OK để khởi động lại Bow Go. Sau khi bật quyền, app sẽ nhận lại.
-        """
-        done.addButton(withTitle: "Khởi động lại")
-        done.runModal()
-        relaunchApp()
+            Bấm Khởi động lại. Sau khi bật quyền, app sẽ nhận lại.
+            """,
+            buttons: [
+                PixelAlertButton("KHỞI ĐỘNG LẠI", kind: .primary) { [weak self] in
+                    self?.relaunchApp()
+                },
+            ]
+        )
     }
 
     // MARK: - Clipboard History HUD
