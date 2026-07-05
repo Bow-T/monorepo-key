@@ -163,11 +163,38 @@ public struct AIRequestSpec: Equatable, Sendable {
     }
 }
 
+/// Một lượt tin nhắn trong CUỘC TRÒ CHUYỆN (chat) với AI. Vai trò `.user` là
+/// người dùng gõ, `.assistant` là AI trả lời. Ta gửi CẢ chuỗi lượt này lên API
+/// để mô hình nhớ ngữ cảnh (khác thao tác một-phát ở trên chỉ gửi 1 lượt).
+public struct ChatMessage: Codable, Equatable, Sendable, Identifiable {
+    public enum Role: String, Codable, Sendable {
+        case user
+        case assistant
+    }
+    public let id: UUID
+    public let role: Role
+    public var text: String
+
+    public init(id: UUID = UUID(), role: Role, text: String) {
+        self.id = id
+        self.role = role
+        self.text = text
+    }
+}
+
 /// Bộ dựng-request & bóc-response THUẦN cho từng hãng — test được không cần mạng.
 public enum AIClient {
 
     /// Số token tối đa cho phần trả lời (kết quả ngắn — dịch/tóm tắt/sửa).
     public static let maxTokens = 2048
+
+    /// System prompt cho chế độ TRÒ CHUYỆN tự do (khác 4 thao tác cố định ở trên).
+    /// Ngắn gọn, tiếng Việt, cho phép hỏi–đáp nhiều lượt về bất cứ điều gì.
+    public static let chatSystemPrompt = """
+    Bạn là trợ lý AI thân thiện, trả lời bằng tiếng Việt tự nhiên trừ khi người \
+    dùng yêu cầu ngôn ngữ khác. Trả lời rõ ràng, đúng trọng tâm. Ghi nhớ ngữ cảnh \
+    của cả cuộc trò chuyện để trả lời liền mạch.
+    """
 
     // MARK: - Dựng request
 
@@ -229,6 +256,76 @@ public enum AIClient {
                 ["role": "system", "content": system],
                 ["role": "user", "content": user],
             ],
+        ]
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let headers = [
+            "content-type": "application/json",
+            "authorization": "Bearer \(key)",
+        ]
+        return AIRequestSpec(url: url, headers: headers, body: body)
+    }
+
+    // MARK: - Dựng request cho TRÒ CHUYỆN (nhiều lượt)
+
+    /// Dựng request cho một lượt hỏi trong cuộc trò chuyện. `messages` là TOÀN BỘ
+    /// lịch sử lượt (đã gồm câu người dùng vừa gõ), theo thứ tự thời gian; ta gửi hết
+    /// để mô hình nhớ ngữ cảnh. `system` mặc định `chatSystemPrompt` nhưng cho phép
+    /// truyền riêng (vd khi bắt đầu chat từ một đoạn bôi đen).
+    public static func makeChatRequest(
+        provider: AIProvider,
+        model: String,
+        messages: [ChatMessage],
+        apiKey: String,
+        system: String? = nil
+    ) throws -> AIRequestSpec {
+        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else { throw AIError.missingAPIKey }
+        let sys = system ?? chatSystemPrompt
+        // Bỏ các lượt rỗng để không gửi content trống (API từ chối).
+        let turns = messages.filter {
+            !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        guard !turns.isEmpty else { throw AIError.emptyResponse }
+
+        switch provider {
+        case .claude:  return try makeClaudeChat(model: model, system: sys, turns: turns, key: key)
+        case .openai:  return try makeOpenAIChat(model: model, system: sys, turns: turns, key: key)
+        }
+    }
+
+    private static func makeClaudeChat(
+        model: String, system: String, turns: [ChatMessage], key: String
+    ) throws -> AIRequestSpec {
+        let url = URL(string: "https://api.anthropic.com/v1/messages")!
+        let msgs: [[String: Any]] = turns.map {
+            ["role": $0.role.rawValue, "content": $0.text]
+        }
+        let payload: [String: Any] = [
+            "model": model,
+            "max_tokens": maxTokens,
+            "thinking": ["type": "adaptive"],
+            "system": system,
+            "messages": msgs,
+        ]
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let headers = [
+            "content-type": "application/json",
+            "x-api-key": key,
+            "anthropic-version": "2023-06-01",
+        ]
+        return AIRequestSpec(url: url, headers: headers, body: body)
+    }
+
+    private static func makeOpenAIChat(
+        model: String, system: String, turns: [ChatMessage], key: String
+    ) throws -> AIRequestSpec {
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
+        var msgs: [[String: Any]] = [["role": "system", "content": system]]
+        msgs += turns.map { ["role": $0.role.rawValue, "content": $0.text] }
+        let payload: [String: Any] = [
+            "model": model,
+            "max_tokens": maxTokens,
+            "messages": msgs,
         ]
         let body = try JSONSerialization.data(withJSONObject: payload)
         let headers = [
