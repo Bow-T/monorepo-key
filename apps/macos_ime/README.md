@@ -117,6 +117,16 @@ Cấu hình bật/tắt & đổi phím tắt trong app Cài đặt (Flutter). Ph
 dung chat **được gửi ra API bên ngoài** và (với chat) lưu tại máy ở
 `~/Library/Application Support/BowGo/ai_chats.json` — có nút xoá từng cuộc / xoá hết.
 
+### Giao diện (pixel-art)
+
+| Trò chuyện với AI (nhiều lượt + lịch sử) | Kết quả thao tác 1-phát |
+|---|---|
+| ![Cửa sổ trò chuyện AI](docs/ai-chat.png) | ![Popup kết quả Trợ lý AI](docs/ai-result.png) |
+
+*Bên trái: cửa sổ chat với sidebar lịch sử các cuộc. Bên phải: popup kết quả có nút
+Copy và "Hỏi tiếp →" (chuyển thành cuộc trò chuyện). Toàn bộ dùng hệ design pixel-art
+dùng chung (font VT323/Press Start 2P, viền vuông, panel parchment).*
+
 ## Lộ trình macOS
 
 - [x] App menu-bar (NSStatusItem), accessory (ẩn Dock)
