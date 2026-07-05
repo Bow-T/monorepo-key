@@ -11,6 +11,23 @@ nên mỗi nền tảng có một app native bám theo cùng spec đó.
 
 ---
 
+## 🖼️ Giao diện (macOS)
+
+App cài đặt và các tiện ích đều theo phong cách pixel "Retro RPG Edition".
+
+| App Cài đặt (Flutter) | Cấu hình Trợ lý AI |
+|---|---|
+| ![Trang chính app Cài đặt](apps/settings_ui/docs/home.png) | ![Tab Trợ lý AI](apps/settings_ui/docs/tab-ai.png) |
+
+| Trò chuyện với AI (nhiều lượt + lịch sử) | Kết quả thao tác AI |
+|---|---|
+| ![Cửa sổ chat AI](apps/macos_ime/docs/ai-chat.png) | ![Popup kết quả AI](apps/macos_ime/docs/ai-result.png) |
+
+> Xem thêm ảnh & chi tiết trong README của từng app:
+> [`apps/settings_ui`](apps/settings_ui/README.md) · [`apps/macos_ime`](apps/macos_ime/README.md).
+
+---
+
 ## 📁 Cấu trúc dự án
 
 Tổ chức theo Monorepo (giống `monorepo-remote`), Dart workspace cho phần Dart:
