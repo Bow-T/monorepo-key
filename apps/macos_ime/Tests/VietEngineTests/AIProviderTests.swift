@@ -220,3 +220,111 @@ struct AIErrorMessageTests {
         #expect(msg.contains("503") || msg.contains("Máy chủ"))
     }
 }
+
+@Suite("AI: trò chuyện nhiều lượt (chat)")
+struct AIChatRequestTests {
+
+    /// Bóc payload JSON của một AIRequestSpec để kiểm nội dung.
+    private func payload(_ spec: AIRequestSpec) -> [String: Any] {
+        (try? JSONSerialization.jsonObject(with: spec.body) as? [String: Any]) ?? [:]
+    }
+
+    @Test("Key rỗng -> ném missingAPIKey")
+    func emptyKeyThrows() {
+        #expect(throws: AIError.missingAPIKey) {
+            _ = try AIClient.makeChatRequest(
+                provider: .claude, model: "claude-opus-4-8",
+                messages: [ChatMessage(role: .user, text: "hi")], apiKey: " "
+            )
+        }
+    }
+
+    @Test("Không có lượt hợp lệ -> ném emptyResponse")
+    func noTurnsThrows() {
+        #expect(throws: AIError.emptyResponse) {
+            _ = try AIClient.makeChatRequest(
+                provider: .claude, model: "m",
+                messages: [ChatMessage(role: .user, text: "   ")], apiKey: "k"
+            )
+        }
+    }
+
+    @Test("Claude: gửi CẢ chuỗi lượt đúng thứ tự + role")
+    func claudeSendsAllTurns() throws {
+        let msgs = [
+            ChatMessage(role: .user, text: "Xin chào"),
+            ChatMessage(role: .assistant, text: "Chào bạn"),
+            ChatMessage(role: .user, text: "Bạn khoẻ không?"),
+        ]
+        let spec = try AIClient.makeChatRequest(
+            provider: .claude, model: "claude-opus-4-8", messages: msgs, apiKey: "k"
+        )
+        let body = payload(spec)
+        let messages = body["messages"] as? [[String: Any]]
+        #expect(messages?.count == 3)
+        #expect(messages?[0]["role"] as? String == "user")
+        #expect(messages?[0]["content"] as? String == "Xin chào")
+        #expect(messages?[1]["role"] as? String == "assistant")
+        #expect(messages?[2]["content"] as? String == "Bạn khoẻ không?")
+        // System prompt mặc định cho chat.
+        #expect((body["system"] as? String)?.isEmpty == false)
+        #expect(spec.url.absoluteString.contains("anthropic.com"))
+        #expect(spec.headers["x-api-key"] == "k")
+    }
+
+    @Test("OpenAI: system đứng đầu, rồi các lượt")
+    func openaiPrependsSystem() throws {
+        let msgs = [
+            ChatMessage(role: .user, text: "A"),
+            ChatMessage(role: .assistant, text: "B"),
+        ]
+        let spec = try AIClient.makeChatRequest(
+            provider: .openai, model: "gpt-4o", messages: msgs, apiKey: "k"
+        )
+        let body = payload(spec)
+        let messages = body["messages"] as? [[String: Any]]
+        #expect(messages?.count == 3)  // system + 2 lượt
+        #expect(messages?[0]["role"] as? String == "system")
+        #expect(messages?[1]["role"] as? String == "user")
+        #expect(messages?[2]["role"] as? String == "assistant")
+        #expect(spec.headers["authorization"] == "Bearer k")
+    }
+
+    @Test("Bỏ lượt rỗng ở giữa chuỗi")
+    func skipsEmptyTurns() throws {
+        let msgs = [
+            ChatMessage(role: .user, text: "Hỏi 1"),
+            ChatMessage(role: .assistant, text: "   "),  // rỗng -> bỏ
+            ChatMessage(role: .user, text: "Hỏi 2"),
+        ]
+        let spec = try AIClient.makeChatRequest(
+            provider: .claude, model: "m", messages: msgs, apiKey: "k"
+        )
+        let messages = payload(spec)["messages"] as? [[String: Any]]
+        #expect(messages?.count == 2)
+    }
+
+    @Test("System prompt tuỳ chỉnh được truyền qua")
+    func customSystem() throws {
+        let spec = try AIClient.makeChatRequest(
+            provider: .claude, model: "m",
+            messages: [ChatMessage(role: .user, text: "x")],
+            apiKey: "k", system: "SYSTEM RIÊNG"
+        )
+        #expect(payload(spec)["system"] as? String == "SYSTEM RIÊNG")
+    }
+}
+
+@Suite("AI: tiêu đề cuộc trò chuyện")
+struct ChatMessageTests {
+
+    @Test("ChatMessage Codable giữ nguyên role + text")
+    func chatMessageCodable() throws {
+        let msg = ChatMessage(role: .assistant, text: "Nội dung")
+        let data = try JSONEncoder().encode(msg)
+        let decoded = try JSONDecoder().decode(ChatMessage.self, from: data)
+        #expect(decoded.role == .assistant)
+        #expect(decoded.text == "Nội dung")
+        #expect(decoded.id == msg.id)
+    }
+}

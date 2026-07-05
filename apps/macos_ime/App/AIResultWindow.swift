@@ -10,6 +10,7 @@
 
 import SwiftUI
 import AppKit
+import VietEngine
 
 // MARK: - Model trạng thái (cập nhật bất đồng bộ)
 
@@ -22,10 +23,13 @@ final class AIResultModel: ObservableObject {
     }
     @Published var title: String
     @Published var state: State
+    /// Câu hỏi người dùng đã gửi cho thao tác này (để "Hỏi tiếp" mở chat có ngữ cảnh).
+    @Published var sourceUserMessage: String
 
-    init(title: String, state: State) {
+    init(title: String, state: State, sourceUserMessage: String = "") {
         self.title = title
         self.state = state
+        self.sourceUserMessage = sourceUserMessage
     }
 }
 
@@ -39,14 +43,19 @@ final class AIResultWindow: NSPanel {
     /// Mở popup. `loading` = true -> hiện spinner "đang hỏi". Nếu đã có cửa sổ,
     /// dùng lại (đổi tiêu đề + về trạng thái loading).
     @MainActor
-    static func present(title: String, loading: Bool) {
+    static func present(title: String, loading: Bool, sourceUserMessage: String = "") {
         if let existing = shared, let m = model {
             m.title = title
+            m.sourceUserMessage = sourceUserMessage
             m.state = loading ? .loading : m.state
             existing.showWindow()
             return
         }
-        let m = AIResultModel(title: title, state: loading ? .loading : .result(""))
+        let m = AIResultModel(
+            title: title,
+            state: loading ? .loading : .result(""),
+            sourceUserMessage: sourceUserMessage
+        )
         model = m
         let window = AIResultWindow(model: m)
         shared = window
@@ -68,7 +77,12 @@ final class AIResultWindow: NSPanel {
     init(model: AIResultModel) {
         let content = NSHostingView(rootView: AIResultView(
             model: model,
-            onClose: { AIResultWindow.shared?.close(restoreFocus: true) }
+            onClose: { AIResultWindow.shared?.close(restoreFocus: true) },
+            onContinue: { seed in
+                // Đóng popup kết quả, mở cửa sổ chat với ngữ cảnh câu hỏi + trả lời.
+                AIResultWindow.shared?.close(restoreFocus: false)
+                AIChatWindow.present(seedMessages: seed)
+            }
         ))
 
         super.init(
@@ -132,6 +146,8 @@ final class AIResultWindow: NSPanel {
 struct AIResultView: View {
     @ObservedObject var model: AIResultModel
     let onClose: () -> Void
+    /// Mở chat nối tiếp: nhận các lượt (câu hỏi + trả lời) làm ngữ cảnh cuộc mới.
+    let onContinue: ([ChatMessage]) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var copied = false
@@ -223,6 +239,18 @@ struct AIResultView: View {
                 .foregroundColor(t.textMuted)
             Spacer()
             if case .result(let text) = model.state, !text.isEmpty {
+                Button(action: { continueChat(result: text) }) {
+                    Text("HỎI TIẾP →")
+                        .font(.pixelHead(8))
+                        .foregroundColor(t.textPrimary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(t.inset)
+                        .overlay(Rectangle().strokeBorder(t.outline, lineWidth: Pixel.borderThin))
+                }
+                .buttonStyle(.plain)
+                .help("Chuyển kết quả này thành cuộc trò chuyện nhiều lượt")
+
                 Button(action: { copy(text) }) {
                     Text(copied ? "✓ ĐÃ COPY" : "COPY")
                         .font(.pixelHead(8))
@@ -237,6 +265,17 @@ struct AIResultView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
+    }
+
+    /// Dựng ngữ cảnh chat từ câu hỏi gốc + kết quả, rồi mở cửa sổ chat nối tiếp.
+    private func continueChat(result: String) {
+        var seed: [ChatMessage] = []
+        let userMsg = model.sourceUserMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !userMsg.isEmpty {
+            seed.append(ChatMessage(role: .user, text: userMsg))
+        }
+        seed.append(ChatMessage(role: .assistant, text: result))
+        onContinue(seed)
     }
 
     private func copy(_ text: String) {

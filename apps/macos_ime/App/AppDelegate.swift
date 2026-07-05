@@ -305,6 +305,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let aiItem = NSMenuItem(title: "Trợ lý AI (chữ đã chọn)", action: nil, keyEquivalent: "")
         setSymbol(aiItem, "sparkles")
         let aiSub = NSMenu()
+        // Trò chuyện nhiều lượt (có lưu lịch sử) — mở cửa sổ chat, không cần bôi đen.
+        let chatItem = NSMenuItem(
+            title: "Trò chuyện với AI…", action: #selector(openAIChat), keyEquivalent: ""
+        )
+        chatItem.target = self
+        aiSub.addItem(chatItem)
+        aiSub.addItem(.separator())
         for operation in AIOperation.allCases {
             let mi = NSMenuItem(
                 title: operation.title, action: #selector(runAIOperation(_:)), keyEquivalent: ""
@@ -707,11 +714,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let previousApp = NSWorkspace.shared.frontmostApplication
 
         let menu = NSMenu()
-        let header = NSMenuItem(title: "Trợ lý AI — chữ đã chọn", action: nil, keyEquivalent: "")
+        let header = NSMenuItem(title: "Trợ lý AI", action: nil, keyEquivalent: "")
         header.isEnabled = false
         menu.addItem(header)
         menu.addItem(.separator())
 
+        // Trò chuyện nhiều lượt (mở cửa sổ chat, có lịch sử) — không cần bôi đen.
+        let chatItem = NSMenuItem(
+            title: "Trò chuyện với AI…", action: #selector(openAIChat), keyEquivalent: ""
+        )
+        chatItem.target = self
+        menu.addItem(chatItem)
+        menu.addItem(.separator())
+
+        let selHeader = NSMenuItem(title: "Trên chữ đã chọn:", action: nil, keyEquivalent: "")
+        selHeader.isEnabled = false
+        menu.addItem(selHeader)
         for operation in AIOperation.allCases {
             let mi = NSMenuItem(
                 title: operation.title,
@@ -743,6 +761,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func runAIOperationFromPopup(_ sender: NSMenuItem) {
         guard let ctx = sender.representedObject as? AIPopupContext else { return }
         AIAssistantService.run(ctx.operation, previousApp: ctx.previousApp)
+    }
+
+    /// Mở cửa sổ TRÒ CHUYỆN với AI (nhiều lượt, lưu lịch sử). Gọi từ menu bar hoặc
+    /// phím tắt. Không cần bôi đen — mở cuộc mới trống (hoặc dùng lại cửa sổ đang mở).
+    @objc func openAIChat() {
+        guard AIAssistantService.config.provider == .claude
+              ? AIKeychain.hasKey(.claude) || AIKeychain.hasKey(.openai)
+              : AIKeychain.hasKey(.openai) || AIKeychain.hasKey(.claude) else {
+            ToastHUD.show("CHƯA NHẬP API KEY — VÀO CÀI ĐẶT")
+            return
+        }
+        AIChatWindow.present()
     }
 
     @objc private func enterClaudeKey() { promptAndSaveKey(for: .claude) }

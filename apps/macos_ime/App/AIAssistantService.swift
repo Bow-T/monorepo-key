@@ -93,7 +93,10 @@ enum AIAssistantService {
         }
 
         // Mở popup ở trạng thái "đang hỏi…" ngay, rồi cập nhật khi có kết quả.
-        AIResultWindow.present(title: operation.title, loading: true)
+        // Gói câu người dùng đã gửi (đoạn bôi đen + yêu cầu) để nút "Hỏi tiếp" mở
+        // chat nối tiếp có đúng ngữ cảnh.
+        let sourceUser = operation.userMessage(selection: selection, userPrompt: userPrompt)
+        AIResultWindow.present(title: operation.title, loading: true, sourceUserMessage: sourceUser)
 
         var request = URLRequest(url: spec.url)
         request.httpMethod = "POST"
