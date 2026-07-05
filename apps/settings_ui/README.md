@@ -8,6 +8,13 @@ JSON **dùng chung** với bộ gõ nền tảng; bộ gõ đọc & nạp lại 
 *Trang chính (tab "Bộ gõ"): sidebar chuyển tab, bật/tắt bộ gõ, chọn kiểu gõ
 Telex/VNI, kiểu bỏ dấu… Toàn bộ theo phong cách pixel "Retro RPG Edition".*
 
+| Tab Phím tắt — cấu hình Trợ lý AI | Tab Chuyển mã |
+|---|---|
+| ![Cấu hình Trợ lý AI](docs/tab-ai.png) | ![Công cụ chuyển mã](docs/tab-convert.png) |
+
+*Trái: bật Trợ lý AI, chọn hãng (Claude/ChatGPT), model, phím tắt (⌃⇧G). Phải:
+công cụ chuyển bảng mã (Unicode/TCVN3/VNI) và biến đổi chữ (bỏ dấu, HOA/thường…).*
+
 ## "Đường dây" cấu hình
 
 | Nền tảng | File dùng chung | Bên đọc |
