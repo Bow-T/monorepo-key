@@ -3,6 +3,11 @@
 Giao diện cấu hình bộ gõ Bow Go (phong cách pixel). App ghi cấu hình ra một file
 JSON **dùng chung** với bộ gõ nền tảng; bộ gõ đọc & nạp lại khi file đổi.
 
+![Trang chính app Cài đặt Bow Go](docs/home.png)
+
+*Trang chính (tab "Bộ gõ"): sidebar chuyển tab, bật/tắt bộ gõ, chọn kiểu gõ
+Telex/VNI, kiểu bỏ dấu… Toàn bộ theo phong cách pixel "Retro RPG Edition".*
+
 ## "Đường dây" cấu hình
 
 | Nền tảng | File dùng chung | Bên đọc |

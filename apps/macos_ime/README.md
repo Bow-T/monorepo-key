@@ -127,6 +127,9 @@ dung chat **được gửi ra API bên ngoài** và (với chat) lưu tại máy
 Copy và "Hỏi tiếp →" (chuyển thành cuộc trò chuyện). Toàn bộ dùng hệ design pixel-art
 dùng chung (font VT323/Press Start 2P, viền vuông, panel parchment).*
 
+> Cấu hình bật/tắt & đổi phím tắt ở **app Cài đặt (Flutter)** — xem giao diện trang
+> chính trong [`apps/settings_ui/README.md`](../settings_ui/README.md).
+
 ## Lộ trình macOS
 
 - [x] App menu-bar (NSStatusItem), accessory (ẩn Dock)
