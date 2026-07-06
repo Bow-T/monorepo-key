@@ -1,109 +1,65 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Bow Go — app icon
-  3 BỘ PHẬN chồng ĐÈ lên nhau ở CÙNG vị trí giữa icon, theo lớp sâu (như Freeform):
-    Sau cùng (mờ nhất)  : CUNG
-    Giữa                : MŨI TÊN
-    Trước cùng (rõ nhất): CHÌA KHOÁ
-  Mỗi lớp lùi về sau thì lệch nhẹ + nhỏ + mờ -> khối có chiều sâu 3D.
-  Nền tối squircle. Nét gradient cyan->tím->hồng. Canvas 1024.
+  Bow Go — app icon, phong cách PAPERCUT (giấy thủ công xếp lớp), nền đen.
+  Cây cung + mũi tên dựng từ nhiều dải giấy craft nhỏ, tông kem/xám, vân + bóng đổ.
 -->
-<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg"
-     xmlns:xlink="http://www.w3.org/1999/xlink">
+<svg width="512" height="512" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <radialGradient id="bg" cx="0.5" cy="0.4" r="0.8">
-      <stop offset="0"   stop-color="#2B3242"/>
-      <stop offset="0.55" stop-color="#171C28"/>
-      <stop offset="1"   stop-color="#0A0D14"/>
-    </radialGradient>
+    <!-- nền VUÔNG FULL: 0→1024 không bo góc, lấp đầy 100% ô -->
+    <clipPath id="sq"><path d="M0 0 H1024 V1024 H0 Z"/></clipPath>
 
-    <!-- Mỗi bộ phận một dải màu — tông rực rỡ, bão hoà cao để nổi trên nền tối -->
-    <linearGradient id="gBow" gradientUnits="userSpaceOnUse" x1="250" y1="240" x2="780" y2="780">
-      <stop offset="0" stop-color="#3DFFD0"/>
-      <stop offset="1" stop-color="#00E5FF"/>
-    </linearGradient>
-    <linearGradient id="gArrow" gradientUnits="userSpaceOnUse" x1="230" y1="300" x2="800" y2="720">
-      <stop offset="0" stop-color="#1FE3FF"/>
-      <stop offset="1" stop-color="#6A7BFF"/>
-    </linearGradient>
-    <linearGradient id="gKey" gradientUnits="userSpaceOnUse" x1="240" y1="300" x2="820" y2="760">
-      <stop offset="0" stop-color="#9B5CFF"/>
-      <stop offset="0.55" stop-color="#D24BFF"/>
-      <stop offset="1" stop-color="#FF3DAE"/>
-    </linearGradient>
-
-    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0"   stop-color="#FFFFFF" stop-opacity="0.12"/>
-      <stop offset="0.4" stop-color="#FFFFFF" stop-opacity="0"/>
-    </linearGradient>
-
-    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur stdDeviation="8"/>
+    <!-- bóng đổ nhỏ cho mỗi mảnh giấy -->
+    <filter id="s1" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#000" flood-opacity="0.5"/>
     </filter>
-    <filter id="softblur" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation="85"/>
+    <filter id="s2" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="9" stdDeviation="11" flood-color="#000" flood-opacity="0.55"/>
     </filter>
 
-    <!-- Nền VUÔNG FULL: 0→1024 không bo góc, lấp đầy 100% ô, không hở góc. -->
-    <clipPath id="sq0">
-      <path d="M0 0 H1024 V1024 H0 Z"/>
-    </clipPath>
+    <!-- vân giấy: nhiễu hạt nhẹ để có chất giấy craft -->
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.05 0"/>
+      <feComposite operator="over" in2="SourceGraphic"/>
+    </filter>
 
-    <!-- ===== 3 bộ phận, vẽ cùng tâm (≈512,512) để chồng đè lên nhau ===== -->
-
-    <!-- CUNG: cánh cung recurve dọc + dây -->
-    <g id="bow">
-      <path d="M512 300 C 360 392 360 632 512 724"
-            fill="none" stroke="url(#gBow)" stroke-width="44"
-            stroke-linecap="round" stroke-linejoin="round"/>
-      <rect x="506" y="306" width="12" height="412" rx="6" fill="#CFE9FF" fill-opacity="0.6"/>
-    </g>
-
-    <!-- MŨI TÊN: ngang qua tâm -->
-    <g id="arrow">
-      <rect x="318" y="492" width="320" height="40" rx="20" fill="url(#gArrow)"/>
-      <path d="M318 512 l-58 -46 l26 46 l-26 46 Z" fill="#46D6E6"/>
-      <path d="M700 512 l-66 -52 l0 104 Z" fill="url(#gArrow)"/>
-    </g>
-
-    <!-- CHÌA KHOÁ: vòng đầu trái + thân + răng, qua tâm -->
-    <g id="key">
-      <circle cx="372" cy="512" r="86" fill="none" stroke="url(#gKey)" stroke-width="42"/>
-      <circle cx="372" cy="512" r="30" fill="#0A0D14"/>
-      <rect x="430" y="492" width="276" height="40" rx="20" fill="url(#gKey)"/>
-      <rect x="612" y="534" width="28" height="64" rx="11" fill="url(#gKey)"/>
-      <rect x="664" y="534" width="28" height="92" rx="11" fill="url(#gKey)"/>
-    </g>
+    <!-- các tông giấy: sáng, trung, tối, ngả nâu -->
+    <linearGradient id="pa" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F4EFE3"/><stop offset="1" stop-color="#E4DBC8"/></linearGradient>
+    <linearGradient id="pb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#E7DECB"/><stop offset="1" stop-color="#CFC4AC"/></linearGradient>
+    <linearGradient id="pc" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D3C8B0"/><stop offset="1" stop-color="#B2A588"/></linearGradient>
+    <linearGradient id="pd" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#BCAF93"/><stop offset="1" stop-color="#978B70"/></linearGradient>
   </defs>
 
-  <!-- ===== Nền ===== -->
-  <g clip-path="url(#sq0)">
-    <rect width="1024" height="1024" fill="url(#bg)"/>
-    <g filter="url(#softblur)">
-      <ellipse cx="400" cy="600" rx="280" ry="250" fill="#00E5C8" opacity="0.22"/>
-      <ellipse cx="660" cy="470" rx="260" ry="260" fill="#C24BFF" opacity="0.24"/>
-    </g>
-    <path d="M3 3 H1021 V1021 H3 Z"
-          fill="none" stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="6"/>
-    <rect width="1024" height="1024" fill="url(#sheen)"/>
-  </g>
+  <g clip-path="url(#sq)">
+    <!-- nền đen có chút sáng trên đỉnh (như studio light trong ảnh) -->
+    <rect width="1024" height="1024" fill="#0A0A0B"/>
+    <radialGradient id="bgl" cx="0.5" cy="0.32" r="0.75"><stop offset="0" stop-color="#1c1c1e"/><stop offset="1" stop-color="#070708"/></radialGradient>
+    <rect width="1024" height="1024" fill="url(#bgl)"/>
 
-  <!-- ===== STACK 3 lớp xếp theo TRÊN->DƯỚI, to hơn, mờ->rõ ===== -->
-  <!-- Phóng to toàn cụm quanh tâm (512,512) + lệch các lớp theo chiều dọc:
-       CUNG ở TRÊN (sau, mờ) -> TÊN ở GIỮA -> CHÌA ở DƯỚI (trước, rõ). -->
-  <g transform="translate(512 512) scale(1.1) translate(-512 -512)">
-    <!-- LỚP SAU: CUNG — dịch lên trên, mờ nhất -->
-    <use xlink:href="#bow"
-         transform="translate(512 512) scale(0.93) translate(-512 -512) translate(0 -122)"
-         opacity="0.48"/>
-    <!-- LỚP GIỮA: MŨI TÊN — ở giữa -->
-    <use xlink:href="#arrow"
-         transform="translate(512 512) scale(0.96) translate(-512 -512) translate(0 0)"
-         opacity="0.78"/>
-    <!-- LỚP TRƯỚC: CHÌA KHOÁ — dịch xuống dưới, rõ nhất + glow rực -->
-    <g transform="translate(0 122)">
-      <use xlink:href="#key" filter="url(#glow)" opacity="0.7"/>
-      <use xlink:href="#key"/>
+    <g filter="url(#grain)">
+    <!-- ===== CÁNH CUNG: 6 dải giấy cong xếp lớp, sáng-tối xen kẽ tạo khối ===== -->
+    <g transform="translate(40 0)">
+      <path d="M330 190 C 120 350 120 674 330 834 L372 812 C 185 668 185 356 372 212 Z" fill="url(#pd)" filter="url(#s2)"/>
+      <path d="M356 208 C 165 358 165 666 356 816 L394 796 C 225 664 225 360 394 228 Z" fill="url(#pc)" filter="url(#s1)"/>
+      <path d="M380 226 C 205 366 205 658 380 798 L414 780 C 260 660 260 364 414 244 Z" fill="url(#pb)" filter="url(#s1)"/>
+      <path d="M402 244 C 245 372 245 652 402 780 L432 764 C 295 656 295 368 432 260 Z" fill="url(#pa)" filter="url(#s1)"/>
+      <path d="M422 262 C 285 376 285 648 422 762 L446 750 C 328 654 328 370 446 278 Z" fill="url(#pb)" filter="url(#s1)"/>
+      <path d="M440 280 C 322 380 322 644 440 744 L458 736 C 358 652 358 372 458 292 Z" fill="url(#pa)"/>
+    </g>
+
+    <!-- ===== DÂY CUNG: dải giấy mảnh dọc, tông tối để nổi trên cánh cung ===== -->
+    <path d="M370 190 L392 196 L392 828 L370 834 Z" fill="url(#pc)" filter="url(#s1)"/>
+
+    <!-- ===== MŨI TÊN ===== -->
+    <!-- thân tên: 2 mảnh giấy chồng lệch -->
+    <path d="M384 500 L734 500 L734 470 L716 470 L716 530 L384 530 Z" fill="url(#pc)" filter="url(#s1)"/>
+    <path d="M384 494 L742 494 L742 528 L384 528 Z" fill="url(#pa)" filter="url(#s1)"/>
+    <!-- đầu tên: mảnh tam giác giấy 2 lớp -->
+    <path d="M712 456 L826 512 L712 568 Z" fill="url(#pc)" filter="url(#s2)"/>
+    <path d="M718 468 L804 512 L718 556 Z" fill="url(#pa)"/>
+    <!-- đuôi tên (fletching): 2 mảnh giấy so le -->
+    <path d="M300 460 L372 512 L300 540 L338 512 Z" fill="url(#pc)" filter="url(#s1)"/>
+    <path d="M318 486 L372 512 L318 564 L350 512 Z" fill="url(#pb)" filter="url(#s1)"/>
     </g>
   </g>
 </svg>

@@ -2,22 +2,18 @@
 <!--
   Bow Go — menu-bar template icon
   Pure black on transparent (a macOS "template image"): the system recolors it
-  for light/dark menu bars. Simplified bow + arrow-key so it stays legible at
-  ~18px. Drawn on a 36x36 grid (2x of an 18pt status item).
+  for light/dark menu bars. A simple bow + arrow that matches the app icon and
+  stays legible at ~18px. Drawn on a 36x36 grid (2x of an 18pt status item).
 -->
 <svg width="36" height="36" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
-  <g fill="none" stroke="#000000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Bow limb (recurve C) -->
-    <path d="M11 6 C 6.5 11 6.5 25 11 30"/>
-    <!-- Bow string -->
-    <path d="M11 6 L11 30" stroke-width="1.6"/>
-    <!-- Arrow / key shaft -->
-    <path d="M11 18 L24.5 18"/>
+  <g fill="none" stroke="#000000" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+    <!-- cánh cung (recurve C) -->
+    <path d="M13 5 C 6 11 6 25 13 31"/>
+    <!-- dây cung -->
+    <path d="M13 5 L13 31" stroke-width="2"/>
+    <!-- thân mũi tên -->
+    <path d="M13 18 L27 18"/>
   </g>
-  <!-- Key teeth -->
-  <g fill="#000000">
-    <rect x="20" y="19.5" width="2.2" height="4.4" rx="1"/>
-  </g>
-  <!-- Key head (ring) -->
-  <circle cx="28.5" cy="18" r="4.5" fill="none" stroke="#000000" stroke-width="3"/>
+  <!-- đầu mũi tên (đặc) -->
+  <path d="M25 13.5 L31.5 18 L25 22.5 Z" fill="#000000"/>
 </svg>

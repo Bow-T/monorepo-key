@@ -9,7 +9,7 @@ import 'dart:io';
 
 /// Phiên bản app hiện tại (nguồn sự thật cho toàn UI).
 /// Cập nhật hằng này mỗi lần phát hành để tab Thông tin & Kiểm tra cập nhật đồng bộ.
-const String kAppVersion = '1.0.7';
+const String kAppVersion = '1.0.8';
 
 /// Kho phát hành trên GitHub (owner/repo) — nơi lấy release mới nhất.
 const String _kGithubRepo = 'Bow-T/monorepo-key';
