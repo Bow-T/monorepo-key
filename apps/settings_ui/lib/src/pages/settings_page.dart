@@ -1236,90 +1236,104 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       builder: (ctx) {
         final t = ctx.tokens;
-        return AlertDialog(
-          backgroundColor: t.panel,
-          shape: const RoundedRectangleBorder(
-            side: BorderSide(color: Colors.black, width: AppBorders.thin),
-            borderRadius: BorderRadius.zero,
-          ),
-          title: Text(index == null ? 'THÊM TỪ TỰ SỬA' : 'SỬA TỪ TỰ SỬA',
-              style: Theme.of(ctx).textTheme.labelSmall),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('TỪ GÕ SAI (vd: giừo)',
-                  style: Theme.of(ctx)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: t.textMuted, fontSize: 13)),
-              const SizedBox(height: 4),
-              _dialogField(ctx, wrongCtrl, 'giừo'),
-              // Cảnh báo khi "từ gõ sai" thật ra là một từ ĐÚNG chính tả
-              // (vd "dạy", "đẻ") — dễ vô tình biến từ đúng thành từ khác.
-              // Dùng isRealWord (dấu ĐÚNG vị trí chuẩn) nên không báo nhầm các
-              // typo dấu-sai-chỗ (nhiêù, giừo).
-              ListenableBuilder(
-                listenable: wrongCtrl,
-                builder: (ctx, _) {
-                  final w = wrongCtrl.text.trim();
-                  if (w.isEmpty || !AutoCorrectDictionary.isRealWord(w)) {
-                    return const SizedBox.shrink();
-                  }
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Iconsax.warning_2,
-                            size: 16, color: AppColors.red),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            '"$w" là từ đúng chính tả — '
-                            'thêm cặp này sẽ tự đổi nó thành từ khác mỗi khi gõ.',
-                            style: TextStyle(
-                                fontFamily: AppFonts.body,
-                                fontSize: 13,
-                                color: AppColors.red),
-                          ),
-                        ),
-                      ],
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 380),
+            child: PixelPanel(
+              padding: const EdgeInsets.all(18),
+              fill: t.panel,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    index == null ? 'THÊM TỪ TỰ SỬA' : 'SỬA TỪ TỰ SỬA',
+                    style: const TextStyle(
+                      fontFamily: AppFonts.head,
+                      fontSize: 11,
+                      color: AppColors.green,
                     ),
-                  );
-                },
+                  ),
+                  const SizedBox(height: 14),
+                  Text('TỪ GÕ SAI (vd: giừo)',
+                      style: TextStyle(
+                          fontFamily: AppFonts.body,
+                          fontSize: 14,
+                          color: t.textMuted)),
+                  const SizedBox(height: 4),
+                  _dialogField(ctx, wrongCtrl, 'giừo'),
+                  // Cảnh báo khi "từ gõ sai" thật ra là một từ ĐÚNG chính tả
+                  // (vd "dạy", "đẻ") — dễ vô tình biến từ đúng thành từ khác.
+                  ListenableBuilder(
+                    listenable: wrongCtrl,
+                    builder: (ctx, _) {
+                      final w = wrongCtrl.text.trim();
+                      if (w.isEmpty || !AutoCorrectDictionary.isRealWord(w)) {
+                        return const SizedBox.shrink();
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Iconsax.warning_2,
+                                size: 16, color: AppColors.red),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                '"$w" là từ đúng chính tả — '
+                                'thêm cặp này sẽ tự đổi nó thành từ khác mỗi khi gõ.',
+                                style: const TextStyle(
+                                    fontFamily: AppFonts.body,
+                                    fontSize: 13,
+                                    color: AppColors.red),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Text('TỪ ĐÚNG (vd: giờ)',
+                      style: TextStyle(
+                          fontFamily: AppFonts.body,
+                          fontSize: 14,
+                          color: t.textMuted)),
+                  const SizedBox(height: 4),
+                  _dialogField(ctx, rightCtrl, 'giờ'),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: PixelButton(
+                          label: 'HUỶ',
+                          color: t.textMuted,
+                          height: 38,
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: PixelButton(
+                          label: 'LƯU',
+                          color: AppColors.green,
+                          height: 38,
+                          onPressed: () {
+                            final w = wrongCtrl.text.trim();
+                            final r = rightCtrl.text.trim();
+                            if (w.isEmpty || r.isEmpty || w == r) return;
+                            Navigator.pop(ctx, AutoCorrectPair(wrong: w, right: r));
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              Text('TỪ ĐÚNG (vd: giờ)',
-                  style: Theme.of(ctx)
-                      .textTheme
-                      .bodyMedium
-                      ?.copyWith(color: t.textMuted, fontSize: 13)),
-              const SizedBox(height: 4),
-              _dialogField(ctx, rightCtrl, 'giờ'),
-            ],
+            ),
           ),
-          actions: [
-            PixelButton(
-              label: 'HUỶ',
-              color: AppColors.stone,
-              small: true,
-              expand: false,
-              onPressed: () => Navigator.pop(ctx),
-            ),
-            PixelButton(
-              label: 'LƯU',
-              color: AppColors.green,
-              small: true,
-              expand: false,
-              onPressed: () {
-                final w = wrongCtrl.text.trim();
-                final r = rightCtrl.text.trim();
-                if (w.isEmpty || r.isEmpty || w == r) return;
-                Navigator.pop(ctx, AutoCorrectPair(wrong: w, right: r));
-              },
-            ),
-          ],
         );
       },
     );
@@ -1535,26 +1549,14 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   /// Xác nhận trước khi ghi đè toàn bộ cấu hình (thao tác không hoàn tác được).
+  /// Dùng lại hộp thoại pixel-art chung [_confirmDialog] cho đồng bộ phong cách.
   Future<bool?> _confirmImportAll(BuildContext context) {
-    return showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Ghi đè toàn bộ cài đặt?'),
-        content: const Text(
-          'Cấu hình hiện tại (bộ gõ, gõ tắt, tự sửa lỗi, phím tắt…) sẽ bị thay '
-          'bằng nội dung trong file. Thao tác này không hoàn tác được.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Huỷ'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Ghi đè'),
-          ),
-        ],
-      ),
+    return _confirmDialog(
+      context,
+      title: 'Ghi đè toàn bộ cài đặt?',
+      message: 'Cấu hình hiện tại (bộ gõ, gõ tắt, tự sửa lỗi, phím tắt…) sẽ bị '
+          'thay bằng nội dung trong file. Thao tác này không hoàn tác được.',
+      confirmLabel: 'GHI ĐÈ',
     );
   }
 
@@ -1564,43 +1566,68 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       builder: (ctx) {
         final t = ctx.tokens;
-        return AlertDialog(
-          backgroundColor: t.panel,
-          shape: const RoundedRectangleBorder(
-            side: BorderSide(color: Colors.black, width: AppBorders.thin),
-            borderRadius: BorderRadius.zero,
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 380),
+            child: PixelPanel(
+              padding: const EdgeInsets.all(18),
+              fill: t.panel,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('NHẬP $count CẶP',
+                      style: const TextStyle(
+                          fontFamily: AppFonts.head,
+                          fontSize: 11,
+                          color: AppColors.green)),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Bạn đã có ${s.autoCorrectPairs.length} cặp. Chọn cách nhập:\n\n'
+                    '• GỘP: giữ cặp cũ, thêm cặp mới (trùng thì lấy theo file).\n'
+                    '• GHI ĐÈ: xoá hết cặp cũ, chỉ giữ nội dung trong file.',
+                    style: TextStyle(
+                        fontFamily: AppFonts.body,
+                        fontSize: 15,
+                        height: 1.2,
+                        color: t.textSecondary),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: PixelButton(
+                          label: 'HUỶ',
+                          color: t.textMuted,
+                          height: 38,
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: PixelButton(
+                          label: 'GHI ĐÈ',
+                          color: AppColors.red,
+                          height: 38,
+                          onPressed: () => Navigator.pop(ctx, _ImportMode.replace),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: PixelButton(
+                          label: 'GỘP',
+                          color: AppColors.green,
+                          height: 38,
+                          onPressed: () => Navigator.pop(ctx, _ImportMode.merge),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
-          title: Text('NHẬP $count CẶP', style: Theme.of(ctx).textTheme.labelSmall),
-          content: Text(
-            'Bạn đã có ${s.autoCorrectPairs.length} cặp. Chọn cách nhập:\n\n'
-            '• GỘP: giữ cặp cũ, thêm cặp mới (trùng thì lấy theo file).\n'
-            '• GHI ĐÈ: xoá hết cặp cũ, chỉ giữ nội dung trong file.',
-            style: TextStyle(
-                fontFamily: AppFonts.body, fontSize: 14, color: t.textPrimary),
-          ),
-          actions: [
-            PixelButton(
-              label: 'HUỶ',
-              color: AppColors.stone,
-              small: true,
-              expand: false,
-              onPressed: () => Navigator.pop(ctx),
-            ),
-            PixelButton(
-              label: 'GHI ĐÈ',
-              color: AppColors.red,
-              small: true,
-              expand: false,
-              onPressed: () => Navigator.pop(ctx, _ImportMode.replace),
-            ),
-            PixelButton(
-              label: 'GỘP',
-              color: AppColors.green,
-              small: true,
-              expand: false,
-              onPressed: () => Navigator.pop(ctx, _ImportMode.merge),
-            ),
-          ],
         );
       },
     );

@@ -57,6 +57,16 @@ public enum AIOperation: String, CaseIterable, Sendable {
     /// Thao tác này có cần người dùng nhập thêm câu hỏi không (chỉ `ask`).
     public var needsUserPrompt: Bool { self == .ask }
 
+    /// Tên SF Symbol cho menu pixel-art.
+    public var symbol: String {
+        switch self {
+        case .translate: return "character.book.closed"
+        case .summarize: return "text.alignleft"
+        case .grammar:   return "checkmark.seal"
+        case .ask:       return "questionmark.circle"
+        }
+    }
+
     /// System prompt định hướng cho mô hình. Ngắn gọn, tiếng Việt.
     public var systemPrompt: String {
         switch self {

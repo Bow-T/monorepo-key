@@ -22,18 +22,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let smartSwitch = SmartSwitch()
     private let screenshotController = ScreenshotController()
     private var statusItem: NSStatusItem?
-    private var vietMenuItem: NSMenuItem?
-    private var engMenuItem: NSMenuItem?
-    private var telexMenuItem: NSMenuItem?
-    private var vniMenuItem: NSMenuItem?
-    private var autoRestoreMenuItem: NSMenuItem?
-    private var macroMenuItem: NSMenuItem?
-    private var emojiMenuItem: NSMenuItem?
-    private var undoMenuItem: NSMenuItem?
-    private var autoCorrectMenuItem: NSMenuItem?
-    private var launchAtLoginMenuItem: NSMenuItem?
-    private var screenshotMenuItem: NSMenuItem?
-    private var aiMenuItem: NSMenuItem?
     private var healthCheckTimer: Timer?
     /// Timer riêng ghi status.json mỗi ~1s cho app Cài đặt (Flutter) đọc — để UI
     /// phản ánh quyền gần như tức thì mà KHÔNG cần app Flutter tự gọi TCC API
@@ -63,7 +51,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if cfg.clipboardHistoryEnabled {
                 ClipboardManager.shared.start()
             }
-            screenshotMenuItem?.isHidden = !cfg.screenshotEnabled
+            // Mục "Chụp màn hình"/"Trợ lý AI" ẩn/hiện được quyết định khi DỰNG menu
+            // (đọc screenshotEnabled/aiEnabled tươi) — xem showMenuBarMenu.
             applyAIConfig(cfg)
         }
         updateMenuTitle()
@@ -80,7 +69,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 ClipboardManager.shared.stop()
             }
-            self.screenshotMenuItem?.isHidden = !cfg.screenshotEnabled
             self.applyAIConfig(cfg)
 
             self.updateMenuTitle()
@@ -192,256 +180,144 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Icon menu bar: chữ V/E trong vòng tròn đặc. V xanh lá (đang gõ tiếng Việt),
         // E xám mờ (tiếng Anh) — nhìn phát biết đang bật hay tắt.
+        // Click icon -> mở menu pixel-art tự vẽ (thay NSMenu mặc định lạc phong cách).
         if let button = item.button {
             button.image = Self.menuBarIcon(vietnamese: true)
             button.imagePosition = .imageOnly
             button.title = ""
+            button.target = self
+            button.action = #selector(statusItemClicked)
         }
-
-        let menu = NSMenu()
-
-        // 1. Header (disabled)
-        let header = NSMenuItem(title: "Chế độ gõ (⌃ + ⇧)", action: nil, keyEquivalent: "")
-        header.isEnabled = false
-        menu.addItem(header)
-
-        // 2. Ⓥ Tiếng Việt
-        let vietItem = makeItem("Ⓥ  Tiếng Việt", #selector(enableVietnamese))
-        menu.addItem(vietItem)
-        self.vietMenuItem = vietItem
-
-        // 3. Ⓔ Tiếng Anh
-        let engItem = makeItem("Ⓔ  Tiếng Anh", #selector(enableEnglish))
-        menu.addItem(engItem)
-        self.engMenuItem = engItem
-
-        menu.addItem(.separator())
-
-        // 4. Submenu: ⌨️ Bộ gõ
-        let boGoItem = NSMenuItem(title: "⌨️  Bộ gõ", action: nil, keyEquivalent: "")
-        let boGoSub = NSMenu()
-        let telexItem = makeItem("Telex", #selector(useTelex))
-        let vniItem = makeItem("VNI", #selector(useVNI))
-        boGoSub.addItem(telexItem)
-        boGoSub.addItem(vniItem)
-        boGoItem.submenu = boGoSub
-        menu.addItem(boGoItem)
-        self.telexMenuItem = telexItem
-        self.vniMenuItem = vniItem
-
-        menu.addItem(.separator())
-
-        // 4b. Bật/tắt nhanh các tính năng (có checkmark)
-        let restoreItem = makeItem("Tự khôi phục tiếng Anh", #selector(toggleAutoRestore))
-        menu.addItem(restoreItem)
-        self.autoRestoreMenuItem = restoreItem
-
-        let macroItem = makeItem("Gõ tắt", #selector(toggleMacro))
-        menu.addItem(macroItem)
-        self.macroMenuItem = macroItem
-
-        let emojiItem = makeItem("Gõ tắt emoji (:cry: → 😢)", #selector(toggleEmojiShortcuts))
-        menu.addItem(emojiItem)
-        self.emojiMenuItem = emojiItem
-
-        let undoItem = makeItem("Undo khi bung (Backspace)", #selector(toggleUndoExpansion))
-        menu.addItem(undoItem)
-        self.undoMenuItem = undoItem
-
-        menu.addItem(.separator())
-
-        // 4c. Submenu: Tính năng (chứa các tiện ích như Lịch sử Copy)
-        let featuresItem = NSMenuItem(title: "Tính năng", action: nil, keyEquivalent: "")
-        setSymbol(featuresItem, "square.grid.2x2")
-        let featuresSub = NSMenu()
-
-        let clipboardItem = NSMenuItem(
-            title: "Lịch sử Copy", action: #selector(openClipboardHistory), keyEquivalent: ""
-        )
-        clipboardItem.target = self
-        setSymbol(clipboardItem, "doc.on.clipboard")
-        featuresSub.addItem(clipboardItem)
-
-        let symbolPickerItem = NSMenuItem(
-            title: "Gõ nhanh ký tự & emoji", action: #selector(openSymbolPicker), keyEquivalent: ""
-        )
-        symbolPickerItem.target = self
-        setSymbol(symbolPickerItem, "character.textbox")
-        featuresSub.addItem(symbolPickerItem)
-
-        let stickerPickerItem = NSMenuItem(
-            title: "Dán sticker (emoji ảnh)", action: #selector(openStickerPicker), keyEquivalent: ""
-        )
-        stickerPickerItem.target = self
-        setSymbol(stickerPickerItem, "face.smiling")
-        featuresSub.addItem(stickerPickerItem)
-
-        // Chụp màn hình (chọn vùng + chú thích + OCR). Ẩn khi tắt trong Cài đặt.
-        let screenshotItem = NSMenuItem(
-            title: "Chụp màn hình", action: #selector(openScreenshotCapture), keyEquivalent: ""
-        )
-        screenshotItem.target = self
-        setSymbol(screenshotItem, "camera.viewfinder")
-        featuresSub.addItem(screenshotItem)
-        self.screenshotMenuItem = screenshotItem
-
-        // Biến đổi chữ đã bôi đen (bỏ dấu / IN HOA / chuyển mã…) — submenu.
-        let transformItem = NSMenuItem(title: "Biến đổi chữ đã chọn", action: nil, keyEquivalent: "")
-        setSymbol(transformItem, "textformat.abc")
-        let transformSub = NSMenu()
-        for transform in TextTransformService.Transform.allCases {
-            let mi = NSMenuItem(
-                title: transform.title, action: #selector(runTextTransform(_:)), keyEquivalent: ""
-            )
-            mi.target = self
-            mi.representedObject = transform.rawValue
-            transformSub.addItem(mi)
-        }
-        transformItem.submenu = transformSub
-        featuresSub.addItem(transformItem)
-
-        // Trợ lý AI trên vùng bôi đen (dịch / tóm tắt / sửa ngữ pháp / hỏi tự do).
-        // Ẩn khi tắt trong Cài đặt (mặc định tắt cho tới khi người dùng nhập key).
-        let aiItem = NSMenuItem(title: "Trợ lý AI (chữ đã chọn)", action: nil, keyEquivalent: "")
-        setSymbol(aiItem, "sparkles")
-        let aiSub = NSMenu()
-        // Trò chuyện nhiều lượt (có lưu lịch sử) — mở cửa sổ chat, không cần bôi đen.
-        let chatItem = NSMenuItem(
-            title: "Trò chuyện với AI…", action: #selector(openAIChat), keyEquivalent: ""
-        )
-        chatItem.target = self
-        aiSub.addItem(chatItem)
-        aiSub.addItem(.separator())
-        for operation in AIOperation.allCases {
-            let mi = NSMenuItem(
-                title: operation.title, action: #selector(runAIOperation(_:)), keyEquivalent: ""
-            )
-            mi.target = self
-            mi.representedObject = operation.rawValue
-            aiSub.addItem(mi)
-        }
-        aiSub.addItem(.separator())
-        // Nhập API key cho từng hãng (lưu Keychain của bộ gõ).
-        let claudeKeyItem = NSMenuItem(
-            title: "Nhập API key Claude…", action: #selector(enterClaudeKey), keyEquivalent: ""
-        )
-        claudeKeyItem.target = self
-        aiSub.addItem(claudeKeyItem)
-        let openaiKeyItem = NSMenuItem(
-            title: "Nhập API key OpenAI…", action: #selector(enterOpenAIKey), keyEquivalent: ""
-        )
-        openaiKeyItem.target = self
-        aiSub.addItem(openaiKeyItem)
-        aiItem.submenu = aiSub
-        featuresSub.addItem(aiItem)
-        self.aiMenuItem = aiItem
-
-        let countItem = NSMenuItem(
-            title: "Đếm từ & ký tự đã chọn", action: #selector(countSelection), keyEquivalent: ""
-        )
-        countItem.target = self
-        setSymbol(countItem, "number.square")
-        featuresSub.addItem(countItem)
-
-        // Tự sửa lỗi gõ nhanh (toggle có checkmark) — nằm trong submenu Tính năng.
-        let autoCorrectItem = makeItem("Tự sửa lỗi gõ nhanh", #selector(toggleAutoCorrect))
-        setSymbol(autoCorrectItem, "wand.and.stars")
-        featuresSub.addItem(autoCorrectItem)
-        self.autoCorrectMenuItem = autoCorrectItem
-
-        // Khởi động cùng hệ thống (toggle có checkmark).
-        let loginItem = makeItem("Khởi động cùng hệ thống", #selector(toggleLaunchAtLogin))
-        setSymbol(loginItem, "power")
-        featuresSub.addItem(loginItem)
-        self.launchAtLoginMenuItem = loginItem
-
-        featuresItem.submenu = featuresSub
-        menu.addItem(featuresItem)
-
-        menu.addItem(.separator())
-
-        // 4d. Submenu: Sửa lỗi (khi không gõ được tiếng Việt)
-        let fixItem = NSMenuItem(title: "Sửa lỗi", action: nil, keyEquivalent: "")
-        setSymbol(fixItem, "wrench.and.screwdriver")
-        let fixSub = NSMenu()
-
-        let restartItem = NSMenuItem(
-            title: "Khởi động lại bộ gõ", action: #selector(restartEngine), keyEquivalent: ""
-        )
-        restartItem.target = self
-        setSymbol(restartItem, "arrow.clockwise")
-        fixSub.addItem(restartItem)
-
-        let fixPermItem = NSMenuItem(
-            title: "Sửa lỗi quyền (gõ không được)…", action: #selector(repairPermissions), keyEquivalent: ""
-        )
-        fixPermItem.target = self
-        setSymbol(fixPermItem, "lock.shield")
-        fixSub.addItem(fixPermItem)
-
-        fixItem.submenu = fixSub
-        menu.addItem(fixItem)
-
-        menu.addItem(.separator())
-
-        // 5. Mở Cài đặt...
-        let settingsItem = NSMenuItem(title: "Mở Cài đặt...", action: #selector(openSettingsApp), keyEquivalent: ",")
-        settingsItem.keyEquivalentModifierMask = .command
-        settingsItem.target = self
-        setSymbol(settingsItem, "gearshape")
-        menu.addItem(settingsItem)
-
-        menu.addItem(.separator())
-
-        // 6. ⓘ Về Bow Go
-        let aboutItem = NSMenuItem(title: "ⓘ  Về Bow Go v1.0.8", action: nil, keyEquivalent: "")
-        aboutItem.isEnabled = false
-        menu.addItem(aboutItem)
-
-        // 7. Thoát
-        let quitItem = NSMenuItem(title: "⏻  Thoát Bow Go", action: #selector(quit), keyEquivalent: "q")
-        quitItem.keyEquivalentModifierMask = .command
-        quitItem.target = self
-        menu.addItem(quitItem)
-
-        item.menu = menu
         statusItem = item
     }
 
-    private func makeItem(_ title: String, _ action: Selector) -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
-        item.target = self
-        return item
+    /// Bấm icon menu bar -> mở menu pixel-art ngay dưới icon.
+    @objc private func statusItemClicked() {
+        showMenuBarMenu()
     }
 
-    /// Gắn SF Symbol làm icon trái cho menu item — đồng bộ phong cách macOS,
-    /// nét hơn emoji và tự đổi màu theo light/dark. `symbol` là tên SF Symbol.
-    private func setSymbol(_ item: NSMenuItem, _ symbol: String) {
-        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
-        item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
-            .withSymbolConfiguration(config)
+    /// Dựng & hiện MENU BAR pixel-art. Dựng lại mỗi lần mở nên trạng thái (checkmark
+    /// Việt/Anh, Telex/VNI, các toggle) luôn tươi — không cần cache NSMenuItem.
+    private func showMenuBarMenu() {
+        let on = tapController.enabled && Permissions.ready()
+        let method = tapController.currentMethod
+        let cfg = settingsStore.read()
+        let screenshotEnabled = cfg?.screenshotEnabled ?? false
+        let aiEnabled = cfg?.aiEnabled ?? false
+
+        // Submenu: Bộ gõ (Telex/VNI)
+        let boGoSub: [PixelMenuItem] = [
+            .item("Telex", checked: method == .telex) { [weak self] in self?.useTelex() },
+            .item("VNI", checked: method == .vni) { [weak self] in self?.useVNI() },
+        ]
+
+        // Submenu: Biến đổi chữ đã chọn
+        var transformSub: [PixelMenuItem] = []
+        for transform in TextTransformService.Transform.allCases {
+            transformSub.append(.item(transform.title) { [weak self] in
+                self?.runTextTransformFromMenu(transform)
+            })
+        }
+
+        // Submenu: Trợ lý AI
+        var aiSub: [PixelMenuItem] = [
+            .item("Trò chuyện với AI…", symbol: "bubble.left.and.bubble.right") { [weak self] in
+                self?.openAIChat()
+            },
+            .separator,
+        ]
+        let previousApp = NSWorkspace.shared.frontmostApplication
+        for operation in AIOperation.allCases {
+            aiSub.append(.item(operation.title, symbol: operation.symbol) {
+                AIAssistantService.run(operation, previousApp: previousApp)
+            })
+        }
+        aiSub.append(.separator)
+        aiSub.append(.item("Nhập API key Claude…", symbol: "key") { [weak self] in self?.enterClaudeKey() })
+        aiSub.append(.item("Nhập API key OpenAI…", symbol: "key") { [weak self] in self?.enterOpenAIKey() })
+
+        // Submenu: Tính năng
+        var featuresSub: [PixelMenuItem] = [
+            .item("Lịch sử Copy", symbol: "doc.on.clipboard") { [weak self] in self?.openClipboardHistory() },
+            .item("Gõ nhanh ký tự & emoji", symbol: "character.textbox") { [weak self] in self?.openSymbolPicker() },
+            .item("Dán sticker (emoji ảnh)", symbol: "face.smiling") { [weak self] in self?.openStickerPicker() },
+        ]
+        if screenshotEnabled {
+            featuresSub.append(.item("Chụp màn hình", symbol: "camera.viewfinder") { [weak self] in
+                self?.openScreenshotCapture()
+            })
+        }
+        featuresSub.append(.submenu("Biến đổi chữ đã chọn", symbol: "textformat.abc", items: transformSub))
+        if aiEnabled {
+            featuresSub.append(.submenu("Trợ lý AI (chữ đã chọn)", symbol: "sparkles", items: aiSub))
+        }
+        featuresSub.append(.item("Đếm từ & ký tự đã chọn", symbol: "number.square") { [weak self] in
+            self?.countSelection()
+        })
+        featuresSub.append(.item("Tự sửa lỗi gõ nhanh", symbol: "wand.and.stars",
+                                 checked: tapController.autoCorrectOn) { [weak self] in
+            self?.toggleAutoCorrect()
+        })
+        featuresSub.append(.item("Khởi động cùng hệ thống", symbol: "power",
+                                 checked: LoginItem.isEnabled) { [weak self] in
+            self?.toggleLaunchAtLogin()
+        })
+
+        // Submenu: Sửa lỗi
+        let fixSub: [PixelMenuItem] = [
+            .item("Khởi động lại bộ gõ", symbol: "arrow.clockwise") { [weak self] in self?.restartEngine() },
+            .item("Sửa lỗi quyền (gõ không được)…", symbol: "lock.shield") { [weak self] in self?.repairPermissions() },
+        ]
+
+        // Menu gốc
+        let items: [PixelMenuItem] = [
+            .header("Chế độ gõ (⌃ + ⇧)"),
+            .item("Ⓥ  Tiếng Việt", checked: on) { [weak self] in self?.enableVietnamese() },
+            .item("Ⓔ  Tiếng Anh", checked: !on) { [weak self] in self?.enableEnglish() },
+            .separator,
+            .submenu("Bộ gõ", symbol: "keyboard", items: boGoSub),
+            .separator,
+            .item("Tự khôi phục tiếng Anh", checked: tapController.autoRestoreEnglishOn) { [weak self] in
+                self?.toggleAutoRestore()
+            },
+            .item("Gõ tắt", checked: tapController.macroOn) { [weak self] in self?.toggleMacro() },
+            .item("Gõ tắt emoji (:cry: → 😢)", checked: tapController.emojiShortcutsOn) { [weak self] in
+                self?.toggleEmojiShortcuts()
+            },
+            .item("Undo khi bung (Backspace)", checked: tapController.undoExpansionOn) { [weak self] in
+                self?.toggleUndoExpansion()
+            },
+            .separator,
+            .submenu("Tính năng", symbol: "square.grid.2x2", items: featuresSub),
+            .separator,
+            .submenu("Sửa lỗi", symbol: "wrench.and.screwdriver", items: fixSub),
+            .separator,
+            .item("Mở Cài đặt…", symbol: "gearshape") { [weak self] in self?.openSettingsApp() },
+            .separator,
+            .header("ⓘ  Về Bow Go v1.0.8"),
+            .item("⏻  Thoát Bow Go", symbol: "power") { [weak self] in self?.quit() },
+        ]
+
+        PixelMenuWindow.presentBelowStatusItem(title: "Bow Go", items: items, statusItem: statusItem)
     }
 
+    /// Trả focus app cũ rồi chạy transform (dùng cho menu bar — gọi trực tiếp).
+    private func runTextTransformFromMenu(_ transform: TextTransformService.Transform) {
+        let previousApp = NSWorkspace.shared.frontmostApplication
+        if let app = previousApp, app.isTerminated == false { app.activate() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            TextTransformService.run(transform)
+        }
+    }
+
+    /// Cập nhật icon menu bar theo trạng thái bật/tắt. Checkmark trong menu KHÔNG
+    /// cần cập nhật ở đây nữa: menu pixel-art dựng lại mỗi lần mở nên luôn đọc trạng
+    /// thái tươi (xem showMenuBarMenu).
     private func updateMenuTitle() {
         let on = tapController.enabled && Permissions.ready()
         guard let button = statusItem?.button else { return }
         button.image = Self.menuBarIcon(vietnamese: on)
         button.appearsDisabled = false
-
-        vietMenuItem?.state = on ? .on : .off
-        engMenuItem?.state = on ? .off : .on
-
-        telexMenuItem?.state = tapController.currentMethod == .telex ? .on : .off
-        vniMenuItem?.state = tapController.currentMethod == .vni ? .on : .off
-
-        autoRestoreMenuItem?.state = tapController.autoRestoreEnglishOn ? .on : .off
-        macroMenuItem?.state = tapController.macroOn ? .on : .off
-        emojiMenuItem?.state = tapController.emojiShortcutsOn ? .on : .off
-        undoMenuItem?.state = tapController.undoExpansionOn ? .on : .off
-        autoCorrectMenuItem?.state = tapController.autoCorrectOn ? .on : .off
-        // Trạng thái login item đọc TRỰC TIẾP từ hệ thống (nguồn chân lý — người dùng
-        // có thể đã tắt thủ công ở System Settings > Login Items).
-        launchAtLoginMenuItem?.state = LoginItem.isEnabled ? .on : .off
     }
 
     /// Đăng ký font pixel (PressStart2P + VT323) từ bundle để cửa sổ lịch sử
@@ -615,12 +491,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateMenuTitle()
     }
 
-    @objc private func runTextTransform(_ sender: NSMenuItem) {
-        guard let raw = sender.representedObject as? String,
-              let transform = TextTransformService.Transform(rawValue: raw) else { return }
-        TextTransformService.run(transform)
-    }
-
     /// Đếm vùng bôi đen -> hiện toast số từ/ký tự/dòng (gọi từ menu hoặc phím tắt).
     @objc func countSelection() {
         SelectionCounter.run()
@@ -629,138 +499,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Popup chọn thao tác biến đổi tại vị trí con trỏ (gọi từ phím tắt ⌃⇧T).
     /// Bôi đen chữ ở app bất kỳ -> ⌃⇧T -> chọn thao tác -> thay ngay tại chỗ.
     func showTextTransformMenu() {
-        // Ghi nhớ app đang focus: NSMenu popup sẽ kích hoạt app ta, nên trước khi
-        // chạy transform phải trả focus về app cũ (để ⌘C/⌘V fallback gõ đúng chỗ).
+        // Ghi nhớ app đang focus: mở menu sẽ kích hoạt app ta, nên trước khi chạy
+        // transform phải trả focus về app cũ (để ⌘C/⌘V fallback gõ đúng chỗ).
         let previousApp = NSWorkspace.shared.frontmostApplication
 
-        let menu = NSMenu()
-        let header = NSMenuItem(title: "Biến đổi chữ đã chọn", action: nil, keyEquivalent: "")
-        header.isEnabled = false
-        menu.addItem(header)
-        menu.addItem(.separator())
-
+        var items: [PixelMenuItem] = [.header("Chọn kiểu biến đổi:")]
         for transform in TextTransformService.Transform.allCases {
-            let mi = NSMenuItem(
-                title: transform.title,
-                action: #selector(runTextTransformFromPopup(_:)),
-                keyEquivalent: ""
-            )
-            mi.target = self
-            mi.representedObject = TransformPopupContext(
-                transform: transform, previousApp: previousApp
-            )
-            menu.addItem(mi)
+            items.append(.item(transform.title) {
+                // Trả focus về app cũ trước, rồi chạy transform (AX/⌘C cần app đó ở
+                // phía trước). Delay nhỏ để app kịp nhận focus.
+                if let app = previousApp, app.isTerminated == false { app.activate() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                    TextTransformService.run(transform)
+                }
+            })
         }
-
-        // Hiện menu ngay tại con trỏ chuột.
-        let mouse = NSEvent.mouseLocation
-        let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
-        // popUp(positioning:at:in:) dùng toạ độ view; nil view -> toạ độ màn hình gốc
-        // trên-trái. Đổi từ toạ độ AppKit (gốc dưới-trái) sang cho đúng vị trí chuột.
-        let height = screen?.frame.height ?? 0
-        let point = NSPoint(x: mouse.x, y: height - mouse.y)
-        menu.popUp(positioning: nil, at: point, in: nil)
-    }
-
-    /// Bọc thao tác + app trước đó để trả focus rồi mới biến đổi.
-    private final class TransformPopupContext: NSObject {
-        let transform: TextTransformService.Transform
-        let previousApp: NSRunningApplication?
-        init(transform: TextTransformService.Transform, previousApp: NSRunningApplication?) {
-            self.transform = transform
-            self.previousApp = previousApp
-        }
-    }
-
-    @objc private func runTextTransformFromPopup(_ sender: NSMenuItem) {
-        guard let ctx = sender.representedObject as? TransformPopupContext else { return }
-        // Trả focus về app cũ trước, rồi chạy transform (AX/⌘C cần app đó ở phía trước).
-        if let app = ctx.previousApp, app.isTerminated == false {
-            app.activate()
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-            TextTransformService.run(ctx.transform)
-        }
+        PixelMenuWindow.present(title: "Biến đổi chữ đã chọn", items: items)
     }
 
     // MARK: - Trợ lý AI
 
-    /// Áp cấu hình AI vào service + ẩn/hiện menu (gọi lúc khởi động & khi UI đổi).
+    /// Áp cấu hình AI vào service (gọi lúc khởi động & khi UI đổi). Việc ẩn/hiện
+    /// mục "Trợ lý AI" trong menu quyết định khi dựng menu (đọc aiEnabled tươi).
     private func applyAIConfig(_ cfg: BowConfig) {
         AIAssistantService.config = AIAssistantService.Config(
             provider: AIProvider(rawValue: cfg.aiProvider) ?? .claude,
             claudeModel: cfg.aiClaudeModel,
             openaiModel: cfg.aiOpenAIModel
         )
-        aiMenuItem?.isHidden = !cfg.aiEnabled
     }
 
-    /// Chạy thao tác AI từ menu bar. App ta đang là frontmost khi menu mở, nên
-    /// truyền app trước đó để service trả focus rồi mới đọc vùng chọn.
-    @objc private func runAIOperation(_ sender: NSMenuItem) {
-        guard let raw = sender.representedObject as? String,
-              let operation = AIOperation(rawValue: raw) else { return }
-        // Từ menu bar: frontmost hiện là ứng dụng người dùng vừa dùng (menu bar
-        // không đổi frontmostApplication), nên dùng luôn.
-        let previousApp = NSWorkspace.shared.frontmostApplication
-        AIAssistantService.run(operation, previousApp: previousApp)
-    }
 
     /// Popup chọn thao tác AI tại con trỏ (gọi từ phím tắt ⌃⇧G). Bôi đen chữ ->
     /// ⌃⇧G -> chọn thao tác -> kết quả hiện trong popup.
     func showAIMenu() {
-        // Ghi nhớ app đang focus: NSMenu popup sẽ kích hoạt app ta, cần trả focus
-        // về app cũ trước khi đọc vùng chọn.
+        // Ghi nhớ app đang focus: mở menu sẽ kích hoạt app ta, cần trả focus về
+        // app cũ trước khi đọc vùng chọn.
         let previousApp = NSWorkspace.shared.frontmostApplication
 
-        let menu = NSMenu()
-        let header = NSMenuItem(title: "Trợ lý AI", action: nil, keyEquivalent: "")
-        header.isEnabled = false
-        menu.addItem(header)
-        menu.addItem(.separator())
-
-        // Trò chuyện nhiều lượt (mở cửa sổ chat, có lịch sử) — không cần bôi đen.
-        let chatItem = NSMenuItem(
-            title: "Trò chuyện với AI…", action: #selector(openAIChat), keyEquivalent: ""
-        )
-        chatItem.target = self
-        menu.addItem(chatItem)
-        menu.addItem(.separator())
-
-        let selHeader = NSMenuItem(title: "Trên chữ đã chọn:", action: nil, keyEquivalent: "")
-        selHeader.isEnabled = false
-        menu.addItem(selHeader)
+        var items: [PixelMenuItem] = [
+            .item("Trò chuyện với AI…", symbol: "bubble.left.and.bubble.right") { [weak self] in
+                self?.openAIChat()
+            },
+            .separator,
+            .header("Trên chữ đã chọn:"),
+        ]
         for operation in AIOperation.allCases {
-            let mi = NSMenuItem(
-                title: operation.title,
-                action: #selector(runAIOperationFromPopup(_:)),
-                keyEquivalent: ""
-            )
-            mi.target = self
-            mi.representedObject = AIPopupContext(operation: operation, previousApp: previousApp)
-            menu.addItem(mi)
+            items.append(.item(operation.title, symbol: operation.symbol) {
+                AIAssistantService.run(operation, previousApp: previousApp)
+            })
         }
-
-        let mouse = NSEvent.mouseLocation
-        let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
-        let height = screen?.frame.height ?? 0
-        let point = NSPoint(x: mouse.x, y: height - mouse.y)
-        menu.popUp(positioning: nil, at: point, in: nil)
-    }
-
-    /// Bọc thao tác + app trước để trả focus rồi mới đọc vùng chọn & gọi AI.
-    private final class AIPopupContext: NSObject {
-        let operation: AIOperation
-        let previousApp: NSRunningApplication?
-        init(operation: AIOperation, previousApp: NSRunningApplication?) {
-            self.operation = operation
-            self.previousApp = previousApp
-        }
-    }
-
-    @objc private func runAIOperationFromPopup(_ sender: NSMenuItem) {
-        guard let ctx = sender.representedObject as? AIPopupContext else { return }
-        AIAssistantService.run(ctx.operation, previousApp: ctx.previousApp)
+        PixelMenuWindow.present(title: "Trợ lý AI", items: items)
     }
 
     /// Mở cửa sổ TRÒ CHUYỆN với AI (nhiều lượt, lưu lịch sử). Gọi từ menu bar hoặc
