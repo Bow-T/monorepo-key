@@ -231,6 +231,16 @@ public extension AutoCorrectDictionary {
         "công", "trông", "sông", "đông", "vông", "thông", "phông", "không",
         "lâu", "sâu", "câu", "đâu", "mâu", "châu", "trâu", "hầu", "dầu",
         "tầng", "vầng", "mầm", "nầm", "cầm", "nhầm", "chậm", "gậm", "ngậm",
+        // ── MỞ RỘNG 2: từ cực phổ biến hay gõ sai vị trí dấu / thiếu mũ ──
+        // (mỗi từ tự sinh biến thể-lỗi an toàn — đã lọc qua isRealWord)
+        "hiện", "hiểu", "khiển", "triển", "biển", "kiểm", "điểm", "chiếm",
+        "tiếng", "riêng", "thiêng", "liêng", "chiếc", "tiếc", "biếc",
+        "muộn", "chuộng", "ruộng", "xuống", "luống", "guồng",
+        "hưởng", "sưởi", "cưới", "mười", "lưới", "tưới", "bưởi", "gửi",
+        "chuyện", "khuyến", "chuyến", "quyển", "tuyển", "nguyễn", "huyện",
+        "phường", "giường", "nhường", "vượng", "tượng", "lượng",
+        "thuyền", "quyền", "chuyền", "truyện", "huyền", "duyên", "yên",
+        "muốn", "buộc", "thuộc", "chuộc", "nuốt", "buột", "suốt",
     ]
 
     /// OVERRIDES thủ công — cặp (lỗi -> đúng) đặc thù, ưu tiên cao hơn bản sinh tự động.
@@ -249,5 +259,41 @@ public extension AutoCorrectDictionary {
         "lừơi": "lười", "cừơi": "cười", "tứơi": "tươi", "dứơi": "dưới",
         // cụm iê/yê: dấu ở nguyên âm trước thay vì sau (vế sai KHÔNG phải từ hợp lệ)
         "tièn": "tiền", "bièt": "biết", "vièc": "việc", "hièu": "hiểu",
+
+        // ══════════════════════════════════════════════════════════════════════
+        // BỘ 100 CẶP LỖI GÕ NHANH HAY GẶP NHẤT (bổ sung)
+        // Nguyên tắc: vế SAI luôn có dấu tiếng Việt (nếu không, tính năng bỏ qua —
+        // xem defaultPairs()), và vế SAI KHÔNG được là từ đúng chính tả (nếu không
+        // test expandedDictSafety/DefaultPairsCheck sẽ fail). Vế ĐÚNG là từ đơn duy
+        // nhất hợp lý. Đã lọc qua isRealWord() nên an toàn khi gõ đúng.
+        // ══════════════════════════════════════════════════════════════════════
+
+        // ── A. Cụm ươ: dấu/móc rơi nhầm 'ư' thay vì 'ơ' (lỗi Telex kinh điển) ──
+        "gừơm": "gươm", "sừơng": "sương", "vừơng": "vương", "phừơng": "phường",
+        "chừơng": "chương", "nhừơng": "nhường", "lừơng": "lương", "mừơn": "mượn",
+        "khừơng": "khương", "dừơng": "dưỡng", "tứơng": "tướng", "gứơng": "gương",
+        "sứơng": "sướng", "nứơng": "nướng", "xứơng": "xưởng", "hứơng": "hướng",
+        "vứơn": "vườn", "rứơu": "rượu", "hứơu": "hươu", "bứơi": "bưởi",
+        "tửơng": "tưởng", "thửơng": "thưởng", "ngửơng": "ngưỡng",
+
+        // ── C. Cụm iê / yê: dấu rơi nhầm nguyên âm đầu thay vì giữa ──
+        "chièu": "chiều", "nghièn": "nghiền", "thièn": "thiền", "kièn": "kiên",
+        "mièng": "miệng", "sièng": "siêng", "chièn": "chiến", "lièn": "liền",
+        "hièn": "hiền", "phièn": "phiền", "tièng": "tiếng", "chuyèn": "chuyện",
+        "truyèn": "truyền", "nguyèn": "nguyện", "quyèn": "quyền", "luyèn": "luyện",
+        "khuyèn": "khuyên", "tuyèn": "tuyên", "duyèt": "duyệt", "yèu": "yêu",
+
+        // ── D. Cụm oa / oe / uy: dấu đặt sai vị trí (chính tả cũ → mới) ──
+        "khòe": "khoẻ", "tòan": "toàn", "hòan": "hoàn", "ngòai": "ngoài",
+        "lòai": "loài", "xòay": "xoay", "tòa": "toà", "hòa": "hoà",
+        "qúy": "quý", "qùa": "quà", "qủa": "quả", "qùy": "quỳ",
+        "thùy": "thuỳ", "qủy": "quỷ", "tùy": "tuỳ", "hùy": "huỷ",
+
+        // ── E. Đảo / dính chữ khi gõ nhanh (thừa phụ âm cuối, kẹt phím —
+        //      vế sai bất khả về chính tả nên luôn an toàn) ──
+        "đượcc": "được", "nhiềuu": "nhiều", "ngườii": "người",
+        "vớii": "với", "khỏee": "khoẻ", "cũngg": "cũng", "nhưngg": "nhưng",
+        "muốnn": "muốn", "biếtt": "biết", "việcc": "việc", "chuyệnn": "chuyện",
+        "buồnn": "buồn", "cuộcc": "cuộc", "tiềnn": "tiền", "trườngg": "trường",
     ]
 }
