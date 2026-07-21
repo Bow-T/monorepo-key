@@ -157,6 +157,20 @@ struct AutoCorrectDictionaryTests {
         // Biến thể tự sinh từ 'words' mới (dấu rơi nhầm nguyên âm).
         #expect(dict.lookup("nghĩ") == nil)   // từ ĐÚNG -> không sửa
     }
+
+    @Test("Tách đôi mũ ra hai bên (rooif→roiof→roìo) -> sửa về từ đúng")
+    func splitCircumflexMisspelling() {
+        let dict = AutoCorrectDictionary.shared
+        // Lỗi kinh điển người dùng nêu: gõ nhanh "rồi" ra "roìo".
+        #expect(dict.lookup("roìo") == "rồi")
+        // Cùng mẫu (ô + i): 'rồi' nằm trong words -> biến thể tự sinh cũng phủ.
+        #expect(dict.lookup("moìo") == "mồi")
+        #expect(dict.lookup("hoìo") == "hồi")
+        // 'tôi' ∈ words -> "toìo" phải map về "tôi" (qua splitCircumflexVariants).
+        #expect(dict.lookup("toìo") == "tôi" || dict.lookup("toìo") == "tồi")
+        // An toàn: "rồi" đúng KHÔNG bị đụng.
+        #expect(dict.lookup("rồi") == nil)
+    }
 }
 
 @Suite("Auto-correct: an toàn")
@@ -196,6 +210,15 @@ struct AutoCorrectEngineIntegration {
         #expect(typeAC("tieengs ") == "tiếng ")     // gõ đúng -> giữ nguyên
         #expect(typeAC("nguowif ") == "người ")     // gõ đúng -> giữ nguyên
         #expect(typeAC("dduwocj ") == "được ")      // gõ đúng -> giữ nguyên
+    }
+
+    @Test("Gõ nhanh 'roiof' (đảo phím của rooif) -> 'rồi'")
+    func fixesSplitCircumflex() {
+        // Người dùng định gõ "rồi" (rooif) nhưng gõ nhanh thành "roiof" -> "roìo".
+        // Chốt bằng space -> auto-correct sửa thành "rồi ".
+        #expect(typeAC("roiof ") == "rồi ")
+        // Gõ ĐÚNG vẫn ra đúng, không bị đụng.
+        #expect(typeAC("rooif ") == "rồi ")
     }
 
     @Test("Tắt autoCorrect (mặc định) -> không sửa")

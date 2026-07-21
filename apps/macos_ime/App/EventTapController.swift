@@ -193,6 +193,23 @@ final class EventTapController {
         return false
     }
 
+    /// Cửa sổ này có phải MÁY ẢO / SIMULATOR không (Parallels/VMware/UTM/VirtualBox/
+    /// iOS Simulator)? Các app này xử lý sự kiện phím khác app native: gõ cả cụm Unicode
+    /// một lần quá nhanh -> guest OS rớt ký tự (mất chữ). Với chúng ta gõ TỪNG KÝ TỰ +
+    /// delay + precomposed (xem `eraseStrategy` -> `.stepByStep`). Khớp theo TIỀN TỐ
+    /// bundle id để bắt mọi biến thể phiên bản.
+    private func isVirtualMachineApp(_ bundleID: String) -> Bool {
+        let prefixes = [
+            "com.parallels.",              // Parallels Desktop
+            "com.vmware.fusion",           // VMware Fusion
+            "com.utmapp.",                 // UTM (App Store)
+            "com.osy.UTM",                 // UTM (bản ngoài App Store)
+            "org.virtualbox.",             // VirtualBox
+            "com.apple.iphonesimulator",   // iOS Simulator (Xcode)
+        ]
+        return prefixes.contains { bundleID.hasPrefix($0) }
+    }
+
     private func isBrowserApp(_ bundleID: String) -> Bool {
         let browsers: Set<String> = [
             "com.apple.Safari",
@@ -290,6 +307,8 @@ final class EventTapController {
     }
 
     /// Chọn CÁCH XOÁ ký tự cũ khi gõ thay, theo ô nhập liệu đang focus:
+    ///   • MÁY ẢO / SIMULATOR -> gõ lại TỪNG KÝ TỰ + delay (chống rớt ký tự khi gõ cả
+    ///     cụm quá nhanh). Ưu tiên tuyệt đối.
     ///   • Spotlight đang hiện -> bôi đen bằng Shift+Mũi-tên-trái (ký tự rỗng không
     ///     phá được highlight Spotlight, dễ để lại vệt).
     ///   • App khác + bật fix + không bị loại trừ -> phá highlight bằng ký tự rỗng
@@ -297,6 +316,11 @@ final class EventTapController {
     ///   • Còn lại -> Backspace thường.
     /// Mẹo này vô hại ở ô THƯỜNG vì chỉ kích hoạt khi CÓ ký tự cần xoá (backspaces>0).
     private func eraseStrategy() -> KeyOutput.EraseStrategy {
+        // MÁY ẢO: kiểm TRƯỚC mọi thứ (kể cả `fixBrowserDoubleType`, không liên quan) —
+        // đây là điều kiện gõ được-hay-không, không phải một mẹo tuỳ chọn.
+        if let app = frontAppBundleID, isVirtualMachineApp(app) {
+            return .stepByStep
+        }
         guard fixBrowserDoubleType else { return .backspace }
         if isSpotlightVisible() { return .selectionReplacement }
         if let app = frontAppBundleID {
@@ -798,7 +822,8 @@ final class EventTapController {
         // reset thì lần gõ kế tiếp sẽ gửi Backspace dựa trên committedLength cũ và
         // xoá nhầm ký tự ở vị trí mới. Cho event đi qua nguyên vẹn.
         if type == .leftMouseDown || type == .rightMouseDown || type == .otherMouseDown {
-            cancelShortcut = true
+            // Chỉ huỷ toggle khi đang "lên đạn" (xem lý do ở nhánh keyDown bên dưới).
+            if bothDown { cancelShortcut = true }
             resetSyllable()
             emojiMatcher.reset()
             return Unmanaged.passUnretained(event)
@@ -813,11 +838,15 @@ final class EventTapController {
             return Unmanaged.passUnretained(event)
         }
 
-        // PHÍM TẮT bật/tắt: ⌃⌥ Space (Control+Option+Space). Kiểm tra TRƯỚC cổng
-        // `enabled` để vẫn bật lại được khi bộ gõ đang tắt. Nuốt phím (trả nil) để
-        // Space không lọt vào ứng dụng.
+        // PHÍM TẮT chỉ-modifier (mặc định ⌃⇧): kiểm TRƯỚC cổng `enabled` để vẫn bật lại
+        // được khi bộ gõ đang tắt. Nuốt phím (trả nil) khi khớp.
         if type == .keyDown {
-            cancelShortcut = true
+            // HUỶ toggle chỉ-modifier CHỈ KHI đang "lên đạn" (đã giữ đúng ⌃⇧) mà user gõ
+            // thêm một phím THẬT — đó là tổ hợp ⌃⇧+phím, không phải ý định toggle.
+            // KHÔNG huỷ vô điều kiện: trước đây `cancelShortcut = true` chạy mọi keyDown
+            // và chỉ reset khi nhả HẾT modifier -> sau khi gõ chữ thường, ⌃⇧ toggle chết
+            // cho tới khi nhả sạch tay (bug "không bật/tắt được sau khi gõ").
+            if bothDown { cancelShortcut = true }
             if clipboardHistoryEnabled && isClipboardHistoryHotkey(event) {
                 // Kích hoạt hiển thị lịch sử clipboard trên main thread
                 DispatchQueue.main.async {

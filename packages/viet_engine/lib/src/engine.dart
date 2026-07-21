@@ -325,91 +325,153 @@ class VietEngine {
       case '0':
         return _setTone(Tone.none);
       case '6':
-        return _setMarkOrToggle(Mark.circumflex); // â/ê/ô
+        return _setMarkOnNucleus(Mark.circumflex) ??
+            _DiacriticResult.notDiacritic; // â/ê/ô
       case '7':
         return _applyHornVNI(); // VNI horn: ơ/ư/ươ/ưa
       case '8':
-        return _setMarkOrToggle(Mark.breve); // ă
+        return _setMarkOnNucleus(Mark.breve) ??
+            _DiacriticResult.notDiacritic; // ă
       case '9':
-        return _setMarkOrToggle(Mark.dyet); // đ
+        return _setMarkOrToggle(Mark.dyet); // đ (áp lên 'd' đầu)
       default:
         return _DiacriticResult.notDiacritic;
     }
   }
 
-  /// w trong Telex: a->ă, o->ơ, u->ư.
-  /// Trường hợp đặc biệt: cụm "uo" -> "ươ" — móc CẢ HAI nguyên âm,
-  /// vì "ươ" là một nguyên âm đôi (nướng, được, thương).
-  _DiacriticResult _applyHornOrBreve() {
-    final n = _syllable.letters.length;
+  /// Tìm CỤM NGUYÊN ÂM (nucleus) của âm tiết: quét NGƯỢC từ cuối, BỎ QUA phụ âm
+  /// cuối, lấy run nguyên âm liền nhau. Trả (start, end) chỉ số trong `letters`,
+  /// hoặc null nếu âm tiết chưa có nguyên âm.
+  ///
+  /// Đây là chìa khoá để dấu/biến âm đặt ĐÚNG kể cả khi người dùng gõ phím-dấu SAU
+  /// phụ âm cuối — vd "đuoc" rồi gõ "w" vẫn móc được cụm "uo" -> "đươc". (Port từ
+  /// Engine.swift `vowelNucleusRange`.)
+  (int start, int end)? _vowelNucleusRange() {
+    final letters = _syllable.letters;
+    var end = letters.length - 1;
+    while (end >= 0 && !_isVietVowel(letters[end].base)) {
+      end--;
+    }
+    if (end < 0) return null;
+    var start = end;
+    while (start - 1 >= 0 && _isVietVowel(letters[start - 1].base)) {
+      start--;
+    }
+    return (start, end);
+  }
 
-    // "uo" + w -> "ươ": áp móc cho cả u và o.
-    if (n >= 2 &&
-        _syllable.letters[n - 2].base.toLowerCase() == 'u' &&
-        _syllable.letters[n - 1].base.toLowerCase() == 'o') {
-      final isPartOfQu = n >= 3 && _syllable.letters[n - 3].base.toLowerCase() == 'q';
-      if (!isPartOfQu) {
-        final isThuo = n >= 4 &&
-            _syllable.letters[n - 4].base.toLowerCase() == 't' &&
-            _syllable.letters[n - 3].base.toLowerCase() == 'h';
+  /// w trong Telex: a->ă, o->ơ, u->ư (móc/trăng đặt lên CỤM NGUYÊN ÂM, không chỉ chữ
+  /// cuối — nên "đuoc"+w -> "đươc"). Nếu không áp được -> gõ tắt -> 'ư'.
+  _DiacriticResult _applyHornOrBreve() {
+    return _applyHornToNucleus(allowBreve: true) ?? _insertStandaloneW();
+  }
+
+  /// 7 trong VNI: o->ơ, u->ư (KHÔNG có trăng 'ă', KHÔNG có gõ tắt ->'ư').
+  _DiacriticResult _applyHornVNI() {
+    return _applyHornToNucleus(allowBreve: false) ?? _DiacriticResult.notDiacritic;
+  }
+
+  /// LÕI CHUNG đặt móc (và tuỳ chọn trăng) lên CỤM NGUYÊN ÂM. Trả null nếu không áp
+  /// được (caller tự fallback). Tìm cụm qua [_vowelNucleusRange] nên hoạt động kể cả
+  /// khi phím-móc gõ SAU phụ âm cuối. (Port từ Engine.swift `applyHornToNucleus`.)
+  _DiacriticResult? _applyHornToNucleus({required bool allowBreve}) {
+    final range = _vowelNucleusRange();
+    if (range == null) return null;
+    final vStart = range.$1;
+    final vEnd = range.$2;
+    final letters = _syllable.letters;
+
+    // Cụm 2+ nguyên âm bắt đầu bằng "uo"/"ua" -> luật ươ/ưa riêng.
+    if (vEnd - vStart >= 1) {
+      final a = letters[vStart].base.toLowerCase();
+      final b = letters[vStart + 1].base.toLowerCase();
+      final isPartOfQu =
+          vStart >= 1 && letters[vStart - 1].base.toLowerCase() == 'q';
+
+      // "uo" -> "ươ": móc CẢ HAI nguyên âm.
+      if (a == 'u' && b == 'o' && !isPartOfQu) {
+        // "thuo": LUÔN móc 'o', và móc THÊM 'u' nếu có phụ âm cuối sau cụm
+        // (thương). Không có phụ âm cuối thì chỉ móc 'o' (thuở).
+        final isThuo = vStart >= 2 &&
+            letters[vStart - 2].base.toLowerCase() == 't' &&
+            letters[vStart - 1].base.toLowerCase() == 'h';
         if (isThuo) {
-          if (_syllable.letters[n - 1].mark == Mark.horn) {
-            _syllable.letters[n - 1].mark = Mark.none;
+          if (letters[vStart + 1].mark == Mark.horn) {
+            letters[vStart].mark = Mark.none;
+            letters[vStart + 1].mark = Mark.none;
             return _DiacriticResult.cancelled;
           }
-          _syllable.letters[n - 1].mark = Mark.horn;
+          letters[vStart + 1].mark = Mark.horn;
+          final hasFinal = vEnd < letters.length - 1;
+          if (hasFinal) letters[vStart].mark = Mark.horn;
           return _DiacriticResult.applied;
         }
-
-        // Gõ lại w khi đã là "ươ" -> bỏ móc cả hai.
-        if (_syllable.letters[n - 1].mark == Mark.horn &&
-            _syllable.letters[n - 2].mark == Mark.horn) {
-          _syllable.letters[n - 2].mark = Mark.none;
-          _syllable.letters[n - 1].mark = Mark.none;
+        // Gõ lại khi đã là "ươ" -> bỏ móc cả hai.
+        if (letters[vStart].mark == Mark.horn &&
+            letters[vStart + 1].mark == Mark.horn) {
+          letters[vStart].mark = Mark.none;
+          letters[vStart + 1].mark = Mark.none;
           return _DiacriticResult.cancelled;
         }
-        _syllable.letters[n - 2].mark = Mark.horn;
-        _syllable.letters[n - 1].mark = Mark.horn;
+        letters[vStart].mark = Mark.horn;
+        letters[vStart + 1].mark = Mark.horn;
+        return _DiacriticResult.applied;
+      }
+
+      // "ua" -> "ưa": chỉ móc 'u'.
+      if (a == 'u' && b == 'a' && !isPartOfQu) {
+        if (letters[vStart].mark == Mark.horn) {
+          letters[vStart].mark = Mark.none;
+          return _DiacriticResult.cancelled;
+        }
+        letters[vStart].mark = Mark.horn;
         return _DiacriticResult.applied;
       }
     }
 
-    // "ua" + w -> "ưa": áp móc cho u.
-    if (n >= 2 &&
-        _syllable.letters[n - 2].base.toLowerCase() == 'u' &&
-        _syllable.letters[n - 1].base.toLowerCase() == 'a') {
-      final isPartOfQu = n >= 3 && _syllable.letters[n - 3].base.toLowerCase() == 'q';
-      if (!isPartOfQu) {
-        // Gõ lại w khi đã là "ưa" -> bỏ móc u.
-        if (_syllable.letters[n - 2].mark == Mark.horn) {
-          _syllable.letters[n - 2].mark = Mark.none;
-          return _DiacriticResult.cancelled;
-        }
-        _syllable.letters[n - 2].mark = Mark.horn;
-        return _DiacriticResult.applied;
+    // Một nguyên âm trong cụm nhận móc/trăng: ưu tiên nguyên âm hợp GẦN CUỐI cụm.
+    // BỎ 'u' sau 'q' (và 'i' sau 'g') — bán phụ âm của phụ âm đầu.
+    var targetStart = vStart;
+    if (vStart >= 1) {
+      final semivowel = letters[vStart].base.toLowerCase();
+      final prev = letters[vStart - 1].base.toLowerCase();
+      if ((semivowel == 'u' && prev == 'q') ||
+          (semivowel == 'i' && prev == 'g')) {
+        targetStart = vStart + 1;
       }
     }
-
-    if (!_syllable.isEmpty) {
-      final last = _syllable.letters.last;
-      switch (last.base.toLowerCase()) {
-        case 'a':
-          return last.mark == Mark.breve
-              ? _removeMarkOnLast()
-              : _setMarkOnLast(Mark.breve);
-        case 'o':
-        case 'u':
-          return last.mark == Mark.horn
-              ? _removeMarkOnLast()
-              : _setMarkOnLast(Mark.horn);
-      }
+    if (targetStart > vEnd) return null;
+    final target = _hornBreveTargetIndex(targetStart, vEnd, allowBreve);
+    if (target == null) return null;
+    switch (letters[target].base.toLowerCase()) {
+      case 'a':
+        return letters[target].mark == Mark.breve
+            ? _removeMarkAt(target)
+            : _setMarkAt(Mark.breve, target);
+      case 'o':
+      case 'u':
+        return letters[target].mark == Mark.horn
+            ? _removeMarkAt(target)
+            : _setMarkAt(Mark.horn, target);
+      default:
+        return null;
     }
+  }
 
-    // GÕ TẮT 'w' -> 'ư': khi 'w' không áp được móc/trăng cho chữ cuối (chữ cuối
-    // không phải a/o/u, hoặc âm tiết chưa có nguyên âm), 'w' tự tạo nguyên âm 'ư'.
-    // Ví dụ: "tw"->tư, "mwf"->mừ, "w"->ư. Đây là cách gõ tắt Telex phổ biến.
-    // Ngoại lệ: nếu chữ NGAY TRƯỚC thuộc nhóm không-ghép-được thì 'w' giữ thô.
-    // (Nhóm chữ không ghép 'w': w e y f j k z.)
+  /// Chọn nguyên âm trong cụm [start..end] nhận móc/trăng đơn: nguyên âm phù hợp GẦN
+  /// CUỐI cụm nhất. Telex (allowBreve) nhận a/o/u; VNI '7' chỉ nhận o/u.
+  int? _hornBreveTargetIndex(int start, int end, bool allowBreve) {
+    final allowed = allowBreve ? 'aou' : 'ou';
+    for (var i = end; i >= start; i--) {
+      if (allowed.contains(_syllable.letters[i].base.toLowerCase())) return i;
+    }
+    return null;
+  }
+
+  /// GÕ TẮT 'w' -> 'ư': khi 'w' không áp được móc/trăng cho cụm nguyên âm (âm tiết
+  /// chưa có nguyên âm, hoặc nguyên âm cuối không phải a/o/u), 'w' tự tạo 'ư'.
+  /// Ngoại lệ: nếu chữ NGAY TRƯỚC thuộc nhóm không-ghép-được thì 'w' giữ thô.
+  _DiacriticResult _insertStandaloneW() {
     if (!_syllable.isEmpty) {
       final prev = _syllable.letters.last.base.toLowerCase();
       const standaloneWBad = {'w', 'e', 'y', 'f', 'j', 'k', 'z'};
@@ -417,74 +479,56 @@ class VietEngine {
         return _DiacriticResult.notDiacritic;
       }
     }
-    // Chèn 'u' mang móc -> hiển thị 'ư'.
     _syllable.letters.add(_Letter('u', mark: Mark.horn));
     return _DiacriticResult.applied;
   }
 
-  /// 7 trong VNI: o->ơ, u->ư.
-  /// Trường hợp đặc biệt: cụm "uo" -> "ươ" — móc CẢ HAI nguyên âm,
-  /// và cụm "ua" -> "ưa" — móc u.
-  _DiacriticResult _applyHornVNI() {
-    final n = _syllable.letters.length;
+  /// Đặt MŨ (â/ê/ô) hoặc TRĂNG (ă) của VNI lên CỤM NGUYÊN ÂM (không chỉ chữ cuối) —
+  /// nên gõ "6"/"8" SAU phụ âm cuối / sau bán nguyên âm 'i' vẫn đúng: "muoi"+6 ->
+  /// "muôi", "tang"+8 -> "tăng". Toggle: chữ đích đã mang đúng mark -> gỡ + số thô.
+  /// Trả null nếu cụm không có nguyên âm nào áp được. (Port từ `setMarkOnNucleus`.)
+  _DiacriticResult? _setMarkOnNucleus(Mark mark) {
+    final range = _vowelNucleusRange();
+    if (range == null) return null;
+    final letters = _syllable.letters;
+    var start = range.$1;
+    final end = range.$2;
 
-    // "uo" + 7 -> "ươ": áp móc cho cả u và o.
-    if (n >= 2 &&
-        _syllable.letters[n - 2].base.toLowerCase() == 'u' &&
-        _syllable.letters[n - 1].base.toLowerCase() == 'o') {
-      final isPartOfQu = n >= 3 && _syllable.letters[n - 3].base.toLowerCase() == 'q';
-      if (!isPartOfQu) {
-        final isThuo = n >= 4 &&
-            _syllable.letters[n - 4].base.toLowerCase() == 't' &&
-            _syllable.letters[n - 3].base.toLowerCase() == 'h';
-        if (isThuo) {
-          if (_syllable.letters[n - 1].mark == Mark.horn) {
-            _syllable.letters[n - 1].mark = Mark.none;
-            return _DiacriticResult.cancelled;
-          }
-          _syllable.letters[n - 1].mark = Mark.horn;
-          return _DiacriticResult.applied;
-        }
-
-        if (_syllable.letters[n - 1].mark == Mark.horn &&
-            _syllable.letters[n - 2].mark == Mark.horn) {
-          _syllable.letters[n - 2].mark = Mark.none;
-          _syllable.letters[n - 1].mark = Mark.none;
-          return _DiacriticResult.cancelled;
-        }
-        _syllable.letters[n - 2].mark = Mark.horn;
-        _syllable.letters[n - 1].mark = Mark.horn;
-        return _DiacriticResult.applied;
+    if (start >= 1) {
+      final semivowel = letters[start].base.toLowerCase();
+      final prev = letters[start - 1].base.toLowerCase();
+      if ((semivowel == 'u' && prev == 'q') ||
+          (semivowel == 'i' && prev == 'g')) {
+        start = start + 1;
       }
     }
+    if (start > end) return null;
 
-    // "ua" + 7 -> "ưa": áp móc cho u.
-    if (n >= 2 &&
-        _syllable.letters[n - 2].base.toLowerCase() == 'u' &&
-        _syllable.letters[n - 1].base.toLowerCase() == 'a') {
-      final isPartOfQu = n >= 3 && _syllable.letters[n - 3].base.toLowerCase() == 'q';
-      if (!isPartOfQu) {
-        if (_syllable.letters[n - 2].mark == Mark.horn) {
-          _syllable.letters[n - 2].mark = Mark.none;
-          return _DiacriticResult.cancelled;
-        }
-        _syllable.letters[n - 2].mark = Mark.horn;
-        return _DiacriticResult.applied;
-      }
+    for (var i = end; i >= start; i--) {
+      if (composeViet(letters[i].base, mark, Tone.none) == null) continue;
+      if (letters[i].mark == mark) return _removeMarkAt(i);
+      return _setMarkAt(mark, i);
     }
+    return null;
+  }
 
-    if (!_syllable.isEmpty) {
-      final last = _syllable.letters.last;
-      switch (last.base.toLowerCase()) {
-        case 'o':
-        case 'u':
-          return last.mark == Mark.horn
-              ? _removeMarkOnLast()
-              : _setMarkOnLast(Mark.horn);
-      }
+  /// Đặt dấu biến âm cho chữ tại VỊ TRÍ bất kỳ (không chỉ chữ cuối).
+  _DiacriticResult _setMarkAt(Mark mark, int index) {
+    final letters = _syllable.letters;
+    if (index < 0 || index >= letters.length) return _DiacriticResult.notDiacritic;
+    if (composeViet(letters[index].base, mark, Tone.none) == null) {
+      return _DiacriticResult.notDiacritic;
     }
+    letters[index].mark = mark;
+    return _DiacriticResult.applied;
+  }
 
-    return _DiacriticResult.notDiacritic;
+  /// Gỡ dấu biến âm tại vị trí bất kỳ (gõ lại trùng móc/trăng để hủy).
+  _DiacriticResult _removeMarkAt(int index) {
+    final letters = _syllable.letters;
+    if (index < 0 || index >= letters.length) return _DiacriticResult.notDiacritic;
+    letters[index].mark = Mark.none;
+    return _DiacriticResult.cancelled;
   }
 
   // MARK: - Thao tác trên âm tiết

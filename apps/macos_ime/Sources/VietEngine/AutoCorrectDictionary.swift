@@ -147,6 +147,38 @@ public final class AutoCorrectDictionary: Sendable {
         //     rồi vẫn giữ dấu thanh ở đó.
         out.formUnion(missingMarkVariants(dec))
 
+        // (c) TÁCH ĐÔI NGUYÊN ÂM MŨ RA HAI BÊN NGUYÊN ÂM KẾ (lỗi gõ nhanh đảo phím):
+        //     mũ â/ê/ô gõ bằng chữ đôi (aa/ee/oo). Khi gõ vội "rooif" (=rồi), một chữ
+        //     'o' nhảy sang bên kia 'i' -> "roiof" -> engine dựng "roìo". Sinh biến thể
+        //     đó để tự phủ lỗi này cho mọi từ dạng ô/ê/â + nguyên âm (rồi, mồi, tồi...).
+        out.formUnion(splitCircumflexVariants(dec))
+
+        return out
+    }
+
+    /// Biến thể "tách đôi nguyên âm mũ ra hai bên nguyên âm kế": mô phỏng lỗi gõ nhanh
+    /// khi mũ được gõ bằng chữ đôi (aa→â, ee→ê, oo→ô). Điều kiện: một nguyên âm mang
+    /// MŨ (circumflex) đứng NGAY TRƯỚC một nguyên âm khác. Ta "tách" nó: bỏ mũ, và chèn
+    /// một bản sao (không mũ, không thanh) NGAY SAU nguyên âm kế; dấu thanh giữ ở chữ
+    /// gốc (giờ là nguyên âm giữa của cụm 3). Ví dụ: "rồi" (r-ô-i) -> "roìo".
+    private static func splitCircumflexVariants(_ dec: Decomposed) -> Set<String> {
+        var out: Set<String> = []
+        for i in dec.letters.indices {
+            guard dec.letters[i].mark == .circumflex else { continue }
+            // Phải có nguyên âm KHÁC đứng ngay sau (ô+i, ô+a, ê+u...).
+            let j = i + 1
+            guard j < dec.letters.count, isVowelLetter(dec.letters[j].base),
+                  Character(dec.letters[j].base.lowercased()) != Character(dec.letters[i].base.lowercased())
+            else { continue }
+            var copy = dec
+            copy.letters[i].mark = .none                       // gỡ mũ ở chữ gốc
+            // Chèn bản sao thô của chữ gốc ngay sau nguyên âm kế (j).
+            copy.letters.insert(Decomposed.Letter(base: dec.letters[i].base, mark: .none),
+                                at: j + 1)
+            // Dấu thanh vẫn thuộc chữ gốc (chỉ số i không đổi vì chèn ở sau).
+            let variant = copy.render(toneAt: i)
+            out.insert(variant.lowercased().precomposedStringWithCanonicalMapping)
+        }
         return out
     }
 
@@ -295,5 +327,13 @@ public extension AutoCorrectDictionary {
         "vớii": "với", "khỏee": "khoẻ", "cũngg": "cũng", "nhưngg": "nhưng",
         "muốnn": "muốn", "biếtt": "biết", "việcc": "việc", "chuyệnn": "chuyện",
         "buồnn": "buồn", "cuộcc": "cuộc", "tiềnn": "tiền", "trườngg": "trường",
+
+        // ── F. TÁCH ĐÔI MŨ RA HAI BÊN (gõ nhanh "rooif"→"roiof"→"roìo"): mũ ô/ê/â
+        //      gõ bằng chữ đôi, một nửa nhảy sang bên kia nguyên âm kế. Bộ sinh biến
+        //      thể (splitCircumflexVariants) đã phủ phần lớn; thêm tay các từ hay gặp
+        //      để chắc chắn kể cả khi từ gốc không nằm trong `words`.
+        "roìo": "rồi", "moìo": "mồi", "toìo": "tồi", "coìo": "côi",
+        "boìo": "bồi", "doìo": "dồi", "noìo": "nồi", "hoìo": "hồi",
+        "goìo": "gồi", "loìo": "lồi", "xoìo": "xồi",
     ]
 }

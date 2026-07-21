@@ -442,10 +442,10 @@ public final class VietEngine {
         case "4": return setTone(.tilde)
         case "5": return setTone(.dot)
         case "0": return setTone(.none)
-        case "6": return setMarkOrToggle(.circumflex)  // â/ê/ô
-        case "7": return applyHornVNI()                // VNI horn: ơ/ư/ươ/ưa
-        case "8": return setMarkOrToggle(.breve)       // ă
-        case "9": return setMarkOrToggle(.dyet)        // đ
+        case "6": return setMarkOnNucleus(.circumflex) ?? .notDiacritic  // â/ê/ô
+        case "7": return applyHornVNI()                                  // VNI horn: ơ/ư/ươ/ưa
+        case "8": return setMarkOnNucleus(.breve) ?? .notDiacritic       // ă
+        case "9": return setMarkOrToggle(.dyet)                          // đ (áp lên 'd' đầu)
         default:  return .notDiacritic
         }
     }
@@ -575,6 +575,42 @@ public final class VietEngine {
         let allowed = allowBreve ? "aou" : "ou"
         for i in stride(from: range.upperBound, through: range.lowerBound, by: -1) {
             if allowed.contains(Character(syllable.letters[i].base.lowercased())) { return i }
+        }
+        return nil
+    }
+
+    /// Đặt MŨ (â/ê/ô) hoặc TRĂNG (ă) của VNI lên CỤM NGUYÊN ÂM (tìm qua
+    /// `vowelNucleusRange`), KHÔNG chỉ chữ cuối — nên gõ "6"/"8" SAU phụ âm cuối hoặc
+    /// sau bán nguyên âm 'i' vẫn đúng: "muoi"+6 -> "muôi", "buoi"+6 -> "buôi",
+    /// "tang"+8 -> "tăng", "man"+8 -> "măn". (Trước đây chỉ áp lên chữ cuối nên
+    /// "muoi6" -> "muoi6" vì 'i' không nhận được mũ.)
+    ///
+    /// Chọn nguyên âm NHẬN ĐƯỢC mark, ưu tiên GẦN CUỐI cụm nhất (khớp cách chọn của
+    /// móc/trăng ở `hornBreveTargetIndex`). Toggle: nếu chữ đích ĐÃ mang đúng mark ->
+    /// gỡ ra + trả số thô (giống `setMarkOrToggle` cũ). Trả nil nếu cụm không có
+    /// nguyên âm nào áp được (caller -> `.notDiacritic`, số hiện thô).
+    private func setMarkOnNucleus(_ mark: Mark) -> DiacriticResult? {
+        guard let (vStart, vEnd) = vowelNucleusRange() else { return nil }
+
+        // Bỏ 'u' sau 'q' / 'i' sau 'g' — bán phụ âm của phụ âm đầu, không nhận mũ/trăng.
+        var start = vStart
+        if vStart >= 1 {
+            let semivowel = Character(syllable.letters[vStart].base.lowercased())
+            let prev = Character(syllable.letters[vStart - 1].base.lowercased())
+            if (semivowel == "u" && prev == "q") || (semivowel == "i" && prev == "g") {
+                start = vStart + 1
+            }
+        }
+        guard start <= vEnd else { return nil }
+
+        // Tìm nguyên âm GẦN CUỐI cụm nhận được mark (compose != nil).
+        for i in stride(from: vEnd, through: start, by: -1) {
+            let base = syllable.letters[i].base
+            guard VietTable.compose(base: base, mark: mark, tone: .none) != nil else { continue }
+            if syllable.letters[i].mark == mark {
+                return removeMark(at: i)   // gõ lại số-biến-âm trùng -> gỡ + số thô
+            }
+            return setMark(mark, at: i)
         }
         return nil
     }

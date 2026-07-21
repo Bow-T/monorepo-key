@@ -49,11 +49,15 @@ enum KeyOutput {
         event.tapPostEvent(proxy)
     }
 
-    /// Giới hạn AN TOÀN số Backspace gửi trong một lần thay thế. Một âm tiết tiếng
-    /// Việt dài nhất (vd "nghiêng") chỉ ~7 ký tự hiển thị, nên không bao giờ cần xoá
-    /// nhiều hơn ngần này. Nếu state engine lỗi và trả số lớn bất thường, clamp lại
-    /// để KHÔNG xoá nhầm hàng loạt ký tự người dùng đã gõ.
-    static let maxBackspaces = 15
+    /// Giới hạn AN TOÀN số Backspace gửi trong một lần thay thế — chỉ là BACKSTOP
+    /// chống state engine lỗi trả số khổng lồ (xoá nhầm hàng loạt ký tự người dùng).
+    ///
+    /// LƯU Ý: ngưỡng KHÔNG được đặt theo "âm tiết dài nhất ~7 ký tự". Các đường BUNG
+    /// (gõ tắt emoji `:sparkling_heart:` = 17, macro chữ ký, tự-khôi-phục tiếng Anh từ
+    /// dài, undo-sau-bung) xoá cả TỪ KHOÁ / CẢ TỪ đã hiển thị, thường 16–40+ ký tự.
+    /// Ngưỡng 15 cũ CẮT NHẦM các đường này -> bung ra rác (":sparkling_heảt:"). Nâng lên
+    /// 200 để phủ mọi nội dung bung thực tế mà vẫn chặn được giá trị rác khổng lồ.
+    static let maxBackspaces = 200
 
     /// Gửi `count` phím Backspace để xoá ký tự thô đã hiện.
     static func sendBackspaces(_ count: Int, proxy: CGEventTapProxy) {
@@ -152,6 +156,43 @@ enum KeyOutput {
         post(up, proxy: proxy)
     }
 
+    /// Độ trễ mặc định (micro giây) giữa các ký tự khi gõ TỪNG BƯỚC vào MÁY ẢO.
+    /// ~1.2ms đủ để guest OS trong VM/Simulator nhận kịp từng ký tự mà không cảm thấy
+    /// chậm khi gõ. Xem `sendStringStepByStep`.
+    static let stepByStepDelayUs: useconds_t = 1200
+
+    /// Gõ chuỗi Unicode TỪNG KÝ TỰ MỘT (mỗi ký tự một cặp event down/up), có delay nhỏ
+    /// giữa các ký tự — dùng cho cửa sổ MÁY ẢO / SIMULATOR.
+    ///
+    /// VÌ SAO? VM (Parallels/VMware/UTM/VirtualBox) và iOS Simulator xử lý sự kiện phím
+    /// khác app native: gõ CẢ CỤM Unicode trong MỘT event tới quá nhanh -> guest OS
+    /// không nhận kịp -> RỚT KÝ TỰ (mất chữ). Chia thành từng ký tự + delay cho guest
+    /// tiêu hoá lần lượt. Đồng thời chuẩn hoá về PRECOMPOSED (NFC) vì nhiều guest không
+    /// dựng lại được ký tự tổ hợp (base + combining) rời rạc.
+    static func sendStringStepByStep(_ text: String, proxy: CGEventTapProxy,
+                                     interDelayUs: useconds_t = stepByStepDelayUs) {
+        guard !text.isEmpty else { return }
+        // NFC: gộp "e" + ◌̂ + ◌́ -> "ế" (một scalar) để guest không phải tự dựng.
+        let utf16 = Array(text.precomposedStringWithCanonicalMapping.utf16)
+        let source = makeSource()
+
+        for (i, unit) in utf16.enumerated() {
+            var ch = unit
+            let down = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true)
+            down?.flags = []
+            down?.keyboardSetUnicodeString(stringLength: 1, unicodeString: &ch)
+            post(down, proxy: proxy)
+            let up = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
+            up?.flags = []
+            up?.keyboardSetUnicodeString(stringLength: 1, unicodeString: &ch)
+            post(up, proxy: proxy)
+
+            if interDelayUs > 0 && i < utf16.count - 1 {
+                usleep(interDelayUs)
+            }
+        }
+    }
+
     /// Cách "xoá ký tự cũ" khi gõ thay — tuỳ ô nhập liệu.
     enum EraseStrategy {
         /// Backspace thường. Dùng cho hầu hết app.
@@ -162,6 +203,10 @@ enum KeyOutput {
         /// Spotlight: bôi đen bằng Shift+Mũi-tên-trái rồi ghi đè. Backspace/ký-tự-rỗng
         /// đều không đáng tin ở Spotlight; bôi-đen-ghi-đè né cả hai.
         case selectionReplacement
+        /// MÁY ẢO / SIMULATOR (Parallels/VMware/UTM/VirtualBox/iOS Simulator): xoá bằng
+        /// Backspace thường rồi gõ lại chuỗi mới TỪNG KÝ TỰ + delay (precomposed/NFC).
+        /// Gõ cả cụm một lần tới VM quá nhanh -> guest rớt ký tự (mất chữ).
+        case stepByStep
     }
 
     /// Sử dụng Accessibility API (AXUIElement) để trực tiếp thay thế nội dung trong ô nhập liệu đang focus.
@@ -259,6 +304,14 @@ enum KeyOutput {
                 return
             }
             // Fallback nếu AX API thất bại
+        }
+
+        // MÁY ẢO: xoá bằng Backspace thường rồi gõ lại chuỗi mới TỪNG KÝ TỰ + delay
+        // (gõ cả cụm một lần tới VM quá nhanh -> guest rớt ký tự). Xem sendStringStepByStep.
+        if erase == .stepByStep {
+            sendBackspaces(backspaces, proxy: proxy)
+            sendStringStepByStep(text, proxy: proxy)
+            return
         }
 
         switch erase {
