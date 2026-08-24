@@ -20,6 +20,12 @@ final class ScreenshotController {
 
     private var overlayWindow: NSWindow?
 
+    /// Đang chụp dở (await ScreenCaptureKit) — `overlayWindow` vẫn nil trong lúc
+    /// này, nên thiếu cờ này thì nhấn phím tắt lần nữa (hoặc auto-repeat khi giữ
+    /// phím) sẽ mở phiên chụp THỨ HAI: overlay cũ mất tham chiếu, ở lại màn hình
+    /// dưới dạng một "màn đen" không đóng được.
+    private var isPreparing = false
+
     /// App đang focus TRƯỚC khi mở overlay — để trả lại focus khi đóng (giống
     /// hành vi của cửa sổ lịch sử Clipboard) mà vẫn hiện được toast của ta.
     private var previousApp: NSRunningApplication?
@@ -30,6 +36,7 @@ final class ScreenshotController {
             dismiss()
             return
         }
+        guard !isPreparing else { return }
 
         guard Permissions.hasScreenRecording() else {
             // Prompt hệ thống chỉ hiện MỘT LẦN cho mỗi app; kèm alert hướng dẫn
@@ -50,7 +57,9 @@ final class ScreenshotController {
         let frame = screen.frame
         let scale = screen.backingScaleFactor
 
+        isPreparing = true
         Task { @MainActor [weak self] in
+            defer { self?.isPreparing = false }
             do {
                 let image = try await Self.captureDisplay(
                     displayID,
@@ -84,7 +93,16 @@ final class ScreenshotController {
         config.height = pixelHeight
         config.showsCursor = false
         config.captureResolution = .best
-        let filter = SCContentFilter(display: display, excludingWindows: [])
+        // Loại trừ lớp phủ của CHÍNH ta (overlay phiên trước + toast): WindowServer
+        // có thể chưa kịp bỏ chúng khỏi màn hình khi ta chụp -> ảnh dính nền đen.
+        // Chỉ lọc theo LEVEL cao (>= statusBar): các cửa sổ nội dung của app (chat
+        // AI, lịch sử clipboard… đều .floating) vẫn chụp được bình thường.
+        let overlayLayer = Int(CGWindowLevelForKey(.statusWindow))
+        let bundleID = Bundle.main.bundleIdentifier
+        let ownOverlays = content.windows.filter {
+            $0.owningApplication?.bundleIdentifier == bundleID && $0.windowLayer >= overlayLayer
+        }
+        let filter = SCContentFilter(display: display, excludingWindows: ownOverlays)
         return try await SCScreenshotManager.captureImage(
             contentFilter: filter, configuration: config
         )
@@ -93,6 +111,7 @@ final class ScreenshotController {
     // MARK: - Overlay
 
     private func presentOverlay(screenshot: CGImage, screenFrame: NSRect) {
+        teardownOverlay()  // không bao giờ để 2 overlay chồng nhau
         previousApp = NSWorkspace.shared.frontmostApplication
         // Tỉ lệ pixel-ảnh / điểm-view tính từ ảnh THẬT trả về (không giả định 2x).
         let imageScale = CGFloat(screenshot.width) / screenFrame.width
@@ -120,15 +139,24 @@ final class ScreenshotController {
         window.hasShadow = false
         window.backgroundColor = .black
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        window.isReleasedWhenClosed = false  // ARC giữ vòng đời -> close() an toàn
 
         overlayWindow = window
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    private func dismiss() {
-        overlayWindow?.orderOut(nil)
+    /// Gỡ hẳn overlay khỏi màn hình. `close()` (không chỉ `orderOut`) để chắc chắn
+    /// WindowServer bỏ cửa sổ, kể cả khi còn tham chiếu nào đó giữ nó lại.
+    private func teardownOverlay() {
+        guard let window = overlayWindow else { return }
         overlayWindow = nil
+        window.orderOut(nil)
+        window.close()
+    }
+
+    private func dismiss() {
+        teardownOverlay()
         // Trả focus cho app trước đó (không NSApp.hide để toast còn hiện được).
         if let app = previousApp, app.isTerminated == false {
             app.activate()
@@ -158,8 +186,7 @@ final class ScreenshotController {
             // Mở cửa sổ bôi-đen-chữ kiểu Preview (Live Text) trên vùng vừa chọn —
             // trỏ vào chữ để copy đúng đoạn cần. Đóng overlay nhưng GIỮ previousApp
             // để trả focus sau khi cửa sổ Live Text đóng.
-            overlayWindow?.orderOut(nil)
-            overlayWindow = nil
+            teardownOverlay()
             let prev = previousApp
             previousApp = nil
             let image = NSImage(cgImage: crop, size: selection.size)
@@ -187,8 +214,7 @@ final class ScreenshotController {
             let image = ScreenshotRenderer.render(
                 crop: crop, annotations: annotations, selection: selection, scale: scale
             )
-            overlayWindow?.orderOut(nil)
-            overlayWindow = nil
+            teardownOverlay()
             guard let image else { return }
             saveToFile(image)
         }

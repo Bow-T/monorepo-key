@@ -847,46 +847,64 @@ final class EventTapController {
             // và chỉ reset khi nhả HẾT modifier -> sau khi gõ chữ thường, ⌃⇧ toggle chết
             // cho tới khi nhả sạch tay (bug "không bật/tắt được sau khi gõ").
             if bothDown { cancelShortcut = true }
+            // GIỮ PHÍM -> macOS bắn keyDown lặp lại. Với các phím tắt MỞ CỬA SỔ, mỗi
+            // lần lặp là một phiên mới (overlay chụp màn hình chồng nhau, cửa sổ mở
+            // đi mở lại). Vẫn NUỐT phím ở nhánh lặp, chỉ bỏ qua hành động.
+            let autorepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
             if clipboardHistoryEnabled && isClipboardHistoryHotkey(event) {
                 // Kích hoạt hiển thị lịch sử clipboard trên main thread
-                DispatchQueue.main.async {
-                    AppDelegate.shared?.showClipboardHistory()
+                if !autorepeat {
+                    DispatchQueue.main.async {
+                        AppDelegate.shared?.showClipboardHistory()
+                    }
                 }
                 return nil
             }
             if screenshotEnabled && isScreenshotHotkey(event) {
-                DispatchQueue.main.async {
-                    AppDelegate.shared?.startScreenshotCapture()
+                if !autorepeat {
+                    DispatchQueue.main.async {
+                        AppDelegate.shared?.startScreenshotCapture()
+                    }
                 }
                 return nil
             }
             if textTransformEnabled && isTextTransformHotkey(event) {
-                DispatchQueue.main.async {
-                    AppDelegate.shared?.showTextTransformMenu()
+                if !autorepeat {
+                    DispatchQueue.main.async {
+                        AppDelegate.shared?.showTextTransformMenu()
+                    }
                 }
                 return nil
             }
             if symbolPickerEnabled && isSymbolPickerHotkey(event) {
-                DispatchQueue.main.async {
-                    AppDelegate.shared?.showSymbolPicker()
+                if !autorepeat {
+                    DispatchQueue.main.async {
+                        AppDelegate.shared?.showSymbolPicker()
+                    }
                 }
                 return nil
             }
             if stickerPickerEnabled && isStickerPickerHotkey(event) {
-                DispatchQueue.main.async {
-                    AppDelegate.shared?.showStickerPicker()
+                if !autorepeat {
+                    DispatchQueue.main.async {
+                        AppDelegate.shared?.showStickerPicker()
+                    }
                 }
                 return nil
             }
             if countSelectionEnabled && isCountSelectionHotkey(event) {
-                DispatchQueue.main.async {
-                    AppDelegate.shared?.countSelection()
+                if !autorepeat {
+                    DispatchQueue.main.async {
+                        AppDelegate.shared?.countSelection()
+                    }
                 }
                 return nil
             }
             if aiEnabled && isAIHotkey(event) {
-                DispatchQueue.main.async {
-                    AppDelegate.shared?.showAIMenu()
+                if !autorepeat {
+                    DispatchQueue.main.async {
+                        AppDelegate.shared?.showAIMenu()
+                    }
                 }
                 return nil
             }
