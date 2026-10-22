@@ -110,29 +110,13 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void _save(BowSettings next) => _service.update(next);
 
-  /// Phím tắt của các tính năng ĐANG BẬT, theo tên tính năng — để chặn gán trùng.
-  /// Tính năng tắt thì phím tắt không chạy, không giữ chỗ (vd AI tắt sẵn giữ ⌃⇧G).
-  static Map<String, Hotkey> _hotkeysOf(BowSettings s) => {
-        'bật/tắt bộ gõ': s.hotkey,
-        if (s.clipboardHistoryEnabled) 'lịch sử clipboard': s.clipboardHistoryHotkey,
-        if (s.screenshotEnabled) 'chụp màn hình': s.screenshotHotkey,
-        if (s.textTransformEnabled) 'biến đổi chữ': s.textTransformHotkey,
-        if (s.symbolPickerEnabled) 'bảng ký tự': s.symbolPickerHotkey,
-        if (s.stickerPickerEnabled) 'bảng sticker': s.stickerPickerHotkey,
-        if (s.countSelectionEnabled) 'đếm từ & ký tự': s.countSelectionHotkey,
-        if (s.aiEnabled) 'trợ lý AI': s.aiHotkey,
-      };
-
   /// Lưu phím tắt `hk` của `feature`, trừ khi tổ hợp đã thuộc tính năng khác —
   /// bộ gõ chỉ chạy được MỘT trong hai, nên chặn và báo thay vì lưu.
   void _saveHotkey(String feature, Hotkey hk, BowSettings next) {
-    for (final e in _hotkeysOf(s).entries) {
-      if (e.key != feature &&
-          e.value.keyCode == hk.keyCode &&
-          setEquals(e.value.modifiers, hk.modifiers)) {
-        _showSnack('${hk.display} đã dùng cho ${e.key}. Chọn tổ hợp khác.', error: true);
-        return;
-      }
+    final owner = hotkeyConflict(s, feature, hk);
+    if (owner != null) {
+      _showSnack('${hk.display} đã dùng cho $owner. Chọn tổ hợp khác.', error: true);
+      return;
     }
     _save(next);
   }
@@ -3008,6 +2992,30 @@ class _SettingsPageState extends State<SettingsPage> {
 
 /// Cách nhập danh sách cặp tự-sửa khi máy đã có sẵn cặp: gộp thêm hay ghi đè.
 enum _ImportMode { merge, replace }
+
+/// Tên tính năng ĐANG BẬT khác `feature` đã giữ tổ hợp `hk`, hoặc null nếu trống.
+/// Tính năng tắt thì phím tắt không chạy (Swift cũng bỏ qua), nên không giữ chỗ —
+/// vd AI tắt sẵn mà vẫn giữ ⌃⇧G.
+String? hotkeyConflict(BowSettings s, String feature, Hotkey hk) {
+  final taken = <String, Hotkey>{
+    'bật/tắt bộ gõ': s.hotkey,
+    if (s.clipboardHistoryEnabled) 'lịch sử clipboard': s.clipboardHistoryHotkey,
+    if (s.screenshotEnabled) 'chụp màn hình': s.screenshotHotkey,
+    if (s.textTransformEnabled) 'biến đổi chữ': s.textTransformHotkey,
+    if (s.symbolPickerEnabled) 'bảng ký tự': s.symbolPickerHotkey,
+    if (s.stickerPickerEnabled) 'bảng sticker': s.stickerPickerHotkey,
+    if (s.countSelectionEnabled) 'đếm từ & ký tự': s.countSelectionHotkey,
+    if (s.aiEnabled) 'trợ lý AI': s.aiHotkey,
+  };
+  for (final e in taken.entries) {
+    if (e.key != feature &&
+        e.value.keyCode == hk.keyCode &&
+        setEquals(e.value.modifiers, hk.modifiers)) {
+      return e.key;
+    }
+  }
+  return null;
+}
 
 /// Thêm (`originalKey` null) hoặc thay mục có khoá `originalKey` bằng `item`, bỏ
 /// mục KHÁC trùng khoá. Tìm theo KHOÁ chứ không theo chỉ số: danh sách có thể đổi
