@@ -89,8 +89,52 @@ final class ClipboardManager {
         timer = nil
     }
 
+    /// Đang tự ⌘C để đọc vùng chọn -> timer không được ghi nội dung tạm vào lịch sử
+    /// (vòng chờ ⌘C bơm run loop nên timer vẫn chạy giữa chừng).
+    private var readingSelection = false
+
+    /// ⌘C để lấy vùng chọn ở app phía trước (chờ tối đa ~0.4s). Nội dung tạm và lần
+    /// khôi phục KHÔNG vào lịch sử. Không chép được gì thì trả clipboard cũ (chỉ khi
+    /// ⌘C thực sự đã đổi nó); chép được thì trả lại khi `restoreAfter`.
+    func copySelection(restoreAfter: Bool) -> String? {
+        let pasteboard = NSPasteboard.general
+        // Sao lưu toàn bộ item hiện có để khôi phục nguyên vẹn (kể cả ảnh/định dạng).
+        let savedItems = pasteboard.pasteboardItems?.compactMap { item -> NSPasteboardItem? in
+            let copy = NSPasteboardItem()
+            var wroteAny = false
+            for type in item.types {
+                if let data = item.data(forType: type) { copy.setData(data, forType: type); wroteAny = true }
+            }
+            return wroteAny ? copy : nil
+        } ?? []
+
+        readingSelection = true
+        defer {
+            readingSelection = false
+            lastChangeCount = pasteboard.changeCount
+        }
+        let before = pasteboard.changeCount
+        KeyOutput.simulateCopy()
+
+        // ⌘C là bất đồng bộ — chờ pasteboard đổi rồi mới đọc.
+        let deadline = Date().addingTimeInterval(0.4)
+        while pasteboard.changeCount == before, Date() < deadline {
+            // Bơm run loop để không chặn cứng main thread trong lúc chờ.
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.02))
+        }
+        let changed = pasteboard.changeCount != before
+        let text = changed ? pasteboard.string(forType: .string) : nil
+
+        let ok = !(text?.isEmpty ?? true)
+        if changed, !savedItems.isEmpty, !ok || restoreAfter {
+            pasteboard.clearContents()
+            pasteboard.writeObjects(savedItems)
+        }
+        return ok ? text : nil
+    }
+
     func checkClipboard() {
-        guard enabled else { return }
+        guard enabled, !readingSelection else { return }
         let pasteboard = NSPasteboard.general
         guard pasteboard.changeCount != lastChangeCount else { return }
         lastChangeCount = pasteboard.changeCount
@@ -176,6 +220,19 @@ final class ClipboardManager {
 
     /// Lưu ảnh ra file PNG rồi thêm một mục ảnh vào đầu lịch sử.
     private func addImageEntry(_ pngData: Data, appName: String) {
+        // Ảnh đã có (dán lại sticker, chọn lại từ lịch sử…) -> đẩy mục cũ lên đầu thay
+        // vì thêm một bản PNG nữa. So kích thước file trước để khỏi đọc mọi ảnh.
+        if let index = history.firstIndex(where: { entry in
+            guard let path = entry.imagePath,
+                  let size = (try? FileManager.default.attributesOfItem(atPath: path))?[.size] as? Int,
+                  size == pngData.count else { return false }
+            return FileManager.default.contents(atPath: path) == pngData
+        }) {
+            history.insert(history.remove(at: index), at: 0)
+            saveHistory()
+            return
+        }
+
         let id = UUID()
         let dir = imagesDir
         if !FileManager.default.fileExists(atPath: dir.path) {

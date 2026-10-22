@@ -23,6 +23,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let screenshotController = ScreenshotController()
     private var statusItem: NSStatusItem?
     private var healthCheckTimer: Timer?
+    /// Đếm nhịp health check (1 nhịp = 1 giây) — việc nặng chỉ chạy mỗi 5 nhịp.
+    private var healthTick = 0
     /// Timer riêng ghi status.json mỗi ~1s cho app Cài đặt (Flutter) đọc — để UI
     /// phản ánh quyền gần như tức thì mà KHÔNG cần app Flutter tự gọi TCC API
     /// (việc đó khiến nó xuất hiện trong danh sách quyền như một entry thừa).
@@ -94,19 +96,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             promptForPermissions()
         }
 
-        // Health check mỗi 5 giây: nếu macOS tắt tap thì bật lại.
+        // Health check mỗi 1 GIÂY: nếu macOS tắt tap thì bật lại.
+        //
+        // VÌ SAO 1s (trước là 5s)? Khi macOS tắt tap thì không còn phím nào tới nữa,
+        // nên `checkAndRecover()` bên trong tap không tự cứu được — timer này là
+        // đường phục hồi DUY NHẤT. 5 giây "chết phím tắt" là quá lâu để người dùng
+        // không nhận ra. Riêng phần việc nặng (ghi file, dựng lại menu) vẫn giữ nhịp
+        // 5 giây qua `healthTick` để không tốn I/O.
+        //
         // Nếu chưa start (do lúc mở thiếu quyền) mà nay đã đủ quyền -> start luôn.
         // Timer callback chạy nonisolated -> nhảy về MainActor để chạm UI/tap.
-        healthCheckTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+        healthCheckTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
-                // Cập nhật trạng thái quyền cho app UI (Flutter) đọc.
-                Permissions.writeStatus()
-                // Flush thống kê gõ ra đĩa nếu có thay đổi (nhẹ, bỏ qua nếu không).
-                StatsTracker.shared.flush()
+                self.healthTick += 1
+                let heavyTick = self.healthTick % 5 == 0
+                if heavyTick {
+                    // Cập nhật trạng thái quyền cho app UI (Flutter) đọc.
+                    Permissions.writeStatus()
+                    // Flush thống kê gõ ra đĩa nếu có thay đổi (nhẹ, bỏ qua nếu không).
+                    StatsTracker.shared.flush()
+                    // Lần chạy đầu settings.json chưa có lúc startWatching -> thử lại.
+                    if !self.settingsStore.isWatching { self.settingsStore.startWatching() }
+                }
                 if self.tapController.isStarted {
                     self.tapController.ensureAlive()
-                } else if Permissions.ready() {
+                } else if heavyTick, Permissions.ready() {
                     if self.launchedWithoutPermissions {
                         NSLog("[App] Phát hiện quyền mới được cấp. Tự động relaunch để macOS áp dụng quyền.")
                         self.relaunchApp()
@@ -114,7 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         self.startTyping()
                     }
                 }
-                self.updateMenuTitle()
+                if heavyTick { self.updateMenuTitle() }
             }
         }
 
@@ -294,7 +309,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .separator,
             .item("Mở Cài đặt…", symbol: "gearshape") { [weak self] in self?.openSettingsApp() },
             .separator,
-            .header("ⓘ  Về Bow Go v1.0.8"),
+            .header("ⓘ  Về Bow Go v1.0.10"),
             .item("⏻  Thoát Bow Go", symbol: "power") { [weak self] in self?.quit() },
         ]
 

@@ -104,13 +104,19 @@ enum AIAssistantService {
         request.timeoutInterval = 60
         for (k, v) in spec.headers { request.setValue(v, forHTTPHeaderField: k) }
 
+        // Popup dùng chung: hỏi A rồi hỏi B, A trả về SAU thì không được đè kết quả B.
+        latestRequest += 1
+        let requestID = latestRequest
         let task = URLSession.shared.dataTask(with: request) { data, response, error in
             DispatchQueue.main.async {
+                guard requestID == latestRequest else { return }
                 handleResponse(provider: provider, data: data, response: response, error: error)
             }
         }
         task.resume()
     }
+
+    private static var latestRequest = 0
 
     /// Xử lý phản hồi mạng trên main thread: cập nhật popup với kết quả/lỗi.
     private static func handleResponse(
@@ -145,7 +151,7 @@ enum AIAssistantService {
 
     private static func readSelection() -> String? {
         if let ax = readSelectionViaAX() { return ax }
-        return readSelectionViaClipboard()
+        return ClipboardManager.shared.copySelection(restoreAfter: true)
     }
 
     private static func readSelectionViaAX() -> String? {
@@ -164,37 +170,5 @@ enum AIAssistantService {
             return nil
         }
         return selected
-    }
-
-    /// Fallback: ⌘C lấy vùng chọn, đọc, rồi KHÔI PHỤC clipboard nguyên vẹn.
-    private static func readSelectionViaClipboard() -> String? {
-        let pasteboard = NSPasteboard.general
-        let savedItems = pasteboard.pasteboardItems?.compactMap { item -> NSPasteboardItem? in
-            let copy = NSPasteboardItem()
-            var wroteAny = false
-            for type in item.types {
-                if let data = item.data(forType: type) { copy.setData(data, forType: type); wroteAny = true }
-            }
-            return wroteAny ? copy : nil
-        } ?? []
-
-        let before = pasteboard.changeCount
-        KeyOutput.simulateCopy()
-
-        let deadline = Date().addingTimeInterval(0.4)
-        var text: String? = nil
-        while Date() < deadline {
-            if pasteboard.changeCount != before {
-                text = pasteboard.string(forType: .string)
-                break
-            }
-            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.02))
-        }
-
-        if !savedItems.isEmpty {
-            pasteboard.clearContents()
-            pasteboard.writeObjects(savedItems)
-        }
-        return text
     }
 }

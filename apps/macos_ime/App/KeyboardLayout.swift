@@ -17,7 +17,13 @@ import Foundation
 final class KeyboardLayout {
 
     /// Dữ liệu layout hiện hành ('uchr' của TIS). Cache lại, làm mới khi đổi nguồn.
-    private var layoutData: Data?
+    /// Ghi trên main (thông báo đổi nguồn), đọc trên thread tap -> qua `lock`.
+    private var _layoutData: Data?
+    private let lock = NSLock()
+    private var layoutData: Data? {
+        get { lock.lock(); defer { lock.unlock() }; return _layoutData }
+        set { lock.lock(); _layoutData = newValue; lock.unlock() }
+    }
 
     /// Trạng thái phím "dead key" giữa các lần gọi (vd '^' chờ nguyên âm). Bộ gõ
     /// tiếng Việt xử lý dấu riêng nên ta KHÔNG muốn macOS gộp dead key — reset mỗi lần.

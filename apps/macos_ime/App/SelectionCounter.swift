@@ -28,7 +28,7 @@ enum SelectionCounter {
     /// Đọc text đang chọn: AX trước, fallback clipboard (có khôi phục). Nil nếu không được.
     private static func readSelection() -> String? {
         if let ax = readSelectionViaAX() { return ax }
-        return readSelectionViaClipboard()
+        return ClipboardManager.shared.copySelection(restoreAfter: true)
     }
 
     private static func readSelectionViaAX() -> String? {
@@ -47,39 +47,5 @@ enum SelectionCounter {
             return nil
         }
         return selected
-    }
-
-    /// Fallback: ⌘C lấy vùng chọn, đọc, rồi KHÔI PHỤC clipboard nguyên vẹn.
-    private static func readSelectionViaClipboard() -> String? {
-        let pasteboard = NSPasteboard.general
-        let savedItems = pasteboard.pasteboardItems?.compactMap { item -> NSPasteboardItem? in
-            let copy = NSPasteboardItem()
-            var wroteAny = false
-            for type in item.types {
-                if let data = item.data(forType: type) { copy.setData(data, forType: type); wroteAny = true }
-            }
-            return wroteAny ? copy : nil
-        } ?? []
-
-        let before = pasteboard.changeCount
-        KeyOutput.simulateCopy()
-
-        // ⌘C bất đồng bộ — chờ pasteboard đổi (tối đa ~0.4s).
-        let deadline = Date().addingTimeInterval(0.4)
-        var text: String? = nil
-        while Date() < deadline {
-            if pasteboard.changeCount != before {
-                text = pasteboard.string(forType: .string)
-                break
-            }
-            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.02))
-        }
-
-        // Khôi phục clipboard cũ.
-        if !savedItems.isEmpty {
-            pasteboard.clearContents()
-            pasteboard.writeObjects(savedItems)
-        }
-        return text
     }
 }

@@ -12,9 +12,16 @@
 //      ĐỒNG BỘ qua proxy của tap (KeyOutput.replace) — không dùng async.
 //      Nếu không: để phím đi qua bình thường.
 //
-// Dùng .cgSessionEventTap + .headInsertEventTap, gắn vào main run loop,
-// và CƠ CHẾ PHỤC HỒI khi macOS tự tắt tap (timeout / user input) — phần này cực
-// quan trọng, thiếu nó app sẽ "đột nhiên ngừng gõ được".
+// Dùng .cgSessionEventTap + .headInsertEventTap, gắn vào runloop của MỘT THREAD
+// RIÊNG (KHÔNG phải main), và CƠ CHẾ PHỤC HỒI khi macOS tự tắt tap (timeout / user
+// input) — phần này cực quan trọng, thiếu nó app sẽ "đột nhiên ngừng gõ được".
+//
+// VÌ SAO THREAD RIÊNG? macOS đo thời gian callback trả lời: quá ngưỡng là nó TẮT
+// TAP. Khi tap nằm trên main runloop, mọi việc UI (mở menu, overlay chụp màn hình,
+// gọi AI, timer ghi file, poll clipboard) đều chen vào giữa đường nhận phím -> phím
+// và phím tắt "lag, bấm không ăn". Hệ quả kéo theo: mọi thứ chậm/không đoán trước
+// được (AX query, CGWindowList, AXIsProcessTrusted) đều bị đẩy ra khỏi callback,
+// chạy ngầm và chỉ để lại một phép ĐỌC BIẾN trên đường phím (xem `BackgroundFlag`).
 //
 // VÌ SAO POST ĐỒNG BỘ QUA PROXY (không DispatchQueue.async)? Post bất đồng bộ qua
 // .cghidEventTap khiến sự kiện gõ-thay tới SAU phím người dùng đã được ứng dụng xử
@@ -29,19 +36,42 @@ import Foundation
 import ApplicationServices
 import VietEngine
 
-final class EventTapController {
+/// `@unchecked Sendable`: callback tap chạy trên THREAD RIÊNG còn cấu hình/menu đến
+/// từ main, nên trạng thái được bảo vệ thủ công bằng `stateLock` (xem bên dưới).
+final class EventTapController: @unchecked Sendable {
 
     private var engine = VietEngine(method: .telex, toneStyle: .modern)
     private var tap: CFMachPort?
-    var isStarted: Bool { tap != nil }
+    var isStarted: Bool { locked { tap != nil } }
     private var runLoopSource: CFRunLoopSource?
+
+    /// THREAD RIÊNG chạy event tap — KHÔNG dùng main runloop nữa.
+    ///
+    /// VÌ SAO? Trước đây tap gắn vào `CFRunLoopGetMain()`, nên MỌI việc trên main
+    /// (mở menu/overlay chụp màn hình, gọi AI, timer ghi status.json, poll clipboard)
+    /// đều xen vào giữa đường nhận phím. Callback trễ quá ngưỡng là macOS TỰ TẮT TAP
+    /// -> phím tắt bấm không ăn cho tới lần phục hồi kế tiếp. Thread này chỉ làm đúng
+    /// một việc: nhận phím và trả lời ngay, nên UI có bận cũng không bóp cổ bộ gõ.
+    private var tapThread: Thread?
+    private var tapRunLoop: CFRunLoop?
+
+    /// Khoá bảo vệ TOÀN BỘ trạng thái. Trước đây tap chạy trên main nên mọi thứ tuần
+    /// tự tự nhiên; giờ callback ở thread riêng còn cấu hình/menu tới từ main -> phải
+    /// khoá. RECURSIVE vì `handle()` (đã giữ khoá) còn gọi tiếp các hàm tự khoá.
+    private let stateLock = NSRecursiveLock()
+
+    /// Chạy một khối dưới `stateLock`.
+    private func locked<T>(_ body: () -> T) -> T {
+        stateLock.lock(); defer { stateLock.unlock() }
+        return body()
+    }
 
     // Dịch keyCode -> ký tự theo layout bàn phím THẬT (Dvorak/Colemak/AZERTY...).
     private let layout = KeyboardLayout()
 
     // Cấu hình hiện hành (đồng bộ từ file settings do app UI ghi).
     private var method: InputMethod = .telex
-    var currentMethod: InputMethod { method }
+    var currentMethod: InputMethod { locked { method } }
     private var toneStyle: VietEngine.ToneStyle = .modern
 
     // Phím tắt bật/tắt — tuỳ biến từ UI. Mặc định ⌃⇧ (Control+Shift, chỉ-modifier).
@@ -104,13 +134,31 @@ final class EventTapController {
     private var flagsMonitor: Any?
     private var lastModifiers: Set<String> = []
 
-    /// Bật/tắt bộ gõ (người dùng toggle qua menu / phím tắt).
-    var enabled = true
+    /// Tap có THẬT SỰ nhận được flagsChanged trên máy này không?
+    ///
+    /// Nếu CÓ thì bỏ hẳn NSEvent monitor: nó đi qua main runloop nên LUÔN tới trễ
+    /// hơn tap, và khi main bận nó phát lại nguyên chuỗi modifier mà tap đã xử lý
+    /// xong -> toggle lần thứ hai -> bật rồi tắt ngay, người dùng thấy "ấn không ăn".
+    /// Monitor chỉ còn là đường dự phòng cho máy mà tap không được feed flagsChanged.
+    private var tapDeliversFlags = false
+
+    /// Bật/tắt bộ gõ (người dùng toggle qua menu / phím tắt). Đọc/ghi từ main lẫn
+    /// thread tap nên đi qua khoá.
+    private var _enabled = true
+    var enabled: Bool {
+        get { locked { _enabled } }
+        set { locked { _enabled = newValue } }
+    }
 
     /// Báo cho AppDelegate khi phím tắt bật/tắt bộ gõ -> cập nhật icon menu bar.
     /// `@MainActor @Sendable` để gửi an toàn từ callback tap (ngoài isolation) về
     /// main mà không bị Swift 6 cảnh báo data race.
-    var onToggle: (@MainActor @Sendable (Bool) -> Void)?
+    /// Gán từ main, đọc từ thread tap -> đi qua khoá như mọi trạng thái khác.
+    private var _onToggle: (@MainActor @Sendable (Bool) -> Void)?
+    var onToggle: (@MainActor @Sendable (Bool) -> Void)? {
+        get { locked { _onToggle } }
+        set { locked { _onToggle = newValue } }
+    }
 
     /// "Số ký tự thô đã hiện trên màn hình cho âm tiết hiện tại" — để biết phải
     /// gửi bao nhiêu Backspace khi gõ thay. Mỗi phím chữ ta nuốt+thay sẽ +1.
@@ -143,20 +191,33 @@ final class EventTapController {
     /// Bundle id các app KHÔNG áp mẹo (người dùng cấu hình nếu app hiếm chèn nhầm).
     private var browserFixExcludedApps: Set<String> = []
 
-    // Cache cho check address bar để tránh AX tree query liên tục tốn CPU
-    private var cachedAddressBarResult = false
-    private var lastAddressBarCheckTime: CFTimeInterval = 0
-    private let addressBarCacheTTL: CFTimeInterval = 0.5
-    private var eventCounter: UInt = 0
+    /// "Ô đang focus có phải address bar không" — LÀM MỚI NGẦM (xem `BackgroundFlag`).
+    /// AX query xuyên tiến trình có thể mất hàng chục ms khi app đích bận
+    /// (Chrome/Electron), tuyệt đối không được chạy trong callback tap.
+    private let addressBarFlag = BackgroundFlag(ttl: 0.5) {
+        EventTapController.queryFocusedElementIsAddressBar()
+    }
+
+    /// Chờ app đích xử lý xong click/⌘L (đổi focus) rồi mới dò lại ô focus.
+    private static let focusSettleDelay: TimeInterval = 0.08
+
+    /// Lần cuối kiểm tra tap còn sống (xem `checkAndRecover`).
+    private var lastAliveCheckAt: CFTimeInterval = 0
 
     /// Hộp chứa bundle id app đang focus — CACHE, cập nhật qua NSWorkspace
     /// notification trên main (KHÔNG query trong callback tap vì tốn kém, chạy mỗi
-    /// phím). Đọc từ callback (ngoài main) chỉ là đọc một String Optional -> chấp nhận
-    /// được, cùng lắm trễ một lần đổi app (không ảnh hưởng đúng/sai gõ, chỉ ảnh hưởng
-    /// có-phá-highlight-hay-không). Dùng CLASS BOX `@unchecked Sendable` để observer
+    /// phím). Cùng lắm trễ một lần đổi app (không ảnh hưởng đúng/sai gõ, chỉ ảnh
+    /// hưởng có-phá-highlight-hay-không). Dùng CLASS BOX `@unchecked Sendable` để observer
     /// `@Sendable` capture được box (Sendable) thay vì `self` (non-Sendable).
     private final class FrontAppBox: @unchecked Sendable {
-        var bundleID: String?
+        // Ghi trên main, đọc trên thread tap: String không đọc/ghi nguyên tử được
+        // (đọc trúng lúc đang ghi = crash hiếm), nên phải qua khoá.
+        private let lock = NSLock()
+        private var _bundleID: String?
+        var bundleID: String? {
+            get { lock.lock(); defer { lock.unlock() }; return _bundleID }
+            set { lock.lock(); _bundleID = newValue; lock.unlock() }
+        }
     }
     private let frontAppBox = FrontAppBox()
     private var frontAppBundleID: String? { frontAppBox.bundleID }
@@ -165,20 +226,13 @@ final class EventTapController {
     private var frontAppObserver: NSObjectProtocol?
 
     /// CACHE "Spotlight có đang hiện không" — `CGWindowListCopyWindowInfo` liệt kê mọi
-    /// cửa sổ nên KHÔNG gọi mỗi phím. Kiểm lại sau mỗi `spotlightTTL`. Spotlight không
+    /// cửa sổ nên KHÔNG gọi trong callback tap; làm mới NGẦM mỗi 0.5s. Spotlight không
     /// đổi `frontmostApplication` (nó là overlay) nên phải dò qua danh sách cửa sổ.
-    private var spotlightVisible = false
-    private var spotlightCheckedAt: CFTimeInterval = 0
-    private let spotlightTTL: CFTimeInterval = 0.5
-
-    private func isSpotlightVisible() -> Bool {
-        let now = CACurrentMediaTime()
-        if now - spotlightCheckedAt >= spotlightTTL {
-            spotlightVisible = Self.querySpotlightVisible()
-            spotlightCheckedAt = now
-        }
-        return spotlightVisible
+    private let spotlightFlag = BackgroundFlag(ttl: 0.5) {
+        EventTapController.querySpotlightVisible()
     }
+
+    private func isSpotlightVisible() -> Bool { spotlightFlag.get() }
 
     /// Dò danh sách cửa sổ trên màn tìm cửa sổ do "Spotlight" sở hữu.
     private static func querySpotlightVisible() -> Bool {
@@ -242,17 +296,12 @@ final class EventTapController {
         return false
     }
 
-    private func isFocusedElementAddressBar() -> Bool {
-        let now = CACurrentMediaTime()
-        if now - lastAddressBarCheckTime < addressBarCacheTTL {
-            return cachedAddressBarResult
-        }
+    private func isFocusedElementAddressBar() -> Bool { addressBarFlag.get() }
 
+    /// Dò cây AX xem ô đang focus có phải thanh địa chỉ / ô tìm kiếm không.
+    /// CHẠY TRÊN QUEUE NỀN (qua `BackgroundFlag`) — KHÔNG gọi từ callback tap.
+    private static func queryFocusedElementIsAddressBar() -> Bool {
         var isAddressBar = false
-        defer {
-            cachedAddressBarResult = isAddressBar
-            lastAddressBarCheckTime = now
-        }
 
         let systemWide = AXUIElementCreateSystemWide()
         var focusedRef: CFTypeRef?
@@ -299,11 +348,17 @@ final class EventTapController {
         return isAddressBar
     }
 
+    /// Kiểm tra tap còn sống theo THỜI GIAN, không theo số phím.
+    ///
+    /// Bản cũ chỉ gọi `ensureAlive()` mỗi 25 keyDown — nhưng khi tap đã bị macOS tắt
+    /// thì KHÔNG còn keyDown nào tới nữa, nhánh này chết hẳn và người dùng phải chờ
+    /// health check ở AppDelegate. Theo thời gian thì mỗi phím đầu tiên sau một giây
+    /// im lặng đều là một lần tự kiểm.
     private func checkAndRecover() {
-        eventCounter &+= 1
-        if eventCounter % 25 == 0 {
-            ensureAlive()
-        }
+        let now = CACurrentMediaTime()
+        guard now - lastAliveCheckAt >= 1.0 else { return }
+        lastAliveCheckAt = now
+        ensureAlive()
     }
 
     /// Chọn CÁCH XOÁ ký tự cũ khi gõ thay, theo ô nhập liệu đang focus:
@@ -341,23 +396,17 @@ final class EventTapController {
         return .backspace
     }
 
-    /// CACHE quyền Accessibility — để guard "mất quyền giữa chừng" mà KHÔNG gọi
-    /// AXIsProcessTrusted() mỗi phím (tốn CPU). Kiểm tra lại sau mỗi `accessTTL`.
-    private var accessOK = true
-    private var accessCheckedAt: CFTimeInterval = 0
-    private let accessTTL: CFTimeInterval = 2.0
+    /// CACHE quyền Accessibility — `AXIsProcessTrusted()` là một chuyến IPC sang
+    /// tccd, không được nằm trên đường phím. Làm mới NGẦM mỗi 2 giây; khởi đầu là
+    /// `true` vì tap chỉ được bật khi đã đủ quyền.
+    private let accessFlag = BackgroundFlag(ttl: 2.0, initial: true) {
+        Permissions.hasAccessibility()
+    }
 
     /// Còn quyền "gõ thay" (Accessibility) không? Có cache theo thời gian.
     /// Mất quyền giữa chừng -> ta KHÔNG được nuốt phím (sẽ gõ thay thất bại, người
     /// dùng mất phím hoàn toàn). Khi đó để mọi phím đi qua nguyên bản.
-    private func accessibilityReady() -> Bool {
-        let now = CACurrentMediaTime()
-        if now - accessCheckedAt >= accessTTL {
-            accessOK = Permissions.hasAccessibility()
-            accessCheckedAt = now
-        }
-        return accessOK
-    }
+    private func accessibilityReady() -> Bool { accessFlag.get() }
 
     // MARK: - Vòng đời tap
 
@@ -369,6 +418,39 @@ final class EventTapController {
             return false
         }
 
+        guard tapThread == nil else { return isStarted }
+
+        // Dựng tap NGAY TRÊN thread riêng: CFMachPort phải gắn vào runloop của chính
+        // thread sẽ chạy nó. Đợi thread báo kết quả (rất nhanh) để `start()` vẫn trả
+        // đúng true/false cho caller như trước.
+        let ready = DispatchSemaphore(value: 0)
+        let result = BoolBox()
+        let thread = Thread { [weak self] in
+            guard let self else { ready.signal(); return }
+            self.runTapThread(result: result, ready: ready)
+        }
+        thread.name = "BowGo.EventTap"
+        thread.qualityOfService = .userInteractive
+        tapThread = thread
+        thread.start()
+        _ = ready.wait(timeout: .now() + 5)
+
+        guard result.value else {
+            tapThread = nil
+            return false
+        }
+
+        // Nạp sẵn hai cờ dò nền để phím đầu tiên đã có giá trị đúng.
+        addressBarFlag.refresh()
+        spotlightFlag.refresh()
+        startFlagsMonitor()
+        startFrontAppTracking()
+        return true
+    }
+
+    /// Thân của thread tap: tạo tap, gắn vào runloop CỦA THREAD NÀY, rồi chạy vòng
+    /// lặp cho tới khi `stop()` gọi `CFRunLoopStop`.
+    private func runTapThread(result: BoolBox, ready: DispatchSemaphore) {
         let mask: CGEventMask =
             (1 << CGEventType.keyDown.rawValue) |
             (1 << CGEventType.flagsChanged.rawValue) |
@@ -393,19 +475,30 @@ final class EventTapController {
             userInfo: refcon
         ) else {
             NSLog("[Tap] tapCreate thất bại.")
-            return false
+            ready.signal()
+            return
         }
 
-        self.tap = tap
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        self.runLoopSource = source
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        let runLoop = CFRunLoopGetCurrent()
+        locked {
+            self.tap = tap
+            self.runLoopSource = source
+            self.tapRunLoop = runLoop
+        }
+        CFRunLoopAddSource(runLoop, source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
-        NSLog("[Tap] Đã bật event tap.")
+        NSLog("[Tap] Đã bật event tap trên thread riêng.")
+        result.value = true
+        ready.signal()
 
-        startFlagsMonitor()
-        startFrontAppTracking()
-        return true
+        CFRunLoopRun()   // chạy tới khi `stop()` gọi CFRunLoopStop
+
+        // Runloop đã dừng -> dọn tài nguyên cục bộ. Các property đã được `stop()` xoá.
+        CGEvent.tapEnable(tap: tap, enable: false)
+        CFRunLoopRemoveSource(runLoop, source, .commonModes)
+        CFMachPortInvalidate(tap)
+        NSLog("[Tap] Thread event tap đã dừng.")
     }
 
     /// Theo dõi app đang focus để cache `frontAppBundleID` (dùng quyết định có phá
@@ -419,24 +512,40 @@ final class EventTapController {
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil,
             queue: .main
-        ) { note in
+        ) { [weak self] note in
             let app = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)
             box.bundleID = app?.bundleIdentifier
+            // Đổi app -> ô focus chắc chắn khác: làm mới ngay cho kịp phím đầu tiên.
+            self?.addressBarFlag.refresh()
         }
     }
 
-    /// NSEvent global monitor cho .flagsChanged — xử lý phím tắt chỉ-modifier
-    /// (vd ⌃⇧) mà CGEvent tap không nhận được.
+    /// NSEvent global monitor cho .flagsChanged — đường DỰ PHÒNG cho phím tắt
+    /// chỉ-modifier (vd ⌃⇧) trên máy/ngữ cảnh mà CGEvent tap không được feed
+    /// flagsChanged. Hễ tap nhận được thì monitor tự im (xem `tapDeliversFlags`).
     private func startFlagsMonitor() {
         guard flagsMonitor == nil else { return }
         flagsMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
-            self?.handleFlagsChanged(event.modifierFlags)
+            guard let self else { return }
+            // Tap đã nhận được flagsChanged -> monitor là thừa và còn CÓ HẠI: nó tới
+            // trễ hơn tap (qua main runloop), khi main bận sẽ phát lại cả chuỗi
+            // modifier đã xử lý -> toggle lần hai -> "ấn phím tắt không ăn".
+            if self.locked({ self.tapDeliversFlags }) { return }
+            self.handleFlagsChanged(event.modifierFlags)
         }
     }
 
     /// Xử lý đổi modifier: phát hiện NHẤN ĐÚNG tập yêu cầu rồi NHẢ ra để toggle.
     /// Chỉ áp dụng khi phím tắt là chỉ-modifier (hotkeyKeyCode == 0).
     private func handleFlagsChanged(_ flags: NSEvent.ModifierFlags) {
+        stateLock.lock(); defer { stateLock.unlock() }
+        // Đang thu phím tắt trong app Cài đặt -> đừng toggle, để ô thu bắt được ⌃⇧.
+        if isHotkeyRecording() {
+            bothDown = false
+            cancelShortcut = false
+            lastModifiers = []
+            return
+        }
         guard hotkeyKeyCode == 0, !hotkeyModifiers.isEmpty else { return }
 
         let active: Set<String> = [
@@ -469,12 +578,19 @@ final class EventTapController {
     }
 
     func stop() {
-        if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
-        if let source = runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+        // Nhả property TRƯỚC (isStarted về false ngay), rồi mới ra lệnh cho thread tap
+        // dừng runloop — chính nó sẽ gỡ source và invalidate port.
+        let (port, runLoop): (CFMachPort?, CFRunLoop?) = locked {
+            let p = tap
+            let r = tapRunLoop
+            tap = nil
+            runLoopSource = nil
+            tapRunLoop = nil
+            return (p, r)
         }
-        tap = nil
-        runLoopSource = nil
+        if let port { CGEvent.tapEnable(tap: port, enable: false) }
+        if let runLoop { CFRunLoopStop(runLoop) }   // an toàn khi gọi từ thread khác
+        tapThread = nil
 
         if let m = flagsMonitor {
             NSEvent.removeMonitor(m)
@@ -484,13 +600,15 @@ final class EventTapController {
             NSWorkspace.shared.notificationCenter.removeObserver(o)
             frontAppObserver = nil
         }
-        bothDown = false
-        cancelShortcut = false
+        locked {
+            bothDown = false
+            cancelShortcut = false
+        }
     }
 
     /// Re-enable tap nếu macOS đã tắt nó. Gọi định kỳ từ health check.
     func ensureAlive() {
-        guard let tap else { return }
+        guard let tap = locked({ self.tap }) else { return }
         if !CGEvent.tapIsEnabled(tap: tap) {
             NSLog("[Tap] Tap bị tắt — bật lại.")
             CGEvent.tapEnable(tap: tap, enable: true)
@@ -498,6 +616,7 @@ final class EventTapController {
     }
 
     func setMethod(_ method: InputMethod) {
+        stateLock.lock(); defer { stateLock.unlock() }
         self.method = method
         rebuildEngine()
     }
@@ -505,31 +624,34 @@ final class EventTapController {
     // MARK: - Trạng thái cho menu (đọc + bật/tắt nhanh)
 
     /// Tự khôi phục tiếng Anh có đang bật không.
-    var autoRestoreEnglishOn: Bool { autoRestoreEnglish }
+    var autoRestoreEnglishOn: Bool { locked { autoRestoreEnglish } }
 
     /// Tự sửa lỗi gõ nhanh có đang bật không.
-    var autoCorrectOn: Bool { autoCorrect }
+    var autoCorrectOn: Bool { locked { autoCorrect } }
 
     /// Gõ tắt (macro) có đang bật không.
-    var macroOn: Bool { macroEnabled }
+    var macroOn: Bool { locked { macroEnabled } }
 
     /// Gõ tắt emoji có đang bật không.
-    var emojiShortcutsOn: Bool { emojiShortcutsEnabled }
+    var emojiShortcutsOn: Bool { locked { emojiShortcutsEnabled } }
 
     /// Bật/tắt tự khôi phục tiếng Anh (gọi từ menu). Tái tạo engine.
     func setAutoRestoreEnglish(_ on: Bool) {
+        stateLock.lock(); defer { stateLock.unlock() }
         autoRestoreEnglish = on
         rebuildEngine()
     }
 
     /// Bật/tắt tự sửa lỗi gõ nhanh (gọi từ menu). Tái tạo engine.
     func setAutoCorrect(_ on: Bool) {
+        stateLock.lock(); defer { stateLock.unlock() }
         autoCorrect = on
         rebuildEngine()
     }
 
     /// Bật/tắt gõ tắt (gọi từ menu). Tái tạo engine từ định nghĩa macro đã lưu.
     func setMacroEnabled(_ on: Bool) {
+        stateLock.lock(); defer { stateLock.unlock() }
         macroEnabled = on
         rebuildMacroStore()
         rebuildEngine()
@@ -537,21 +659,24 @@ final class EventTapController {
 
     /// Bật/tắt gõ tắt emoji (gọi từ menu).
     func setEmojiShortcuts(_ on: Bool) {
+        stateLock.lock(); defer { stateLock.unlock() }
         emojiShortcutsEnabled = on
         if !on { emojiMatcher.reset() }
     }
 
     /// Undo-sau-bung có đang bật không.
-    var undoExpansionOn: Bool { undoExpansionEnabled }
+    var undoExpansionOn: Bool { locked { undoExpansionEnabled } }
 
     /// Bật/tắt undo-sau-bung (gọi từ menu).
     func setUndoExpansion(_ on: Bool) {
+        stateLock.lock(); defer { stateLock.unlock() }
         undoExpansionEnabled = on
         if !on { expansionUndo.disarm() }
     }
 
     /// Áp toàn bộ cấu hình đọc từ file (gọi lúc khởi động & mỗi khi UI lưu).
     func apply(config: BowConfig) {
+        stateLock.lock(); defer { stateLock.unlock() }
         enabled = config.enabled
         method = config.method
         toneStyle = config.toneStyle
@@ -630,6 +755,42 @@ final class EventTapController {
         committedLength = 0
         wordRawKeys.removeAll()
         currentDisplay = ""
+    }
+
+    // MARK: - Thu phím tắt trong app Cài đặt
+
+    /// Bundle id app Cài đặt (Flutter) — tiến trình RIÊNG với bộ gõ.
+    private static let settingsBundleID = "com.bowgo.app"
+
+    /// File cờ app Cài đặt tạo trong lúc ô "thu phím tắt" đang mở, rồi xoá khi
+    /// thu xong. Nằm cùng thư mục với settings.json (đường dây IPC sẵn có).
+    private static let hotkeyRecordingLockPath: String = {
+        let appSupport = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask
+        ).first!
+        return appSupport
+            .appendingPathComponent("BowGo", isDirectory: true)
+            .appendingPathComponent("hotkey_recording.lock")
+            .path
+    }()
+
+    /// Cờ quá hạn sau ngần này giây — phòng khi app Cài đặt tắt đột ngột và để lại
+    /// file, bộ gõ không bị "câm" phím tắt vĩnh viễn.
+    private static let hotkeyRecordingMaxAge: TimeInterval = 120
+
+    /// App Cài đặt có đang THU phím tắt không? Khi đang thu, tap phải NHẢ TAY: không
+    /// nuốt, không kích hoạt hotkey nào — nếu không thì mọi tổ hợp đã gán (⌃⇧K mở
+    /// bảng ký hiệu, ⌃⇧ bật/tắt bộ gõ…) bị tap ăn trước, ô thu không bao giờ thấy
+    /// chúng, nên chỉ đặt được những tổ hợp còn TRỐNG (vd ⌥⇧).
+    ///
+    /// Chỉ đụng đĩa khi app đang focus CHÍNH LÀ cửa sổ Cài đặt (hiếm) -> không ảnh
+    /// hưởng đường gõ thường ngày.
+    private func isHotkeyRecording() -> Bool {
+        guard frontAppBundleID == Self.settingsBundleID else { return false }
+        guard let attrs = try? FileManager.default.attributesOfItem(
+            atPath: Self.hotkeyRecordingLockPath
+        ), let mtime = attrs[.modificationDate] as? Date else { return false }
+        return Date().timeIntervalSince(mtime) < Self.hotkeyRecordingMaxAge
     }
 
     /// Sự kiện này có khớp phím tắt bật/tắt do người dùng đặt không?
@@ -792,7 +953,31 @@ final class EventTapController {
 
     // MARK: - Xử lý sự kiện
 
+    /// Lượt gõ-thay chờ post SAU khi nhả `stateLock` (xem `handle`).
+    private var pendingOutput: (backspaces: Int, text: String, erase: KeyOutput.EraseStrategy)?
+
+    private func queueOutput(backspaces: Int, text: String) {
+        pendingOutput = (backspaces, text, eraseStrategy())
+    }
+
     private func handle(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        // Callback chạy trên THREAD TAP; cấu hình/menu tới từ main -> khoá trạng thái.
+        // Nhưng POST nằm NGOÀI khoá: đường AX (Spotlight/Raycast) có thể chặn tới vài
+        // giây, máy ảo thì usleep giữa từng ký tự — giữ khoá lúc đó là chặn luôn main
+        // (health check, menu, apply config) -> beachball.
+        stateLock.lock()
+        let result = handleLocked(proxy: proxy, type: type, event: event)
+        let output = pendingOutput
+        pendingOutput = nil
+        stateLock.unlock()
+        if let output {
+            KeyOutput.replace(backspaces: output.backspaces, with: output.text,
+                              proxy: proxy, erase: output.erase)
+        }
+        return result
+    }
+
+    private func handleLocked(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .keyDown {
             checkAndRecover()
         }
@@ -818,22 +1003,35 @@ final class EventTapController {
             return Unmanaged.passUnretained(event)
         }
 
+        // ĐANG THU PHÍM TẮT (ô thu trong app Cài đặt đang mở): cho MỌI phím đi qua
+        // nguyên bản. Không nuốt, không kích hoạt hotkey, không gõ thay — nếu không
+        // thì tổ hợp nào đã gán sẽ bị ta ăn trước và người dùng không đặt lại được nó.
+        if (type == .keyDown || type == .keyUp) && isHotkeyRecording() {
+            if committedLength != 0 || !wordRawKeys.isEmpty { resetSyllable() }
+            return Unmanaged.passUnretained(event)
+        }
+
         // CLICK CHUỘT -> con trỏ nhảy chỗ khác -> chốt âm tiết đang gõ dở. Không
         // reset thì lần gõ kế tiếp sẽ gửi Backspace dựa trên committedLength cũ và
         // xoá nhầm ký tự ở vị trí mới. Cho event đi qua nguyên vẹn.
         if type == .leftMouseDown || type == .rightMouseDown || type == .otherMouseDown {
             // Chỉ huỷ toggle khi đang "lên đạn" (xem lý do ở nhánh keyDown bên dưới).
             if bothDown { cancelShortcut = true }
+            // Con trỏ vừa nhảy chỗ khác -> ô focus có thể đổi (vào/ra thanh địa chỉ).
+            // Kick làm mới NGẦM để phím gõ kế tiếp đã có giá trị đúng.
+            addressBarFlag.refresh(after: Self.focusSettleDelay)
             resetSyllable()
             emojiMatcher.reset()
             return Unmanaged.passUnretained(event)
         }
 
-        // PHÍM TẮT CHỈ-MODIFIER (vd ⌃⇧): xử lý cả ở đây (CGEvent tap) LẪN ở NSEvent
-        // global monitor (`startFlagsMonitor`) — vì tuỳ macOS/ngữ cảnh, có khi tap
-        // nhận flagsChanged, có khi chỉ monitor nhận. `handleFlagsChanged` tự
-        // chống lặp qua so sánh `lastModifiers` nên gọi 2 đường không bị toggle 2 lần.
+        // PHÍM TẮT CHỈ-MODIFIER (vd ⌃⇧): tap là nguồn CHÍNH. NSEvent global monitor
+        // (`startFlagsMonitor`) chỉ là dự phòng cho máy/ngữ cảnh mà tap không được
+        // feed flagsChanged — và nó tự im ngay khi thấy tap làm được việc, vì hai
+        // nguồn chạy song song sẽ xử lý cùng một chuỗi modifier hai lần khi main bận.
         if type == .flagsChanged {
+            // Máy này có feed flagsChanged vào tap -> tắt đường NSEvent monitor.
+            tapDeliversFlags = true
             handleFlagsChanged(event.modifierFlagsAsNSEvent)
             return Unmanaged.passUnretained(event)
         }
@@ -909,7 +1107,8 @@ final class EventTapController {
                 return nil
             }
             if isToggleHotkey(event) {
-                toggleEnabledState()
+                // Giữ phím -> autorepeat bật/tắt liên tục, trạng thái cuối ngẫu nhiên.
+                if !autorepeat { toggleEnabledState() }
                 return nil
             }
         }
@@ -933,6 +1132,8 @@ final class EventTapController {
         let flags = event.flags
         // Có Cmd/Ctrl/Option -> phím tắt, không phải gõ chữ. Reset & cho đi qua.
         if flags.contains(.maskCommand) || flags.contains(.maskControl) || flags.contains(.maskAlternate) {
+            // ⌘L / ⌘F… có thể vừa đưa focus vào thanh địa chỉ -> làm mới cache ngầm.
+            addressBarFlag.refresh(after: Self.focusSettleDelay)
             resetSyllable()
             emojiMatcher.reset()
             expansionUndo.disarm()   // phím tắt -> huỷ cửa sổ undo
@@ -948,8 +1149,7 @@ final class EventTapController {
             emojiMatcher.reset()
             resetSyllable()
             // Xoá chuỗi đã hiện (deleteCount), gõ lại chuỗi gốc.
-            KeyOutput.replace(backspaces: undo.deleteCount, with: undo.restore, proxy: proxy,
-                              erase: eraseStrategy())
+            queueOutput(backspaces: undo.deleteCount, text: undo.restore)
             return nil  // nuốt Backspace gốc (ta đã tự khôi phục)
         }
         // Phím KHÁC ngay sau bung -> huỷ trạng thái undo (chỉ 1 nhịp).
@@ -970,8 +1170,7 @@ final class EventTapController {
                 committedLength = rebuilt.count
                 currentDisplay = rebuilt
                 wordRawKeys.removeAll()
-                KeyOutput.replace(backspaces: backspaces, with: rebuilt, proxy: proxy,
-                                  erase: eraseStrategy())
+                queueOutput(backspaces: backspaces, text: rebuilt)
                 return nil  // nuốt phím Backspace gốc (ta đã tự đồng bộ màn hình)
             }
             // Engine rỗng -> Backspace bình thường (để phím gốc xoá 1 ký tự).
@@ -1003,9 +1202,7 @@ final class EventTapController {
                 armUndo(shown: content + String(breakChar),
                         original: rawKeys + String(breakChar))
                 // Xoá từ khoá, gõ nội dung macro, rồi gõ chính phím ngắt từ.
-                KeyOutput.replace(backspaces: backspaces,
-                                  with: content + String(breakChar), proxy: proxy,
-                                  erase: eraseStrategy())
+                queueOutput(backspaces: backspaces, text: content + String(breakChar))
                 return nil  // nuốt phím ngắt gốc (ta đã tự gõ nó)
             }
 
@@ -1021,8 +1218,7 @@ final class EventTapController {
                 // UNDO: khôi phục về bản tiếng Việt vừa bị đổi thành phím thô.
                 armUndo(shown: raw + String(breakChar),
                         original: vietDisplay + String(breakChar))
-                KeyOutput.replace(backspaces: backspaces, with: raw + String(breakChar), proxy: proxy,
-                                  erase: eraseStrategy())
+                queueOutput(backspaces: backspaces, text: raw + String(breakChar))
                 return nil  // nuốt phím ngắt gốc (ta đã tự gõ nó kèm từ khôi phục)
             }
 
@@ -1038,9 +1234,7 @@ final class EventTapController {
                 // UNDO: khôi phục về từ TRƯỚC khi tự-sửa (vd "giừo" thay vì "giờ").
                 armUndo(shown: result.corrected + String(breakChar),
                         original: beforeCorrect + String(breakChar))
-                KeyOutput.replace(backspaces: backspaces,
-                                  with: result.corrected + String(breakChar), proxy: proxy,
-                                  erase: eraseStrategy())
+                queueOutput(backspaces: backspaces, text: result.corrected + String(breakChar))
                 return nil  // nuốt phím ngắt gốc (ta đã tự gõ từ đúng kèm ký tự ngắt)
             }
 
@@ -1077,8 +1271,7 @@ final class EventTapController {
                 resetSyllable()
                 // UNDO: khôi phục về shortcode gốc ":code:" nếu Backspace ngay.
                 armUndo(shown: emoji, original: shortcode)
-                KeyOutput.replace(backspaces: deleteCount, with: emoji, proxy: proxy,
-                                  erase: eraseStrategy())
+                queueOutput(backspaces: deleteCount, text: emoji)
                 return nil
             }
             // Không khớp -> onColon() đã mở buffer ":" mới. ':' đi qua tự nhiên.
@@ -1132,8 +1325,7 @@ final class EventTapController {
             emojiMatcher.onCharacter(ch, renderedSelf: renderedSelf)
         }
 
-        KeyOutput.replace(backspaces: backspaces, with: rendered, proxy: proxy,
-                          erase: eraseStrategy())
+        queueOutput(backspaces: backspaces, text: rendered)
         // Trả nil = "nuốt" phím gốc, không cho hệ thống nhận ký tự thô.
         return nil
     }
@@ -1154,6 +1346,86 @@ final class EventTapController {
         expansionUndo.arm(shown: shown, original: original)
     }
 
+}
+
+/// Hộp Bool để thread tap báo kết quả khởi tạo về cho `start()`.
+private final class BoolBox: @unchecked Sendable {
+    var value = false
+}
+
+/// Cờ boolean ĐƯỢC LÀM MỚI NGẦM.
+///
+/// VÌ SAO? Hai phép dò mà bộ gõ cần trước mỗi lần gõ-thay — "ô focus có phải thanh
+/// địa chỉ không" (AX query xuyên tiến trình) và "Spotlight có đang hiện không"
+/// (`CGWindowListCopyWindowInfo` liệt kê mọi cửa sổ) — có thể mất hàng chục ms khi
+/// máy bận. Chạy chúng TRONG callback event tap là tự bóp cổ mình: callback chậm quá
+/// ngưỡng thì macOS tắt tap, phím và phím tắt "chết" tới lần phục hồi kế tiếp.
+///
+/// Ở đây `get()` KHÔNG BAO GIỜ chặn: luôn trả giá trị đã cache và chỉ kick một lượt
+/// làm mới trên queue nền khi quá hạn. Đổi lại giá trị có thể trễ một nhịp — vô hại
+/// vì nó chỉ chọn CÁCH xoá ký tự, không quyết định đúng/sai chữ. Những thời điểm ô
+/// focus có thể vừa đổi (click chuột, ⌘L, đổi app) gọi `refresh()` để làm mới ngay,
+/// nên tới lúc người dùng gõ phím đầu tiên cache đã đúng.
+private final class BackgroundFlag: @unchecked Sendable {
+    /// Queue RIÊNG mỗi cờ: một lần AX treo (app đích bận) không được chặn luôn việc
+    /// làm mới cờ quyền / Spotlight.
+    private let queue = DispatchQueue(label: "bowgo.background-flag", qos: .userInitiated)
+
+    private let lock = NSLock()
+    private let ttl: CFTimeInterval
+    private let compute: @Sendable () -> Bool
+    private var value = false
+    private var checkedAt: CFTimeInterval = -.greatestFiniteMagnitude
+    private var refreshing = false
+
+    init(ttl: CFTimeInterval, initial: Bool = false, compute: @escaping @Sendable () -> Bool) {
+        self.ttl = ttl
+        self.value = initial
+        self.compute = compute
+    }
+
+    /// Giá trị hiện có — KHÔNG chặn. Kick làm mới nếu đã quá hạn.
+    func get() -> Bool {
+        lock.lock()
+        let current = value
+        let stale = CACurrentMediaTime() - checkedAt >= ttl
+        lock.unlock()
+        if stale { refresh() }
+        return current
+    }
+
+    /// Ép làm mới (bỏ qua TTL), không chờ kết quả.
+    ///
+    /// `delay`: khi gọi ngay lúc click/⌘L, app đích CHƯA kịp chuyển focus — dò liền
+    /// sẽ lưu câu trả lời của ô CŨ kèm mốc thời gian mới. Chờ một nhịp cho app xử lý.
+    /// Gọi trúng lúc đang dò dở thì KHÔNG bỏ: chạy thêm một lượt sau lượt hiện tại.
+    func refresh(after delay: TimeInterval = 0) {
+        lock.lock()
+        if refreshing {
+            rerunDelay = max(rerunDelay ?? 0, delay)
+            lock.unlock()
+            return
+        }
+        refreshing = true
+        lock.unlock()
+        schedule(after: delay)
+    }
+
+    private var rerunDelay: TimeInterval?
+
+    private func schedule(after delay: TimeInterval) {
+        queue.asyncAfter(deadline: .now() + delay) { [self] in
+            let v = compute()
+            lock.lock()
+            value = v
+            checkedAt = CACurrentMediaTime()
+            let again = rerunDelay
+            rerunDelay = nil
+            refreshing = again != nil
+            lock.unlock()
+            if let again { schedule(after: again) }
+        }
+    }
 }
 
 private extension CGEvent {

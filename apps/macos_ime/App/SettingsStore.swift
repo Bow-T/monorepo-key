@@ -239,7 +239,10 @@ final class SettingsStore {
     }
 
     private var source: DispatchSourceFileSystemObject?
-    private var fd: Int32 = -1
+
+    /// Đang theo dõi file chưa — false khi lúc mở file chưa tồn tại (lần chạy đầu),
+    /// health check dựa vào đây để thử lại.
+    var isWatching: Bool { source != nil }
 
     /// Callback khi cấu hình thay đổi (chạy trên main queue).
     var onChange: ((BowConfig) -> Void)?
@@ -255,9 +258,23 @@ final class SettingsStore {
     private func update(_ mutate: (inout [String: Any]) -> Bool) {
         let url = Self.fileURL
         var obj: [String: Any] = [:]
-        if let data = try? Data(contentsOf: url),
-           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            obj = parsed
+        if let data = try? Data(contentsOf: url) {
+            if let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                obj = parsed
+            } else {
+                // App Cài đặt ghi nguyên tử (tạm + rename) nên file không parse được là
+                // HỎNG thật (sửa tay sai…). Cất sang .bak thay vì ghi đè mất dữ liệu,
+                // rồi ghi file mới — nếu không mọi lần ghi sau đều bị bỏ mãi.
+                let backup = url.appendingPathExtension("bak")
+                try? FileManager.default.removeItem(at: backup)
+                try? FileManager.default.moveItem(at: url, to: backup)
+                NSLog("[Settings] settings.json hỏng, đã cất sang \(backup.lastPathComponent).")
+            }
+        } else {
+            // Lần chạy đầu: thư mục BowGo có thể chưa tồn tại -> ghi sẽ hỏng im lặng.
+            try? FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(), withIntermediateDirectories: true
+            )
         }
         guard mutate(&obj) else { return }
         guard let out = try? JSONSerialization.data(
@@ -366,11 +383,11 @@ final class SettingsStore {
 
         let url = Self.fileURL
         // Mở để theo dõi. Nếu file chưa tồn tại thì chờ — sẽ thử lại khi áp dụng.
-        fd = open(url.path, O_EVTONLY)
-        guard fd >= 0 else { return }
+        let watchedFD = open(url.path, O_EVTONLY)
+        guard watchedFD >= 0 else { return }
 
         let src = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: fd,
+            fileDescriptor: watchedFD,
             eventMask: [.write, .delete, .rename],
             queue: .main
         )
@@ -386,10 +403,10 @@ final class SettingsStore {
                 self.onChange?(cfg)
             }
         }
-        src.setCancelHandler { [weak self] in
-            if let fd = self?.fd, fd >= 0 { close(fd) }
-            self?.fd = -1
-        }
+        // Đóng ĐÚNG fd của source này. Cancel handler chạy bất đồng bộ, lúc đó
+        // fd đọc qua `self` đã là fd mới của lần startWatching() kế tiếp — đóng nhầm nó thì
+        // watcher chết sau lần bộ gõ tự ghi file đầu tiên (⌃⇧, Smart Switch…).
+        src.setCancelHandler { close(watchedFD) }
         source = src
         src.resume()
     }

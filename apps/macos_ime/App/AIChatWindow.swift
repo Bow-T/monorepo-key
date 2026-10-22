@@ -64,22 +64,30 @@ final class AIChatWindow: NSPanel {
         // Bắt đầu cuộc mới (rỗng, hoặc seed từ đoạn bôi đen).
         var thread = store.createThread()
         thread.messages = seedMessages
+        // Lưu seed vào store NGAY: câu trả lời được ghép vào bản trong store, nếu
+        // store còn giữ cuộc rỗng thì câu hỏi + trả lời gốc biến mất.
+        if !seedMessages.isEmpty {
+            store.upsert(thread)
+            thread = store.thread(id: thread.id) ?? thread   // lấy bản đã có tiêu đề
+        }
         let m = AIChatModel(threads: store.threads, current: thread)
         model = m
+        // Chỉ tự gửi khi lượt cuối là câu người dùng. Seed từ "Hỏi tiếp" kết thúc
+        // bằng câu trả lời AI -> chờ người dùng hỏi, không bắn thêm request.
+        let shouldReply = seedMessages.last?.role == .user
 
         if let existing = shared {
             existing.model = m
             existing.rebuildContent()
             existing.showWindow()
-            // Nếu có seed -> gửi luôn câu mở đầu.
-            if !seedMessages.isEmpty { AIChatService.reply(model: m) }
+            if shouldReply { AIChatService.reply(model: m) }
             return
         }
 
         let window = AIChatWindow(model: m)
         shared = window
         window.showWindow()
-        if !seedMessages.isEmpty { AIChatService.reply(model: m) }
+        if shouldReply { AIChatService.reply(model: m) }
     }
 
     /// Truy cập model đang mở (service dùng để cập nhật khi mạng trả về).
