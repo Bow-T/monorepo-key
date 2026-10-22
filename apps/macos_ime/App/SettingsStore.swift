@@ -229,13 +229,20 @@ struct BowConfig: Equatable {
 final class SettingsStore {
 
     /// Đường dẫn file dùng chung với app UI Flutter.
-    static var fileURL: URL {
+    static var defaultFileURL: URL {
         let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask
         ).first!
         return appSupport
             .appendingPathComponent("BowGo", isDirectory: true)
             .appendingPathComponent("settings.json")
+    }
+
+    /// File đang dùng — test truyền file tạm để không đụng cấu hình thật.
+    let fileURL: URL
+
+    init(fileURL: URL = SettingsStore.defaultFileURL) {
+        self.fileURL = fileURL
     }
 
     private var source: DispatchSourceFileSystemObject?
@@ -249,14 +256,14 @@ final class SettingsStore {
 
     /// Đọc cấu hình hiện tại (nil nếu chưa có file / lỗi).
     func read() -> BowConfig? {
-        guard let data = try? Data(contentsOf: Self.fileURL) else { return nil }
+        guard let data = try? Data(contentsOf: fileURL) else { return nil }
         return BowConfig.decode(data)
     }
 
     /// Đọc-sửa-ghi file JSON, giữ nguyên các khoá khác. `mutate` trả về false nếu
     /// không có gì đổi (để khỏi ghi thừa -> tránh kích hoạt watch vô ích).
     private func update(_ mutate: (inout [String: Any]) -> Bool) {
-        let url = Self.fileURL
+        let url = fileURL
         var obj: [String: Any] = [:]
         if let data = try? Data(contentsOf: url) {
             if let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
@@ -381,7 +388,7 @@ final class SettingsStore {
     func startWatching() {
         stopWatching()
 
-        let url = Self.fileURL
+        let url = fileURL
         // Mở để theo dõi. Nếu file chưa tồn tại thì chờ — sẽ thử lại khi áp dụng.
         let watchedFD = open(url.path, O_EVTONLY)
         guard watchedFD >= 0 else { return }

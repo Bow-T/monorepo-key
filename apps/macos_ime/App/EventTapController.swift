@@ -1366,7 +1366,7 @@ private final class BoolBox: @unchecked Sendable {
 /// vì nó chỉ chọn CÁCH xoá ký tự, không quyết định đúng/sai chữ. Những thời điểm ô
 /// focus có thể vừa đổi (click chuột, ⌘L, đổi app) gọi `refresh()` để làm mới ngay,
 /// nên tới lúc người dùng gõ phím đầu tiên cache đã đúng.
-private final class BackgroundFlag: @unchecked Sendable {
+final class BackgroundFlag: @unchecked Sendable {
     /// Queue RIÊNG mỗi cờ: một lần AX treo (app đích bận) không được chặn luôn việc
     /// làm mới cờ quyền / Spotlight.
     private let queue = DispatchQueue(label: "bowgo.background-flag", qos: .userInitiated)
