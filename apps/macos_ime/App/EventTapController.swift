@@ -259,9 +259,16 @@ final class EventTapController: @unchecked Sendable {
             "com.utmapp.",                 // UTM (App Store)
             "com.osy.UTM",                 // UTM (bản ngoài App Store)
             "org.virtualbox.",             // VirtualBox
-            "com.apple.iphonesimulator",   // iOS Simulator (Xcode)
         ]
         return prefixes.contains { bundleID.hasPrefix($0) }
+    }
+
+    /// App chỉ đọc MÃ PHÍM của sự kiện, bỏ qua chuỗi Unicode kèm theo — mọi ký tự ta
+    /// gõ thay (gửi với keyCode 0 = phím A) đều thành "a". Ký tự có dấu cũng không có
+    /// mã phím nào để gửi, nên ở đây bộ gõ NHẢ TAY: phím đi nguyên bản, tiếng Việt
+    /// gõ bằng bàn phím Tiếng Việt của chính thiết bị ảo.
+    static func passesKeysThrough(_ bundleID: String) -> Bool {
+        bundleID == "com.apple.iphonesimulator"   // iOS Simulator (Xcode)
     }
 
     private func isBrowserApp(_ bundleID: String) -> Bool {
@@ -1126,6 +1133,14 @@ final class EventTapController: @unchecked Sendable {
         }
 
         guard enabled, type == .keyDown else {
+            return Unmanaged.passUnretained(event)
+        }
+
+        // iOS SIMULATOR: đặt SAU các phím tắt (⌃⇧, chụp màn hình… vẫn chạy) nhưng
+        // TRƯỚC mọi xử lý gõ — xem `passesKeysThrough`.
+        if let app = frontAppBundleID, Self.passesKeysThrough(app) {
+            if committedLength != 0 || !wordRawKeys.isEmpty { resetSyllable() }
+            emojiMatcher.reset()
             return Unmanaged.passUnretained(event)
         }
 

@@ -24,7 +24,26 @@ final class ScreenshotController {
     /// này, nên thiếu cờ này thì nhấn phím tắt lần nữa (hoặc auto-repeat khi giữ
     /// phím) sẽ mở phiên chụp THỨ HAI: overlay cũ mất tham chiếu, ở lại màn hình
     /// dưới dạng một "màn đen" không đóng được.
-    private var isPreparing = false
+    private var preparingID: Int?
+    private var lastCaptureID = 0
+
+    /// Quá ngần này mà ScreenCaptureKit chưa trả ảnh (replayd treo / đang khởi động
+    /// lại) thì bỏ phiên đó. Cờ "đang chụp dở" mà kẹt thì MỌI lần bấm sau bị bỏ qua
+    /// im lặng — phím tắt "bấm không thấy gì" tới khi khởi động lại app.
+    private let captureTimeout: TimeInterval
+    private let capture: @Sendable (CGDirectDisplayID, Int, Int) async throws -> CGImage
+    private let hasPermission: () -> Bool
+
+    init(
+        captureTimeout: TimeInterval = 5,
+        capture: @escaping @Sendable (CGDirectDisplayID, Int, Int) async throws -> CGImage
+            = ScreenshotController.captureDisplay,
+        hasPermission: @escaping () -> Bool = Permissions.hasScreenRecording
+    ) {
+        self.captureTimeout = captureTimeout
+        self.capture = capture
+        self.hasPermission = hasPermission
+    }
 
     /// App đang focus TRƯỚC khi mở overlay — để trả lại focus khi đóng (giống
     /// hành vi của cửa sổ lịch sử Clipboard) mà vẫn hiện được toast của ta.
@@ -32,13 +51,23 @@ final class ScreenshotController {
 
     /// Bắt đầu phiên chụp. Nhấn phím tắt lần nữa khi overlay đang mở -> huỷ.
     func beginCapture() {
-        if overlayWindow != nil {
-            dismiss()
+        if let window = overlayWindow {
+            // Overlay đang HIỆN -> nhấn lại = huỷ. Còn giữ mà không hiện (bị giấu) thì
+            // nhấn lại chỉ dọn nó -> người dùng thấy "bấm không ăn"; dọn rồi chụp mới.
+            if window.isVisible {
+                dismiss()
+                return
+            }
+            NSLog("[Screenshot] Overlay cũ bị giấu — dọn rồi chụp mới.")
+            teardownOverlay()
+        }
+        guard preparingID == nil else {
+            NSLog("[Screenshot] Bỏ qua: phiên trước còn đang chụp.")
             return
         }
-        guard !isPreparing else { return }
 
-        guard Permissions.hasScreenRecording() else {
+        guard hasPermission() else {
+            NSLog("[Screenshot] Thiếu quyền Ghi màn hình.")
             // Prompt hệ thống chỉ hiện MỘT LẦN cho mỗi app; kèm alert hướng dẫn
             // cho các lần sau (phải bật thủ công trong System Settings).
             Permissions.requestScreenRecording()
@@ -51,23 +80,37 @@ final class ScreenshotController {
         guard let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) })
                 ?? NSScreen.main,
               let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
-        else { return }
+        else {
+            NSLog("[Screenshot] Không xác định được màn hình chứa con trỏ.")
+            return
+        }
 
         let displayID = CGDirectDisplayID(number.uint32Value)
         let frame = screen.frame
         let scale = screen.backingScaleFactor
 
-        isPreparing = true
+        lastCaptureID += 1
+        let id = lastCaptureID
+        preparingID = id
+        DispatchQueue.main.asyncAfter(deadline: .now() + captureTimeout) { [weak self] in
+            guard let self, self.preparingID == id else { return }
+            NSLog("[Screenshot] ScreenCaptureKit không trả ảnh sau \(self.captureTimeout)s — bỏ phiên.")
+            self.preparingID = nil
+            ToastHUD.show("CHỤP MÀN HÌNH KHÔNG PHẢN HỒI — BẤM LẠI")
+        }
+        let capture = self.capture
         Task { @MainActor [weak self] in
-            defer { self?.isPreparing = false }
             do {
-                let image = try await Self.captureDisplay(
-                    displayID,
-                    pixelWidth: Int(frame.width * scale),
-                    pixelHeight: Int(frame.height * scale)
+                let image = try await capture(
+                    displayID, Int(frame.width * scale), Int(frame.height * scale)
                 )
-                self?.presentOverlay(screenshot: image, screenFrame: frame)
+                // Phiên đã bị bỏ vì quá hạn (người dùng có thể đã chụp phiên mới).
+                guard let self, self.preparingID == id else { return }
+                self.preparingID = nil
+                self.presentOverlay(screenshot: image, screenFrame: frame)
             } catch {
+                guard let self, self.preparingID == id else { return }
+                self.preparingID = nil
                 NSLog("[Screenshot] Chụp màn hình thất bại: \(error)")
                 ToastHUD.show("CHỤP MÀN HÌNH THẤT BẠI")
             }
@@ -77,7 +120,7 @@ final class ScreenshotController {
     /// Chụp một display ra CGImage full-resolution. `nonisolated` để mọi object
     /// ScreenCaptureKit (không Sendable) sống trọn trong hàm; chỉ CGImage
     /// (Sendable) băng qua actor.
-    private nonisolated static func captureDisplay(
+    nonisolated static func captureDisplay(
         _ displayID: CGDirectDisplayID, pixelWidth: Int, pixelHeight: Int
     ) async throws -> CGImage {
         let content = try await SCShareableContent.excludingDesktopWindows(
