@@ -13,6 +13,10 @@
 // CÁCH SỬA (giống PHTV): khi frontmost app là VM, gõ lại chuỗi mới TỪNG KÝ TỰ MỘT
 // (mỗi ký tự một event) + delay nhỏ giữa các ký tự, và chuẩn hoá về PRECOMPOSED (NFC)
 // vì nhiều guest không dựng lại được ký tự tổ hợp rời rạc.  ✅
+//
+// RIÊNG iOS Simulator: nó đọc MÃ PHÍM (virtualKey 0 = A) chứ không đọc chuỗi Unicode
+// -> step-by-step vẫn ra "aaa". Simulator vì vậy KHÔNG còn trong danh sách VM; bộ
+// gõ nhả tay ở đó (EventTapController.passesKeysThrough).
 
 import Testing
 import Foundation
@@ -102,7 +106,6 @@ private func isVirtualMachineApp(_ bundleID: String) -> Bool {
         "com.utmapp.",
         "com.osy.UTM",
         "org.virtualbox.",
-        "com.apple.iphonesimulator",
     ]
     return prefixes.contains { bundleID.hasPrefix($0) }
 }
@@ -142,7 +145,9 @@ struct VirtualMachineTyping {
         #expect(isVirtualMachineApp("com.utmapp.UTM"))
         #expect(isVirtualMachineApp("com.osy.UTM"))
         #expect(isVirtualMachineApp("org.virtualbox.app.VirtualBoxVM"))
-        #expect(isVirtualMachineApp("com.apple.iphonesimulator"))
+        // iOS Simulator KHÔNG gõ thay (chỉ đọc mã phím) — bộ gõ nhả tay, xem
+        // EventTapController.passesKeysThrough (test ở BowGoAppTests).
+        #expect(!isVirtualMachineApp("com.apple.iphonesimulator"))
 
         #expect(!isVirtualMachineApp("com.apple.Safari"))
         #expect(!isVirtualMachineApp("com.google.Chrome"))
