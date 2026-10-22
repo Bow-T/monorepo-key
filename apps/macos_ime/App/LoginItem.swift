@@ -46,9 +46,17 @@ enum LoginItem {
     /// Đồng bộ trạng thái đăng ký theo mong muốn của cấu hình (gọi lúc áp config).
     /// Chỉ gọi register/unregister khi trạng thái hiện tại KHÁC mong muốn -> tránh
     /// đăng ký lặp gây thông báo hệ thống thừa.
-    static func sync(desired: Bool) {
+    ///
+    /// Chỉ hành động khi `desired` ĐỔI so với lần trước: onChange gọi hàm này sau
+    /// MỌI lần lưu cài đặt, mà người dùng tắt Bow Go trong Login Items (status
+    /// requiresApproval) thì register() lại mỗi lần lưu = đè lựa chọn của họ.
+    @MainActor static func sync(desired: Bool) {
+        guard desired != lastDesired else { return }
+        lastDesired = desired
         let current = isEnabled
         guard current != desired else { return }
         setEnabled(desired)
     }
+
+    @MainActor private static var lastDesired: Bool?
 }

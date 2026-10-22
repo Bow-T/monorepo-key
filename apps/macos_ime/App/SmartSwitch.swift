@@ -77,6 +77,9 @@ final class SmartSwitch {
     // MARK: - Riêng tư
 
     private func didActivate(_ bundleId: String?) {
+        // Bow Go tự lên trước khi mở menu/bảng chọn — không phải app người dùng gõ.
+        // Coi nó là "app hiện tại" thì bật/tắt từ menu bị ghi nhớ nhầm cho Bow Go.
+        if bundleId == Bundle.main.bundleIdentifier { return }
         currentApp = bundleId
         guard isOn, let bundleId else { return }
 

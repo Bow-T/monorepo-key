@@ -144,13 +144,36 @@ final class ScreenshotController {
         overlayWindow = window
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+
+        // Panel khác (bảng ký hiệu, AI…) giật key thì Esc không còn tới overlay, và
+        // NSApp.hide khi panel đó đóng giấu luôn overlay mà `overlayWindow` vẫn giữ
+        // -> lần kích hoạt sau ảnh đông cứng hiện lại. Mất key / app bị ẩn = huỷ phiên.
+        let center = NotificationCenter.default
+        let watched: [(Notification.Name, AnyObject?)] = [
+            (NSWindow.didResignKeyNotification, window),
+            (NSApplication.didHideNotification, nil),
+        ]
+        overlayObservers = watched.map { name, object in
+            // Chỉ gỡ overlay, KHÔNG trả focus như dismiss(): panel vừa giật key cần
+            // giữ focus, kéo app cũ lên lúc này sẽ đóng luôn panel đó.
+            center.addObserver(forName: name, object: object, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.teardownOverlay()
+                    self?.previousApp = nil
+                }
+            }
+        }
     }
+
+    private var overlayObservers: [NSObjectProtocol] = []
 
     /// Gỡ hẳn overlay khỏi màn hình. `close()` (không chỉ `orderOut`) để chắc chắn
     /// WindowServer bỏ cửa sổ, kể cả khi còn tham chiếu nào đó giữ nó lại.
     private func teardownOverlay() {
         guard let window = overlayWindow else { return }
         overlayWindow = nil
+        overlayObservers.forEach(NotificationCenter.default.removeObserver)
+        overlayObservers = []
         window.orderOut(nil)
         window.close()
     }
@@ -435,6 +458,9 @@ enum ScreenshotRenderer {
             }
         }
 
+        // Vẽ xong theo pixel; giờ mới gắn kích thước ĐIỂM thật (pixel / scale) — giữ
+        // 1 điểm = 1 pixel thì trên Retina ảnh dán ra to gấp đôi vùng đã chọn.
+        rep.size = NSSize(width: CGFloat(w) / scale, height: CGFloat(h) / scale)
         let image = NSImage(size: rep.size)
         image.addRepresentation(rep)
         return image

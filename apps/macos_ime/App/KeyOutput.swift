@@ -299,7 +299,9 @@ enum KeyOutput {
     /// highlight/vùng chọn nào để xử lý nên rơi về gõ thẳng.
     static func replace(backspaces: Int, with text: String, proxy: CGEventTapProxy,
                         erase: EraseStrategy = .backspace) {
-        if erase == .selectionReplacement {
+        // Chỉ khi CÓ ký tự cần xoá: ký tự mở đầu âm tiết mà đi AX thì cả giá trị ô
+        // bị set lại (mất định dạng rich text, hỏng undo) — vd cờ Spotlight còn cũ.
+        if erase == .selectionReplacement, backspaces > 0 {
             if replaceFocusedTextViaAX(backspaces: backspaces, insertText: text) {
                 return
             }

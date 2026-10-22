@@ -64,13 +64,47 @@ final class PixelMenuWindow: NSPanel {
     /// Ngăn xếp menu đang mở (menu gốc + các menu con). Đóng tất cả cùng lúc.
     private static var stack: [PixelMenuWindow] = []
 
-    private var isSubmenu = false
+    /// App đang focus TRƯỚC khi menu kéo Bow Go lên — hành động trong menu (đếm vùng
+    /// chọn, chèn ký hiệu, biến đổi chữ…) phải chạy trên app này, không phải Bow Go.
+    private static var previousApp: NSRunningApplication?
+
+    /// Vị trí trong `stack` (menu gốc = 0).
+    private let depth: Int
+
+    /// Ghi nhớ app phía trước. Nếu đó là chính Bow Go: giữ bản cũ khi menu đang mở
+    /// lại (`reopening`), còn không thì Bow Go là app người dùng đang dùng (cửa sổ
+    /// chat AI…) -> không có app nào để trả focus.
+    @MainActor
+    private static func rememberPreviousApp(reopening: Bool) {
+        let front = NSWorkspace.shared.frontmostApplication
+        if front?.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+            previousApp = front
+        } else if !reopening {
+            previousApp = nil
+        }
+    }
+
+    /// Chạy `action` khi `app` đã thực sự lên trước (tối đa ~0.5s) — hành động đọc
+    /// `frontmostApplication` / vùng chọn của app đó.
+    @MainActor
+    private static func run(_ action: @escaping () -> Void, whenFront app: NSRunningApplication,
+                            deadline: Date = Date().addingTimeInterval(0.5)) {
+        if NSWorkspace.shared.frontmostApplication == app || Date() >= deadline {
+            action()
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+            run(action, whenFront: app, deadline: deadline)
+        }
+    }
 
     /// Mở menu gốc tại con trỏ. Đóng menu đang mở (nếu có) trước.
     @MainActor
     static func present(title: String, items: [PixelMenuItem]) {
+        let reopening = !stack.isEmpty
         closeAll(restoreFocus: false)
-        let win = PixelMenuWindow(title: title, items: items, isSubmenu: false)
+        rememberPreviousApp(reopening: reopening)
+        let win = PixelMenuWindow(title: title, items: items, depth: 0)
         stack.append(win)
         win.showAtCursor()
     }
@@ -80,8 +114,10 @@ final class PixelMenuWindow: NSPanel {
     @MainActor
     static func presentBelowStatusItem(title: String, items: [PixelMenuItem],
                                        statusItem: NSStatusItem?) {
+        let reopening = !stack.isEmpty
         closeAll(restoreFocus: false)
-        let win = PixelMenuWindow(title: title, items: items, isSubmenu: false)
+        rememberPreviousApp(reopening: reopening)
+        let win = PixelMenuWindow(title: title, items: items, depth: 0)
         stack.append(win)
         if let button = statusItem?.button, let btnWindow = button.window {
             // Frame của nút trên màn hình -> đặt menu ngay dưới, canh phải cho gọn.
@@ -101,7 +137,7 @@ final class PixelMenuWindow: NSPanel {
                                            near rect: NSRect, parentDepth: Int) {
         let keep = parentDepth + 1
         while stack.count > keep { stack.removeLast().orderOutSelf() }
-        let win = PixelMenuWindow(title: title, items: items, isSubmenu: true)
+        let win = PixelMenuWindow(title: title, items: items, depth: keep)
         stack.append(win)
         win.show(near: rect)
     }
@@ -123,8 +159,8 @@ final class PixelMenuWindow: NSPanel {
         if restoreFocus { NSApp.hide(nil) }
     }
 
-    private init(title: String, items: [PixelMenuItem], isSubmenu: Bool) {
-        self.isSubmenu = isSubmenu
+    private init(title: String, items: [PixelMenuItem], depth: Int) {
+        self.depth = depth
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 300, height: 100),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -135,16 +171,22 @@ final class PixelMenuWindow: NSPanel {
             title: title,
             items: items,
             onRun: { action in
-                // Đóng cả menu trước rồi chạy hành động (giống NSMenu).
+                // Đóng cả menu, trả focus cho app trước rồi mới chạy hành động (giống
+                // NSMenu) — chờ app kia thực sự lên trước.
                 PixelMenuWindow.closeAll(restoreFocus: false)
-                action()
+                if let app = PixelMenuWindow.previousApp, !app.isTerminated {
+                    app.activate()
+                    PixelMenuWindow.run(action, whenFront: app)
+                } else {
+                    action()
+                }
             },
             onSubmenu: { subTitle, subItems, rowRect in
                 PixelMenuWindow.presentSubmenu(title: subTitle, items: subItems, near: rowRect,
-                                               parentDepth: isSubmenu ? 1 : 0)
+                                               parentDepth: depth)
             },
             onCloseSubmenus: {
-                PixelMenuWindow.closeSubmenus(deeperThan: isSubmenu ? 1 : 0)
+                PixelMenuWindow.closeSubmenus(deeperThan: depth)
             },
             onClose: { PixelMenuWindow.closeAll(restoreFocus: true) }
         ))

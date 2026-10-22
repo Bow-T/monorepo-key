@@ -8,6 +8,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:flutter/services.dart';
@@ -108,6 +109,33 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _save(BowSettings next) => _service.update(next);
+
+  /// Phím tắt của các tính năng ĐANG BẬT, theo tên tính năng — để chặn gán trùng.
+  /// Tính năng tắt thì phím tắt không chạy, không giữ chỗ (vd AI tắt sẵn giữ ⌃⇧G).
+  static Map<String, Hotkey> _hotkeysOf(BowSettings s) => {
+        'bật/tắt bộ gõ': s.hotkey,
+        if (s.clipboardHistoryEnabled) 'lịch sử clipboard': s.clipboardHistoryHotkey,
+        if (s.screenshotEnabled) 'chụp màn hình': s.screenshotHotkey,
+        if (s.textTransformEnabled) 'biến đổi chữ': s.textTransformHotkey,
+        if (s.symbolPickerEnabled) 'bảng ký tự': s.symbolPickerHotkey,
+        if (s.stickerPickerEnabled) 'bảng sticker': s.stickerPickerHotkey,
+        if (s.countSelectionEnabled) 'đếm từ & ký tự': s.countSelectionHotkey,
+        if (s.aiEnabled) 'trợ lý AI': s.aiHotkey,
+      };
+
+  /// Lưu phím tắt `hk` của `feature`, trừ khi tổ hợp đã thuộc tính năng khác —
+  /// bộ gõ chỉ chạy được MỘT trong hai, nên chặn và báo thay vì lưu.
+  void _saveHotkey(String feature, Hotkey hk, BowSettings next) {
+    for (final e in _hotkeysOf(s).entries) {
+      if (e.key != feature &&
+          e.value.keyCode == hk.keyCode &&
+          setEquals(e.value.modifiers, hk.modifiers)) {
+        _showSnack('${hk.display} đã dùng cho ${e.key}. Chọn tổ hợp khác.', error: true);
+        return;
+      }
+    }
+    _save(next);
+  }
 
   /// Tính kết quả của công cụ chuyển mã.
   String get _convertOutput {
@@ -567,7 +595,8 @@ class _SettingsPageState extends State<SettingsPage> {
           subtitle: 'Tổ hợp chuyển chế độ gõ (⌃⇧ mặc định)',
           control: HotkeyRecorder(
             hotkey: s.hotkey,
-            onChanged: (hk) => _save(s.copyWith(hotkey: hk)),
+            allowModifierOnly: true,
+            onChanged: (hk) => _saveHotkey('bật/tắt bộ gõ', hk, s.copyWith(hotkey: hk)),
           ),
         ),
         _tabDivider(),
@@ -579,7 +608,8 @@ class _SettingsPageState extends State<SettingsPage> {
           subtitle: 'Mở overlay HUD lịch sử copy (^V mặc định)',
           control: HotkeyRecorder(
             hotkey: s.clipboardHistoryHotkey,
-            onChanged: (hk) => _save(s.copyWith(clipboardHistoryHotkey: hk)),
+            onChanged: (hk) => _saveHotkey(
+                'lịch sử clipboard', hk, s.copyWith(clipboardHistoryHotkey: hk)),
           ),
         ),
         _tabDivider(),
@@ -591,7 +621,8 @@ class _SettingsPageState extends State<SettingsPage> {
           subtitle: 'Chọn vùng màn hình để chụp (⌃⇧S mặc định)',
           control: HotkeyRecorder(
             hotkey: s.screenshotHotkey,
-            onChanged: (hk) => _save(s.copyWith(screenshotHotkey: hk)),
+            onChanged: (hk) =>
+                _saveHotkey('chụp màn hình', hk, s.copyWith(screenshotHotkey: hk)),
           ),
         ),
         _tabDivider(),
@@ -612,10 +643,11 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: AppSpacing.sm),
           SettingRow(
             title: 'PHÍM TẮT BIẾN ĐỔI CHỮ',
-            subtitle: 'Mở bảng chọn thao tác tại con trỏ (⌃⇧T mặc định)',
+            subtitle: 'Mở bảng chọn thao tác tại con trỏ (⌃⇧T mặc định).\nKết quả luôn được chép vào clipboard để dán nơi khác.',
             control: HotkeyRecorder(
               hotkey: s.textTransformHotkey,
-              onChanged: (hk) => _save(s.copyWith(textTransformHotkey: hk)),
+              onChanged: (hk) =>
+                  _saveHotkey('biến đổi chữ', hk, s.copyWith(textTransformHotkey: hk)),
             ),
           ),
         ],
@@ -640,7 +672,8 @@ class _SettingsPageState extends State<SettingsPage> {
             subtitle: 'Mở bảng ký tự tại con trỏ (⌃⇧K mặc định)',
             control: HotkeyRecorder(
               hotkey: s.symbolPickerHotkey,
-              onChanged: (hk) => _save(s.copyWith(symbolPickerHotkey: hk)),
+              onChanged: (hk) =>
+                  _saveHotkey('bảng ký tự', hk, s.copyWith(symbolPickerHotkey: hk)),
             ),
           ),
         ],
@@ -665,7 +698,8 @@ class _SettingsPageState extends State<SettingsPage> {
             subtitle: 'Mở bảng sticker tại con trỏ (⌃⇧J mặc định)',
             control: HotkeyRecorder(
               hotkey: s.stickerPickerHotkey,
-              onChanged: (hk) => _save(s.copyWith(stickerPickerHotkey: hk)),
+              onChanged: (hk) =>
+                  _saveHotkey('bảng sticker', hk, s.copyWith(stickerPickerHotkey: hk)),
             ),
           ),
         ],
@@ -690,7 +724,8 @@ class _SettingsPageState extends State<SettingsPage> {
             subtitle: 'Đếm vùng đang bôi đen (⌃⇧C mặc định)',
             control: HotkeyRecorder(
               hotkey: s.countSelectionHotkey,
-              onChanged: (hk) => _save(s.copyWith(countSelectionHotkey: hk)),
+              onChanged: (hk) =>
+                  _saveHotkey('đếm từ & ký tự', hk, s.copyWith(countSelectionHotkey: hk)),
             ),
           ),
         ],
@@ -743,7 +778,7 @@ class _SettingsPageState extends State<SettingsPage> {
             subtitle: 'Mở bảng chọn thao tác AI (⌃⇧G mặc định)',
             control: HotkeyRecorder(
               hotkey: s.aiHotkey,
-              onChanged: (hk) => _save(s.copyWith(aiHotkey: hk)),
+              onChanged: (hk) => _saveHotkey('trợ lý AI', hk, s.copyWith(aiHotkey: hk)),
             ),
           ),
         ],
@@ -867,7 +902,8 @@ class _SettingsPageState extends State<SettingsPage> {
             subtitle: 'Nhấn để bắt đầu chọn vùng (⌃⇧S mặc định)',
             control: HotkeyRecorder(
               hotkey: s.screenshotHotkey,
-              onChanged: (hk) => _save(s.copyWith(screenshotHotkey: hk)),
+              onChanged: (hk) =>
+                _saveHotkey('chụp màn hình', hk, s.copyWith(screenshotHotkey: hk)),
             ),
           ),
           _tabDivider(),
@@ -1339,16 +1375,9 @@ class _SettingsPageState extends State<SettingsPage> {
     );
 
     if (result == null) return;
-    final next = [...s.autoCorrectPairs];
-    // Xoá trùng vế 'wrong' (không phân biệt bản đang sửa), rồi thêm/ghi đè.
-    next.removeWhere((p) => p.wrong == result.wrong &&
-        (index == null || s.autoCorrectPairs[index].wrong != result.wrong));
-    if (index != null) {
-      next[index] = result;
-    } else {
-      next.add(result);
-    }
-    _save(s.copyWith(autoCorrectPairs: next));
+    _save(s.copyWith(
+      autoCorrectPairs: upsertByKey(s.autoCorrectPairs, existing?.wrong, result, (p) => p.wrong),
+    ));
   }
 
   // ── Xuất/Nhập danh sách cặp tự-sửa (chuyển giữa các máy) ────────────────
@@ -2897,15 +2926,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
 
     if (result == null) return;
-    final next = [...s.macros];
-    next.removeWhere((m) => m.keyword == result.keyword &&
-        (index == null || s.macros[index].keyword != result.keyword));
-    if (index != null) {
-      next[index] = result;
-    } else {
-      next.add(result);
-    }
-    _save(s.copyWith(macros: next));
+    _save(s.copyWith(macros: upsertByKey(s.macros, existing?.keyword, result, (m) => m.keyword)));
   }
 
   /// Dropdown chọn LOẠI macro. Giá trị chuỗi khớp `type` phía Swift (parseMacroType).
@@ -2987,3 +3008,16 @@ class _SettingsPageState extends State<SettingsPage> {
 
 /// Cách nhập danh sách cặp tự-sửa khi máy đã có sẵn cặp: gộp thêm hay ghi đè.
 enum _ImportMode { merge, replace }
+
+/// Thêm (`originalKey` null) hoặc thay mục có khoá `originalKey` bằng `item`, bỏ
+/// mục KHÁC trùng khoá. Tìm theo KHOÁ chứ không theo chỉ số: danh sách có thể đổi
+/// trong lúc dialog mở (nạp lại khi bộ gõ ghi file). Gỡ mục đang sửa TRƯỚC rồi mới
+/// lọc trùng: lọc trước sẽ dịch chỉ số và ghi đè nhầm mục bên cạnh.
+List<T> upsertByKey<T>(List<T> list, String? originalKey, T item, String Function(T) key) {
+  final next = [...list];
+  final at = originalKey == null ? -1 : next.indexWhere((e) => key(e) == originalKey);
+  if (at >= 0) next.removeAt(at);
+  next.removeWhere((e) => key(e) == key(item));
+  next.insert(at < 0 ? next.length : at.clamp(0, next.length), item);
+  return next;
+}

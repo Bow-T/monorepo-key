@@ -4,10 +4,13 @@
 // (vd ⌃⌥ Space) — widget bắt đúng tổ hợp đó và trả về [Hotkey]. Giống cách đặt
 // phím tắt trong System Settings.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/hotkey.dart';
+import '../services/hotkey_recording_lock.dart';
 import '../theme/app_theme.dart';
 import 'pixel.dart';
 
@@ -16,10 +19,15 @@ class HotkeyRecorder extends StatefulWidget {
     super.key,
     required this.hotkey,
     required this.onChanged,
+    this.allowModifierOnly = false,
   });
 
   final Hotkey hotkey;
   final ValueChanged<Hotkey> onChanged;
+
+  /// Cho phép tổ hợp CHỈ-modifier (vd ⌃⇧). Bộ gõ chỉ hiểu kiểu này ở phím tắt
+  /// bật/tắt; các phím tắt tính năng khác bỏ qua keyCode 0 nên sẽ "chết" im lặng.
+  final bool allowModifierOnly;
 
   @override
   State<HotkeyRecorder> createState() => _HotkeyRecorderState();
@@ -39,8 +47,15 @@ class _HotkeyRecorderState extends State<HotkeyRecorder> {
   /// thiếu phím vừa nhả. Ta ghi nhớ "đỉnh" số modifier để dựng tổ hợp đúng.
   final Set<HotkeyModifier> _peakModifiers = {};
 
+  /// Tự huỷ thu sau 60s: bộ gõ coi cờ quá 120s là hết hạn và lại nuốt phím tắt,
+  /// ô thu để mở lâu hơn sẽ âm thầm không bắt được tổ hợp đã gán.
+  Timer? _timeout;
+
   @override
   void dispose() {
+    _timeout?.cancel();
+    // Thoát khi đang thu -> vẫn phải nhả cờ, kẻo bộ gõ tưởng còn đang thu.
+    if (_recording) HotkeyRecordingLock.release();
     _focusNode.dispose();
     super.dispose();
   }
@@ -48,11 +63,19 @@ class _HotkeyRecorderState extends State<HotkeyRecorder> {
   void _startRecording() {
     _sawMainKey = false;
     _peakModifiers.clear();
+    // Báo bộ gõ NGỪNG nuốt phím tắt trong lúc thu — nếu không, những tổ hợp đã gán
+    // (⌃⇧ bật/tắt, ⌃⇧K bảng ký hiệu…) bị tap của bộ gõ ăn trước và ô này không bao
+    // giờ thấy chúng, nên chỉ đặt được tổ hợp còn trống (vd ⌥⇧).
+    HotkeyRecordingLock.acquire();
+    _timeout = Timer(const Duration(seconds: 60), _stopRecording);
     setState(() => _recording = true);
     _focusNode.requestFocus();
   }
 
   void _stopRecording() {
+    if (!_recording) return;
+    _timeout?.cancel();
+    HotkeyRecordingLock.release();
     setState(() => _recording = false);
     _focusNode.unfocus();
   }
@@ -66,12 +89,19 @@ class _HotkeyRecorderState extends State<HotkeyRecorder> {
     if (event is KeyUpEvent) {
       if (!_sawMainKey && Hotkey.isModifierKey(event.logicalKey)) {
         final hk = Hotkey(keyCode: 0, modifiers: Set.of(_peakModifiers));
-        if (hk.isValid) {
+        if (widget.allowModifierOnly && hk.isValid) {
           widget.onChanged(hk);
           _sawMainKey = false;
           _peakModifiers.clear();
           _stopRecording();
+          return KeyEventResult.handled;
         }
+      }
+      // Đã nhả HẾT modifier mà chưa thành tổ hợp -> quên tập đỉnh, kẻo lần chạm ⌘
+      // lỡ tay trước đó bị dính vào tổ hợp kế tiếp (⌃K thành ⌃⌘K).
+      if (Hotkey.isModifierKey(event.logicalKey) && _currentModifierSet().isEmpty) {
+        _peakModifiers.clear();
+        setState(() {});
       }
       return KeyEventResult.handled;
     }
@@ -95,7 +125,9 @@ class _HotkeyRecorderState extends State<HotkeyRecorder> {
     // Đã có phím chính -> không còn là phím tắt chỉ-modifier.
     _sawMainKey = true;
     final code = Hotkey.macKeyCode(event.logicalKey);
-    if (code == null) {
+    // keyCode 0 của phím A trùng mã "chỉ-modifier" trong settings.json -> bộ gõ
+    // hiểu sai, nên không cho gán phím A.
+    if (code == null || code == 0) {
       // Phím chính chưa hỗ trợ ánh xạ -> bỏ qua, giữ chế độ thu.
       return KeyEventResult.handled;
     }
@@ -172,6 +204,13 @@ class _HotkeyRecorderState extends State<HotkeyRecorder> {
     }
     return null;
   }
+
+  /// Tập modifier đang thực sự giữ (sau sự kiện hiện tại).
+  Set<HotkeyModifier> _currentModifierSet() => HardwareKeyboard
+      .instance.logicalKeysPressed
+      .map(_modifierOf)
+      .whereType<HotkeyModifier>()
+      .toSet();
 
   /// Ký hiệu modifier đang giữ — chỉ để hiển thị khi đang thu.
   String _currentModifiers() {
