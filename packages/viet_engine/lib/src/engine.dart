@@ -194,7 +194,28 @@ class VietEngine {
 
   // MARK: - Áp dụng phím-dấu
 
+  /// Tổ hợp PHỤ ÂM ĐẦU không tồn tại trong tiếng Việt (có trong tiếng Anh/thuật
+  /// ngữ: blue, clear, drop, flag, print, string...). Âm tiết mở đầu bằng một cụm
+  /// này chắc chắn là từ phi-Việt -> KHÔNG coi phím nào là phím-dấu (tránh
+  /// "clear"->"clẻa", "class"->"clas"). Không đưa cụm chứa 'w' (sw, tw, wr) vào:
+  /// trong Telex 'w' là phím gõ tắt ("tw"->tư). Khớp Swift `nonVietInitialClusters`.
+  static const Set<String> _nonVietInitialClusters = {
+    'bl', 'br', 'cl', 'cr', 'dr', 'fl', 'fr', 'gl', 'gr', 'pl', 'pr',
+    'sc', 'sk', 'sl', 'sm', 'sn', 'sp', 'st',
+  };
+
+  /// Âm tiết có mở đầu bằng cụm phi-Việt không, khi xét thêm phím `ch`: đã có ≥2
+  /// chữ thì xét 2 chữ đầu; mới có 1 chữ thì xét chữ đó + `ch`.
+  bool _startsWithNonVietCluster(String ch) {
+    final letters = _syllable.letters;
+    if (letters.isEmpty) return false;
+    final second = letters.length >= 2 ? letters[1].base : ch;
+    return _nonVietInitialClusters
+        .contains('${letters[0].base}$second'.toLowerCase());
+  }
+
   _DiacriticResult _applyAsDiacritic(String ch) {
+    if (_startsWithNonVietCluster(ch)) return _DiacriticResult.notDiacritic;
     switch (method) {
       case InputMethod.telex:
         return _applyTelex(ch);
