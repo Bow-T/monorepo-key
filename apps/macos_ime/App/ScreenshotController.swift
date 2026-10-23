@@ -58,16 +58,16 @@ final class ScreenshotController {
                 dismiss()
                 return
             }
-            NSLog("[Screenshot] Overlay cũ bị giấu — dọn rồi chụp mới.")
+            bowLog("[Screenshot] Overlay cũ bị giấu — dọn rồi chụp mới.")
             teardownOverlay()
         }
         guard preparingID == nil else {
-            NSLog("[Screenshot] Bỏ qua: phiên trước còn đang chụp.")
+            bowLog("[Screenshot] Bỏ qua: phiên trước còn đang chụp.")
             return
         }
 
         guard hasPermission() else {
-            NSLog("[Screenshot] Thiếu quyền Ghi màn hình.")
+            bowLog("[Screenshot] Thiếu quyền Ghi màn hình.")
             // Prompt hệ thống chỉ hiện MỘT LẦN cho mỗi app; kèm alert hướng dẫn
             // cho các lần sau (phải bật thủ công trong System Settings).
             Permissions.requestScreenRecording()
@@ -81,7 +81,7 @@ final class ScreenshotController {
                 ?? NSScreen.main,
               let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
         else {
-            NSLog("[Screenshot] Không xác định được màn hình chứa con trỏ.")
+            bowLog("[Screenshot] Không xác định được màn hình chứa con trỏ.")
             return
         }
 
@@ -94,7 +94,7 @@ final class ScreenshotController {
         preparingID = id
         DispatchQueue.main.asyncAfter(deadline: .now() + captureTimeout) { [weak self] in
             guard let self, self.preparingID == id else { return }
-            NSLog("[Screenshot] ScreenCaptureKit không trả ảnh sau \(self.captureTimeout)s — bỏ phiên.")
+            bowLog("[Screenshot] ScreenCaptureKit không trả ảnh sau \(self.captureTimeout)s — bỏ phiên.")
             self.preparingID = nil
             ToastHUD.show("CHỤP MÀN HÌNH KHÔNG PHẢN HỒI — BẤM LẠI")
         }
@@ -111,7 +111,7 @@ final class ScreenshotController {
             } catch {
                 guard let self, self.preparingID == id else { return }
                 self.preparingID = nil
-                NSLog("[Screenshot] Chụp màn hình thất bại: \(error)")
+                bowLog("[Screenshot] Chụp màn hình thất bại: \(error)")
                 ToastHUD.show("CHỤP MÀN HÌNH THẤT BẠI")
             }
         }

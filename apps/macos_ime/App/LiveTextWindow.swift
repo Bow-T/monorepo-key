@@ -44,7 +44,7 @@ final class LiveTextWindow: NSPanel {
                 }
                 show(image: image, analysis: analysis, onDismiss: onDismiss)
             } catch {
-                NSLog("[LiveText] Phân tích ảnh thất bại: \(error)")
+                bowLog("[LiveText] Phân tích ảnh thất bại: \(error)")
                 ToastHUD.show("KHÔNG NHẬN DẠNG ĐƯỢC CHỮ")
                 onDismiss?()
             }

@@ -64,7 +64,7 @@ enum KeyOutput {
         guard count > 0 else { return }
         let safe = min(count, maxBackspaces)
         if count > maxBackspaces {
-            NSLog("[KeyOutput] Chặn số Backspace bất thường: %d -> %d", count, maxBackspaces)
+            bowLog("[KeyOutput] Chặn số Backspace bất thường: \(count) -> \(maxBackspaces)")
         }
         let source = makeSource()
         for _ in 0..<safe {
@@ -90,7 +90,7 @@ enum KeyOutput {
         guard count > 0 else { return }
         let safe = min(count, maxBackspaces)
         if count > maxBackspaces {
-            NSLog("[KeyOutput] Chặn số Shift+Left bất thường: %d -> %d", count, maxBackspaces)
+            bowLog("[KeyOutput] Chặn số Shift+Left bất thường: \(count) -> \(maxBackspaces)")
         }
         let source = makeSource()
         for _ in 0..<safe {

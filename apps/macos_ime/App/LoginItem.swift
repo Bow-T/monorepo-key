@@ -38,7 +38,7 @@ enum LoginItem {
             }
             return true
         } catch {
-            NSLog("[LoginItem] Không đổi được trạng thái khởi động cùng hệ thống: \(error.localizedDescription)")
+            bowLog("[LoginItem] Không đổi được trạng thái khởi động cùng hệ thống: \(error.localizedDescription)")
             return false
         }
     }

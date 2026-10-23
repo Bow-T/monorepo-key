@@ -421,7 +421,7 @@ final class EventTapController: @unchecked Sendable {
     @discardableResult
     func start() -> Bool {
         guard Permissions.ready() else {
-            NSLog("[Tap] Chưa đủ quyền (Accessibility/Input Monitoring).")
+            bowLog("[Tap] Chưa đủ quyền (Accessibility/Input Monitoring).")
             return false
         }
 
@@ -481,7 +481,7 @@ final class EventTapController: @unchecked Sendable {
             callback: Self.callback,
             userInfo: refcon
         ) else {
-            NSLog("[Tap] tapCreate thất bại.")
+            bowLog("[Tap] tapCreate thất bại.")
             ready.signal()
             return
         }
@@ -495,7 +495,7 @@ final class EventTapController: @unchecked Sendable {
         }
         CFRunLoopAddSource(runLoop, source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
-        NSLog("[Tap] Đã bật event tap trên thread riêng.")
+        bowLog("[Tap] Đã bật event tap trên thread riêng.")
         result.value = true
         ready.signal()
 
@@ -505,7 +505,7 @@ final class EventTapController: @unchecked Sendable {
         CGEvent.tapEnable(tap: tap, enable: false)
         CFRunLoopRemoveSource(runLoop, source, .commonModes)
         CFMachPortInvalidate(tap)
-        NSLog("[Tap] Thread event tap đã dừng.")
+        bowLog("[Tap] Thread event tap đã dừng.")
     }
 
     /// Theo dõi app đang focus để cache `frontAppBundleID` (dùng quyết định có phá
@@ -617,7 +617,7 @@ final class EventTapController: @unchecked Sendable {
     func ensureAlive() {
         guard let tap = locked({ self.tap }) else { return }
         if !CGEvent.tapIsEnabled(tap: tap) {
-            NSLog("[Tap] Tap bị tắt — bật lại.")
+            bowLog("[Tap] Tap bị tắt — bật lại.")
             CGEvent.tapEnable(tap: tap, enable: true)
         }
     }
@@ -1067,6 +1067,7 @@ final class EventTapController: @unchecked Sendable {
             }
             if screenshotEnabled && isScreenshotHotkey(event) {
                 if !autorepeat {
+                    bowLog("[Hotkey] Nhận phím tắt chụp màn hình.")
                     DispatchQueue.main.async {
                         AppDelegate.shared?.startScreenshotCapture()
                     }
