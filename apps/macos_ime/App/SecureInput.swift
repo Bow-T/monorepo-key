@@ -7,8 +7,10 @@
 // dùng tưởng Bow Go hỏng. Đo thực tế: Edge giữ Secure Input -> tap nhận 0/5 phím.
 //
 // Ta không tắt được nó (chỉ app giữ mới tắt), nên phát hiện, BÁO rõ app nào, và chỉ
-// cách gỡ: khoá màn hình rồi mở khoá. Đo thực tế: thoát hẳn Edge xong macOS vẫn kẹt
-// Secure Input dưới PID cũ đã chết — mở lại app KHÔNG gỡ, khoá + mở khoá thì gỡ.
+// cách gỡ. Đo thực tế 23/10: thoát hẳn Edge xong macOS vẫn kẹt Secure Input dưới PID
+// cũ đã chết — mở lại app KHÔNG gỡ, khoá + mở khoá màn hình thì gỡ. Nhưng có lần mở
+// khoá xong chính loginwindow giữ luôn (thoát hết Xcode/Edge vẫn bật) -> còn kẹt thì
+// phải đăng xuất (phiên mới = trạng thái sạch).
 
 import AppKit
 import Carbon.HIToolbox
@@ -44,7 +46,7 @@ enum SecureInput {
     }
 
     /// Cách gỡ hiển thị cho người dùng (toast + menu).
-    static let fixHint = "khoá màn hình (⌃⌘Q) rồi mở khoá để gỡ"
+    static let fixHint = "khoá màn hình (⌃⌘Q) rồi mở khoá; vẫn kẹt thì đăng xuất"
 
     /// `SACLockScreenImmediate` (login.framework, private) — hàm mà mục "Khoá màn hình"
     /// trong menu Apple gọi. nil nếu bản macOS nào đó bỏ nó.
