@@ -25,6 +25,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var healthCheckTimer: Timer?
     /// Đếm nhịp health check (1 nhịp = 1 giây) — việc nặng chỉ chạy mỗi 5 nhịp.
     private var healthTick = 0
+    /// Nhập bảo mật bật lâu = bộ gõ "chết" im lặng -> báo (xem SecureInput.swift).
+    private var secureInputMonitor = SecureInputMonitor()
     /// Timer riêng ghi status.json mỗi ~1s cho app Cài đặt (Flutter) đọc — để UI
     /// phản ánh quyền gần như tức thì mà KHÔNG cần app Flutter tự gọi TCC API
     /// (việc đó khiến nó xuất hiện trong danh sách quyền như một entry thừa).
@@ -111,6 +113,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 self.healthTick += 1
                 let heavyTick = self.healthTick % 5 == 0
+                if self.secureInputMonitor.update(isOn: SecureInput.isOn) == .stuck {
+                    let who = SecureInput.ownerName() ?? "Một ứng dụng"
+                    bowLog("[SecureInput] \(who) bật Nhập bảo mật quá \(Int(SecureInputMonitor.stuckAfter))s — event tap không nhận phím.")
+                    ToastHUD.show("\(who.uppercased()) ĐANG BẬT NHẬP BẢO MẬT — BOW GO TẠM KHÔNG GÕ ĐƯỢC")
+                }
                 if heavyTick {
                     // Cập nhật trạng thái quyền cho app UI (Flutter) đọc.
                     Permissions.writeStatus()
@@ -284,8 +291,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .item("Sửa lỗi quyền (gõ không được)…", symbol: "lock.shield") { [weak self] in self?.repairPermissions() },
         ]
 
+        // Nhập bảo mật đang bật -> mọi phím bị chặn khỏi bộ gõ: nói rõ lý do ngay đầu menu.
+        var secureInputNotice: [PixelMenuItem] = []
+        if SecureInput.isOn {
+            let who = SecureInput.ownerName() ?? "Một ứng dụng"
+            secureInputNotice = [
+                .header("🔒 \(who) đang bật Nhập bảo mật"),
+                .header("Bow Go tạm không gõ được — đóng ô mật khẩu hoặc mở lại \(who)"),
+                .separator,
+            ]
+        }
+
         // Menu gốc
-        let items: [PixelMenuItem] = [
+        let items: [PixelMenuItem] = secureInputNotice + [
             .header("Chế độ gõ (⌃ + ⇧)"),
             .item("Ⓥ  Tiếng Việt", checked: on) { [weak self] in self?.enableVietnamese() },
             .item("Ⓔ  Tiếng Anh", checked: !on) { [weak self] in self?.enableEnglish() },
