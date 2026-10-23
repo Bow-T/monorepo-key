@@ -16,22 +16,29 @@ enum SecureInput {
     /// Có app nào đang bật Nhập bảo mật không (rẻ, gọi mỗi nhịp health check được).
     static var isOn: Bool { IsSecureEventInputEnabled() }
 
-    /// Tên app đang giữ, đọc từ IOConsoleUsers (giống `ioreg`). KHÔNG dùng
+    /// Đang bật bởi một app KHÁC. Chính Bow Go cũng bật nó khi ô nhập API key
+    /// (SecureField) đang focus — lúc đó người dùng đang gõ key, không phải lỗi.
+    static var heldByOtherApp: Bool {
+        isOn && ownerPID() != ProcessInfo.processInfo.processIdentifier
+    }
+
+    /// PID app đang giữ, đọc từ IOConsoleUsers (giống `ioreg`). KHÔNG dùng
     /// `CGSessionCopyCurrentDictionary`: trường PID ở đó là app đang ở trước, không
     /// phải app giữ (đo được: báo TextEdit trong khi Edge mới là app giữ).
-    static func ownerName() -> String? {
+    static func ownerPID() -> pid_t? {
         let root = IORegistryGetRootEntry(kIOMainPortDefault)
         defer { IOObjectRelease(root) }
         let users = IORegistryEntryCreateCFProperty(
             root, "IOConsoleUsers" as CFString, kCFAllocatorDefault, 0
         )?.takeRetainedValue() as? [[String: Any]] ?? []
-        for user in users {
-            if let pid = (user["kCGSSessionSecureInputPID"] as? NSNumber)?.int32Value,
-               let name = NSRunningApplication(processIdentifier: pid)?.localizedName {
-                return name
-            }
-        }
-        return nil
+        return users.lazy
+            .compactMap { ($0["kCGSSessionSecureInputPID"] as? NSNumber)?.int32Value }
+            .first
+    }
+
+    /// Tên app đang giữ (nil nếu không xác định được).
+    static func ownerName() -> String? {
+        ownerPID().flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName }
     }
 }
 

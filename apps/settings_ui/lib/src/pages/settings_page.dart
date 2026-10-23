@@ -627,7 +627,7 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: AppSpacing.sm),
           SettingRow(
             title: 'PHÍM TẮT BIẾN ĐỔI CHỮ',
-            subtitle: 'Mở bảng chọn thao tác tại con trỏ (⌃⇧T mặc định).\nKết quả luôn được chép vào clipboard để dán nơi khác.',
+            subtitle: 'Mở bảng chọn thao tác tại con trỏ (⌃⇧T mặc định).\nKhông sửa tại chỗ được (web, PDF, Terminal) thì kết quả được chép vào clipboard.',
             control: HotkeyRecorder(
               hotkey: s.textTransformHotkey,
               onChanged: (hk) =>

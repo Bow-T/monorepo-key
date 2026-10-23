@@ -89,6 +89,11 @@ final class ScreenshotController {
         let frame = screen.frame
         let scale = screen.backingScaleFactor
 
+        // Đóng TRƯỚC khi chụp (không lọt vào ảnh) và KHÔNG trả focus: overlay sắp lấy
+        // key, panel nào mất key sẽ tự đóng bằng NSApp.hide -> giấu luôn overlay
+        // (bấm phím tắt chụp khi đang mở bảng ký tự / lịch sử copy / menu = "không ăn").
+        Self.closeTransientPanels()
+
         lastCaptureID += 1
         let id = lastCaptureID
         preparingID = id
@@ -155,7 +160,10 @@ final class ScreenshotController {
 
     private func presentOverlay(screenshot: CGImage, screenFrame: NSRect) {
         teardownOverlay()  // không bao giờ để 2 overlay chồng nhau
-        previousApp = NSWorkspace.shared.frontmostApplication
+        // Đang ở panel của chính Bow Go (vừa bị đóng ở beginCapture) thì "app trước"
+        // là Bow Go — trả focus về đó là kẹt. Để nil -> dismiss dùng NSApp.hide.
+        let front = NSWorkspace.shared.frontmostApplication
+        previousApp = front?.processIdentifier == ProcessInfo.processInfo.processIdentifier ? nil : front
         // Tỉ lệ pixel-ảnh / điểm-view tính từ ảnh THẬT trả về (không giả định 2x).
         let imageScale = CGFloat(screenshot.width) / screenFrame.width
 
@@ -209,6 +217,24 @@ final class ScreenshotController {
     }
 
     private var overlayObservers: [NSObjectProtocol] = []
+
+    /// Đóng các panel tạm của Bow Go mà không gọi NSApp.hide (xem beginCapture).
+    private static func closeTransientPanels() {
+        PixelMenuWindow.closeAll(restoreFocus: false)
+        SymbolPickerWindow.shared?.close(restoreFocus: false)
+        StickerPickerWindow.shared?.close(restoreFocus: false)
+        AIResultWindow.shared?.close(restoreFocus: false)
+        if let w = ClipboardHistoryWindow.shared {
+            NotificationCenter.default.removeObserver(w)   // tránh handleResignKey -> hide
+            w.orderOut(nil)
+            ClipboardHistoryWindow.shared = nil
+        }
+        if let w = LiveTextWindow.shared {
+            NotificationCenter.default.removeObserver(w)
+            w.orderOut(nil)
+            LiveTextWindow.shared = nil
+        }
+    }
 
     /// Gỡ hẳn overlay khỏi màn hình. `close()` (không chỉ `orderOut`) để chắc chắn
     /// WindowServer bỏ cửa sổ, kể cả khi còn tham chiếu nào đó giữ nó lại.

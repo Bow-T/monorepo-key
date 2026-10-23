@@ -39,6 +39,22 @@ void main() {
       expect(out, {'enabled': false, 'method': 'vni', 'fixBrowserDoubleType': false});
     });
 
+    test('đĩa chưa có autoCorrectPairs + bộ nhớ rỗng -> KHÔNG ghi [] (để bộ gõ gieo mặc định)', () {
+      final out = SettingsService.merge(
+        disk: {'enabled': true},
+        mem: {'enabled': true, 'autoCorrectPairs': <dynamic>[]},
+        base: {'enabled': true, 'autoCorrectPairs': <dynamic>[]},
+      );
+      expect(out.containsKey('autoCorrectPairs'), isFalse);
+    });
+
+    test('app Cài đặt chạy trước bộ gõ, lưu 2 lần: file vẫn không có autoCorrectPairs', () async {
+      final svc = SettingsService.forTest();
+      await svc.loadFrom(file);
+      await svc.update(svc.value.copyWith(smartSwitch: true));
+      expect(readDisk().containsKey('autoCorrectPairs'), isFalse);
+    });
+
     test('khoá đĩa chưa có -> lấy bản bộ nhớ', () {
       final out = SettingsService.merge(disk: {}, mem: {'enabled': true}, base: {'enabled': true});
       expect(out, {'enabled': true});

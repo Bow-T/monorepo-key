@@ -16,11 +16,10 @@
 //      ⌘V dán đè. AX đọc được mà không ghi được (Terminal, ô chỉ-đọc) thì CHỈ
 //      chép — ⌘V lúc đó dễ dán nhầm vào dấu nhắc shell / ô soạn tin.
 //
-// DÙ ĐI ĐƯỜNG NÀO, kết quả LUÔN được để lại trong clipboard. Lý do: rất nhiều
-// vùng bôi đen không ghi đè được (đoạn văn trên trang web, PDF, ô chỉ đọc) —
-// khi đó thay tại chỗ bất khả thi, nhưng người dùng vẫn muốn ⌘V kết quả sang
-// chỗ khác. Clipboard cũ không mất trắng: ClipboardManager đã lưu nó vào lịch
-// sử (⌃⇧V để lấy lại).
+// CLIPBOARD: thay tại chỗ được thì clipboard cũ GIỮ NGUYÊN (lịch sử clipboard chỉ
+// lưu chữ thường ngắn — file, chữ có định dạng mà bị đè là mất hẳn). Chỉ khi KHÔNG
+// sửa tại chỗ được (đoạn văn web, PDF, Terminal) thì kết quả mới được để lại trong
+// clipboard để người dùng ⌘V sang chỗ khác.
 //
 // KHÔNG đi qua event tap của bộ gõ: đây là thao tác một-phát do người dùng chủ
 // động gọi (phím tắt/menu), tách hẳn khỏi luồng gõ realtime nhạy cảm.
@@ -101,7 +100,7 @@ enum TextTransformService {
     }
 
     /// Biến đổi văn bản đang được bôi đen ở ứng dụng phía trước.
-    /// Kết quả luôn được đặt vào clipboard, kể cả khi không thay được tại chỗ.
+    /// Chỉ để kết quả trong clipboard khi không thay được tại chỗ.
     @discardableResult
     static func run(_ transform: Transform) -> Result {
         let label = transform.title.uppercased()
@@ -109,7 +108,7 @@ enum TextTransformService {
         // Ưu tiên đường AX (đọc/ghi thẳng vùng chọn, không cần giả lập phím).
         switch transformViaAX(transform) {
         case .replaced:
-            ToastHUD.show("✓ \(label) · ĐÃ CHÉP")
+            ToastHUD.show("✓ \(label)")
             return .success(transform)
 
         case .empty:
@@ -126,7 +125,7 @@ enum TextTransformService {
         case .unavailable:
             // Không đọc được vùng chọn qua AX -> đi hẳn đường clipboard.
             if transformViaClipboard(transform) {
-                ToastHUD.show("✓ \(label) · ĐÃ CHÉP")
+                ToastHUD.show("✓ \(label)")
                 return .success(transform)
             }
             ToastHUD.show("KHÔNG BIẾN ĐỔI ĐƯỢC VÙNG CHỌN")
@@ -134,8 +133,7 @@ enum TextTransformService {
         }
     }
 
-    /// Đặt kết quả vào clipboard. Gọi ở CẢ hai đường để người dùng luôn ⌘V được
-    /// kết quả sang chỗ khác, không phụ thuộc vùng chọn có ghi đè được hay không.
+    /// Để kết quả trong clipboard — CHỈ khi không thay được tại chỗ.
     private static func putOnClipboard(_ text: String) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
@@ -153,8 +151,8 @@ enum TextTransformService {
         case unavailable          // không đọc được (app không hỗ trợ AX)
     }
 
-    /// Đọc `kAXSelectedTextAttribute` của phần tử focus, biến đổi, chép kết quả
-    /// vào clipboard, rồi ghi đè lại vùng chọn.
+    /// Đọc `kAXSelectedTextAttribute` của phần tử focus, biến đổi, ghi đè lại vùng
+    /// chọn; ghi đè hỏng thì chép kết quả vào clipboard.
     private static func transformViaAX(_ transform: Transform) -> AXOutcome {
         let systemWide = AXUIElementCreateSystemWide()
         var focusedRef: CFTypeRef?
@@ -175,9 +173,6 @@ enum TextTransformService {
         if selected.isEmpty { return .empty }
 
         let transformed = transform.apply(selected)
-        // Chép trước khi ghi: dù ghi đè có thất bại, người dùng vẫn ⌘V được kết quả.
-        putOnClipboard(transformed)
-
         if transformed == selected {
             // Không đổi gì (vd bỏ dấu chuỗi vốn không dấu) -> coi như xong, khỏi ghi.
             return .replaced
@@ -186,26 +181,20 @@ enum TextTransformService {
         let ok = AXUIElementSetAttributeValue(
             element, kAXSelectedTextAttribute as CFString, transformed as CFTypeRef
         ) == .success
-        return ok ? .replaced : .copiedNotReplaced
+        if ok { return .replaced }
+        // Không ghi đè được (web, PDF, Terminal) -> để kết quả cho người dùng ⌘V.
+        putOnClipboard(transformed)
+        return .copiedNotReplaced
     }
 
     // MARK: - Đường 2: Clipboard (⌘C -> biến đổi -> ⌘V)
 
-    /// Fallback cho app không cho ghi `kAXSelectedTextAttribute` (Electron/web).
-    /// Lấy vùng chọn qua ⌘C, biến đổi, dán đè qua ⌘V — và ĐỂ LẠI kết quả trong
-    /// clipboard. Clipboard cũ chỉ được khôi phục khi thao tác THẤT BẠI (không
-    /// lấy được vùng chọn), để lần bấm nhầm không phá clipboard đang dùng.
+    /// Fallback cho app không cho đọc vùng chọn qua AX (Electron/web editable):
+    /// lấy vùng chọn qua ⌘C, biến đổi, dán đè qua ⌘V, rồi trả lại clipboard cũ.
     private static func transformViaClipboard(_ transform: Transform) -> Bool {
-        guard let selection = ClipboardManager.shared.copySelection(restoreAfter: false)
-        else { return false }
-
-        let transformed = transform.apply(selection)
-        putOnClipboard(transformed)
-        KeyOutput.simulatePaste()
-
-        // KHÔNG khôi phục clipboard cũ ở đây: kết quả phải ở lại để ⌘V được sang
-        // chỗ khác (vùng bôi đen thường chỉ-đọc — đoạn văn web, PDF). Nội dung
-        // clipboard cũ vẫn nằm trong lịch sử của ClipboardManager.
+        let clipboard = ClipboardManager.shared
+        guard let selection = clipboard.copySelection(restoreAfter: true) else { return false }
+        clipboard.pasteKeepingClipboard(transform.apply(selection))
         return true
     }
 }
