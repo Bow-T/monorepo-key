@@ -128,6 +128,13 @@ final class EventTapController: @unchecked Sendable {
     private var bothDown = false
     private var cancelShortcut = false
 
+    /// Số keyDown PHẦN CỨNG lúc tổ hợp chỉ-modifier vừa lên đạn (xem handleFlagsChanged).
+    private var armedKeyDownCount: UInt32 = 0
+    /// Tổng keyDown phần cứng — đếm cả phím mà tap KHÔNG được thấy. Test thay được.
+    var hardwareKeyDownCount: () -> UInt32 = {
+        CGEventSource.counterForEventType(.hidSystemState, eventType: .keyDown)
+    }
+
     // Monitor AppKit cho .flagsChanged — CGEvent tap KHÔNG nhận flagsChanged
     // chỉ-modifier một cách đáng tin (macOS không feed vào .cgSessionEventTap),
     // nên ta theo dõi modifier qua NSEvent global monitor song song.
@@ -548,7 +555,7 @@ final class EventTapController: @unchecked Sendable {
 
     /// Xử lý đổi modifier: phát hiện NHẤN ĐÚNG tập yêu cầu rồi NHẢ ra để toggle.
     /// Chỉ áp dụng khi phím tắt là chỉ-modifier (hotkeyKeyCode == 0).
-    private func handleFlagsChanged(_ flags: NSEvent.ModifierFlags) {
+    func handleFlagsChanged(_ flags: NSEvent.ModifierFlags) {
         stateLock.lock(); defer { stateLock.unlock() }
         // Đang thu phím tắt trong app Cài đặt -> đừng toggle, để ô thu bắt được ⌃⇧.
         if isHotkeyRecording() {
@@ -577,10 +584,18 @@ final class EventTapController: @unchecked Sendable {
             bothDown = false
         } else if active == hotkeyModifiers {
             // Nhấn đúng tập -> lên đạn (nếu chưa bị huỷ trong session).
-            if !cancelShortcut { bothDown = true }
+            if !cancelShortcut {
+                bothDown = true
+                armedKeyDownCount = hardwareKeyDownCount()
+            }
         } else if bothDown {
-            // Nhả bớt modifier khi đang lên đạn -> kích hoạt.
-            if !cancelShortcut { toggleEnabledState() }
+            // Nhả bớt modifier khi đang lên đạn -> kích hoạt. TRỪ KHI giữa chừng có phím
+            // thật mà tap không thấy: phím tắt HỆ THỐNG (⇧⌘3/4/5 chụp màn hình) bị
+            // WindowServer ăn trước, Nhập bảo mật chặn phím thường — tap chỉ thấy "nhấn
+            // ⇧⌘ rồi nhả" và tắt nhầm tiếng Việt mỗi lần chụp. Bộ đếm phần cứng vẫn đếm.
+            if !cancelShortcut, hardwareKeyDownCount() == armedKeyDownCount {
+                toggleEnabledState()
+            }
             bothDown = false
         }
 
