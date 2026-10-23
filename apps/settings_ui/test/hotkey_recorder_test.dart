@@ -67,6 +67,14 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.escape); // thoát thu
   });
 
+  testWidgets('lỡ bấm phím chữ trước, rồi ⌃⇧ -> vẫn thu được chỉ-modifier', (tester) async {
+    final saved = await pumpRecorder(tester, allowModifierOnly: true);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyB); // không modifier -> bị bỏ qua
+    await pressCtrlShift(tester);
+    expect(saved, hasLength(1));
+    expect(saved.single.isModifierOnly, isTrue);
+  });
+
   testWidgets('để ô thu mở quá 60s -> tự huỷ thu', (tester) async {
     final saved = await pumpRecorder(tester);
     expect(find.text('GIỮ PHÍM…'), findsOneWidget);

@@ -431,10 +431,10 @@ final class EventTapController: @unchecked Sendable {
         // thread sẽ chạy nó. Đợi thread báo kết quả (rất nhanh) để `start()` vẫn trả
         // đúng true/false cho caller như trước.
         let ready = DispatchSemaphore(value: 0)
-        let result = BoolBox()
+        let handshake = TapHandshake()
         let thread = Thread { [weak self] in
             guard let self else { ready.signal(); return }
-            self.runTapThread(result: result, ready: ready)
+            self.runTapThread(handshake: handshake, ready: ready)
         }
         thread.name = "BowGo.EventTap"
         thread.qualityOfService = .userInteractive
@@ -442,7 +442,7 @@ final class EventTapController: @unchecked Sendable {
         thread.start()
         _ = ready.wait(timeout: .now() + 5)
 
-        guard result.value else {
+        guard handshake.finish() else {
             tapThread = nil
             return false
         }
@@ -457,7 +457,7 @@ final class EventTapController: @unchecked Sendable {
 
     /// Thân của thread tap: tạo tap, gắn vào runloop CỦA THREAD NÀY, rồi chạy vòng
     /// lặp cho tới khi `stop()` gọi `CFRunLoopStop`.
-    private func runTapThread(result: BoolBox, ready: DispatchSemaphore) {
+    private func runTapThread(handshake: TapHandshake, ready: DispatchSemaphore) {
         let mask: CGEventMask =
             (1 << CGEventType.keyDown.rawValue) |
             (1 << CGEventType.flagsChanged.rawValue) |
@@ -485,6 +485,11 @@ final class EventTapController: @unchecked Sendable {
             ready.signal()
             return
         }
+        guard handshake.reportSuccess() else {
+            bowLog("[Tap] Tạo tap quá muộn (start() đã bỏ cuộc) — huỷ.")
+            CFMachPortInvalidate(tap)
+            return
+        }
 
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         let runLoop = CFRunLoopGetCurrent()
@@ -496,7 +501,6 @@ final class EventTapController: @unchecked Sendable {
         CFRunLoopAddSource(runLoop, source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
         bowLog("[Tap] Đã bật event tap trên thread riêng.")
-        result.value = true
         ready.signal()
 
         CFRunLoopRun()   // chạy tới khi `stop()` gọi CFRunLoopStop
@@ -1365,8 +1369,28 @@ final class EventTapController: @unchecked Sendable {
 }
 
 /// Hộp Bool để thread tap báo kết quả khởi tạo về cho `start()`.
-private final class BoolBox: @unchecked Sendable {
-    var value = false
+/// Bắt tay giữa `start()` và thread tap, có khoá. `start()` chỉ chờ 5 giây: nếu
+/// WindowServer chậm hơn thế, thread tới SAU khi `start()` đã báo thất bại — lúc đó
+/// thread phải tự huỷ tap, không được để lại một tap chạy mà phần cài đặt kèm theo
+/// (theo dõi app phía trước, flags monitor) chưa bao giờ được bật.
+private final class TapHandshake: @unchecked Sendable {
+    private let lock = NSLock()
+    private var succeeded = false
+    private var abandoned = false
+
+    /// Thread báo đã tạo tap. Trả false nếu `start()` đã bỏ cuộc -> thread tự dọn.
+    func reportSuccess() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        succeeded = !abandoned
+        return succeeded
+    }
+
+    /// `start()` dừng chờ: trả kết quả; chưa thành công thì đánh dấu bỏ cuộc.
+    func finish() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        if !succeeded { abandoned = true }
+        return succeeded
+    }
 }
 
 /// Cờ boolean ĐƯỢC LÀM MỚI NGẦM.

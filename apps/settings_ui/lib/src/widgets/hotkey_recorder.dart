@@ -116,6 +116,9 @@ class _HotkeyRecorderState extends State<HotkeyRecorder> {
 
     // Mới chỉ nhấn modifier — ghi vào tập đỉnh, chờ phím chính HOẶC chờ nhả.
     if (Hotkey.isModifierKey(event.logicalKey)) {
+      // Modifier ĐẦU TIÊN của một lượt bấm mới -> phím chính lỡ bấm trước đó (A, F5…)
+      // không còn liên quan; không xoá thì ⌃⇧ chỉ-modifier không bao giờ thu được.
+      if (_peakModifiers.isEmpty) _sawMainKey = false;
       final m = _modifierOf(event.logicalKey);
       if (m != null) _peakModifiers.add(m);
       setState(() {}); // vẽ lại để hiện modifier đang giữ

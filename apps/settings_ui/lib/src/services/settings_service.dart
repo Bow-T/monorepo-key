@@ -135,7 +135,13 @@ class SettingsService extends ChangeNotifier {
     if (content == _lastContent) return;
     if (!_reloadFromDisk()) return;
     notifyListeners();
-    if (onChanged != null) await onChanged!(_value);
+    // Gọi từ Timer (không ai await) -> lỗi của hook (đăng ký phím tắt Windows…)
+    // phải bắt tại đây, không thì thành lỗi async không ai xử lý.
+    try {
+      if (onChanged != null) await onChanged!(_value);
+    } catch (e) {
+      debugPrint('[Settings] Áp cấu hình mới lỗi: $e');
+    }
   }
 
   /// Gộp bản bộ nhớ vào bản trên đĩa: bắt đầu từ ĐĨA (giữ cả khoá UI không biết),
@@ -148,6 +154,11 @@ class SettingsService extends ChangeNotifier {
   }) {
     final out = Map<String, dynamic>.of(disk);
     mem.forEach((k, v) {
+      // Bộ gõ chỉ gieo cặp tự-sửa MẶC ĐỊNH khi khoá vắng mặt — ghi [] lúc đĩa chưa
+      // có khoá (app Cài đặt chạy trước bộ gõ) là người dùng mất luôn bộ mặc định.
+      if (k == 'autoCorrectPairs' && !disk.containsKey(k) && v is List && v.isEmpty) {
+        return;
+      }
       final uiChanged = !_jsonEq(v, base[k]);
       if (uiChanged || !disk.containsKey(k)) out[k] = v;
     });

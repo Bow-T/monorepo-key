@@ -198,6 +198,9 @@ class Hotkey {
   /// tắt toàn cục trên Windows (hotkey_manager cần LogicalKeyboardKey). Trả null
   /// nếu keyCode không nằm trong bảng (kể cả keyCode 0 = chỉ-modifier).
   static LogicalKeyboardKey? logicalFromMacKeyCode(int code) {
+    // keyCode 0 trùng mã phím A trong bảng — phải chặn trước, kẻo phím tắt
+    // chỉ-modifier (⌃⇧) bị đăng ký nhầm thành ⌃⇧A toàn hệ thống trên Windows.
+    if (code == 0) return null;
     for (final entry in _toMac.entries) {
       if (entry.value == code) return LogicalKeyboardKey(entry.key);
     }

@@ -38,16 +38,24 @@ struct SecureInputTests {
     func namesCurrentOwner() {
         let name = SecureInput.ownerName()
         print("Secure Input đang do: \(name ?? "nil")")
-        #expect(name != nil)
+        // Trạng thái THẬT của máy: app kia có thể vừa nhả giữa lúc kiểm điều kiện
+        // và lúc đọc -> chỉ fail khi VẪN đang bật mà không đọc được tên.
+        if name == nil { #expect(!SecureInput.isOn, "đang bật mà không đọc được app giữ") }
     }
 
     @Test("phát hiện thật: tiến trình bật Secure Input -> isOn và đúng app giữ",
           .enabled(if: !IsSecureEventInputEnabled(), "app khác đang giữ Secure Input"))
     func detectsRealSecureInput() {
-        #expect(!SecureInput.isOn)
+        // Điều kiện `.enabled` xét lúc nạp test; app khác (vd Edge) có thể bật lại
+        // ngay sau đó -> xét lại lúc chạy.
+        guard !SecureInput.isOn else { return }
         EnableSecureEventInput()
         defer { DisableSecureEventInput() }
         #expect(SecureInput.isOn)
-        #expect(SecureInput.ownerName() == NSRunningApplication.current.localizedName)
+        // Hai tiến trình cùng giữ thì IOConsoleUsers chỉ ghi MỘT PID -> chỉ khẳng
+        // định khi PID ghi nhận đúng là chính mình.
+        guard SecureInput.ownerPID() == ProcessInfo.processInfo.processIdentifier else { return }
+        // Chính mình giữ (vd ô nhập API key) -> không cảnh báo "app khác chặn bộ gõ".
+        #expect(!SecureInput.heldByOtherApp)
     }
 }

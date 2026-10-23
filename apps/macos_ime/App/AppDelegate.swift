@@ -113,7 +113,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 self.healthTick += 1
                 let heavyTick = self.healthTick % 5 == 0
-                if self.secureInputMonitor.update(isOn: SecureInput.isOn) == .stuck {
+                if self.secureInputMonitor.update(isOn: SecureInput.heldByOtherApp) == .stuck {
                     let who = SecureInput.ownerName() ?? "Một ứng dụng"
                     bowLog("[SecureInput] \(who) bật Nhập bảo mật quá \(Int(SecureInputMonitor.stuckAfter))s — event tap không nhận phím.")
                     ToastHUD.show("\(who.uppercased()) ĐANG BẬT NHẬP BẢO MẬT — BOW GO TẠM KHÔNG GÕ ĐƯỢC")
@@ -293,7 +293,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Nhập bảo mật đang bật -> mọi phím bị chặn khỏi bộ gõ: nói rõ lý do ngay đầu menu.
         var secureInputNotice: [PixelMenuItem] = []
-        if SecureInput.isOn {
+        if SecureInput.heldByOtherApp {
             let who = SecureInput.ownerName() ?? "Một ứng dụng"
             secureInputNotice = [
                 .header("🔒 \(who) đang bật Nhập bảo mật"),

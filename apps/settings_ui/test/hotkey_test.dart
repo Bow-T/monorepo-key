@@ -24,6 +24,11 @@ void main() {
       expect(onlyShift.isValid, isFalse); // 1 modifier -> không nuốt nhầm
     });
 
+    test('keyCode 0 (chỉ-modifier) KHÔNG đổi thành phím A cho phím tắt Windows', () {
+      expect(Hotkey.logicalFromMacKeyCode(0), isNull);
+      expect(Hotkey.logicalFromMacKeyCode(40), isNotNull); // 'K' vẫn đổi được
+    });
+
     test('display chỉ hiện ký hiệu modifier (không phím chính)', () {
       expect(ctrlShift.display, '⌃⇧');
     });
