@@ -106,7 +106,42 @@ std::optional<std::u32string> VietEngine::Backspace() {
 
 // MARK: - Áp dụng phím-dấu
 
+// Tổ hợp PHỤ ÂM ĐẦU không tồn tại trong tiếng Việt (có trong tiếng Anh/thuật ngữ:
+// blue, brown, clear, drop, flag, print, string, swift...). Tiếng Việt KHÔNG có âm
+// tiết nào bắt đầu bằng các cụm này, nên khi âm tiết đang gõ mở đầu bằng một trong số
+// đó, ta CHẮC CHẮN người dùng đang gõ từ phi-Việt -> KHÔNG coi phím nào là phím-dấu
+// (tránh "clear"->"clẻa", "printf"->"prìnt"). Cũng là cách nhận diện sớm để không
+// phá lệnh terminal.
+// LƯU Ý: KHÔNG đưa cụm chứa 'w' (sw, tw, wr) vào đây — trong Telex 'w' là phím gõ
+// tắt: "tw"->tư, "sw"->sư, "w"->ư. Chặn chúng sẽ phá tính năng gõ tắt. Từ tiếng Anh
+// như "swift"/"twin" để cơ chế tự-khôi-phục-tiếng-Anh xử lý khi chốt từ.
+// (Khớp Engine.swift `nonVietInitialClusters`.)
+static constexpr char32_t kNonVietInitialClusters[][2] = {
+    {U'b', U'l'}, {U'b', U'r'}, {U'c', U'l'}, {U'c', U'r'}, {U'd', U'r'}, {U'f', U'l'},
+    {U'f', U'r'}, {U'g', U'l'}, {U'g', U'r'}, {U'p', U'l'}, {U'p', U'r'},
+    {U's', U'c'}, {U's', U'k'}, {U's', U'l'}, {U's', U'm'}, {U's', U'n'}, {U's', U'p'},
+    {U's', U't'},
+};
+
+// Âm tiết hiện tại có mở đầu bằng tổ hợp phụ âm đầu phi-Việt không, KHI xét thêm
+// phím `ch` sắp gõ? Hai trường hợp:
+//   • Đã có >=2 chữ và 2 chữ GỐC đầu là cụm phi-Việt (vd đã gõ "st" của "strings").
+//   • Mới có ĐÚNG 1 phụ âm, và phụ âm đó + `ch` tạo cụm phi-Việt — cần xét sớm vì
+//     phím thứ 2 có thể chính là phím-dấu, sẽ bị áp NGAY nếu không chặn trước.
+bool VietEngine::StartsWithNonVietCluster(char32_t ch) const {
+    if (letters_.empty()) return false;
+    const char32_t a = ToLower(letters_[0].base);
+    const char32_t b = ToLower(letters_.size() >= 2 ? letters_[1].base : ch);
+    for (const auto& cluster : kNonVietInitialClusters) {
+        if (cluster[0] == a && cluster[1] == b) return true;
+    }
+    return false;
+}
+
 VietEngine::DiacriticResult VietEngine::ApplyAsDiacritic(char32_t ch) {
+    // Âm tiết mở đầu bằng tổ hợp phụ âm phi-Việt (str, cl, pr...) -> đây là từ tiếng
+    // Anh/lệnh, không phải tiếng Việt. Giữ mọi phím nguyên bản.
+    if (StartsWithNonVietCluster(ch)) return DiacriticResult::NotDiacritic;
     return method_ == InputMethod::Telex ? ApplyTelex(ch) : ApplyVni(ch);
 }
 
@@ -125,8 +160,26 @@ VietEngine::DiacriticResult VietEngine::ApplyTelex(char32_t ch) {
         case U'o':
             return ApplyCircumflexRepeat(lower);
 
-        case U'w':
+        case U'w': {
+            // Xử lý ww -> w: nếu phím trước là w và không có nguyên âm trước w đó
+            // thì chữ 'ư' (do w gõ tắt tạo ra) trở về chữ 'w' thô (ww->w, www->ww).
+            const size_t raw_len = raw_keys_.size();
+            const bool is_consecutive_w =
+                raw_len >= 2 && ToLower(raw_keys_[raw_len - 2]) == U'w';
+            if (is_consecutive_w) {
+                const char32_t before = raw_len >= 3 ? ToLower(raw_keys_[raw_len - 3]) : 0;
+                const bool has_vowel_before_prev_w =
+                    before == U'u' || before == U'o' || before == U'a';
+                if (!has_vowel_before_prev_w && !letters_.empty() &&
+                    letters_.back().mark == Mark::Horn &&
+                    ToLower(letters_.back().base) == U'u') {
+                    letters_.back().base = ch;
+                    letters_.back().mark = Mark::None;
+                    return DiacriticResult::Applied;
+                }
+            }
             return ApplyHornOrBreve();
+        }
         case U'd':
             if (!letters_.empty() && ToLower(letters_.back().base) == U'd') {
                 if (letters_.back().mark == Mark::Dyet) {
@@ -194,47 +247,169 @@ VietEngine::DiacriticResult VietEngine::ApplyVni(char32_t ch) {
         case U'4': return SetTone(Tone::Tilde);
         case U'5': return SetTone(Tone::Dot);
         case U'0': return SetTone(Tone::None);
-        case U'6': return SetMarkOrToggle(Mark::Circumflex);
-        case U'7': return SetMarkOrToggle(Mark::Horn);
-        case U'8': return SetMarkOrToggle(Mark::Breve);
-        case U'9': return SetMarkOrToggle(Mark::Dyet);
+        case U'6': return SetMarkOnNucleus(Mark::Circumflex)
+                              .value_or(DiacriticResult::NotDiacritic);  // â/ê/ô
+        case U'7': return ApplyHornVni();                                // ơ/ư/ươ/ưa
+        case U'8': return SetMarkOnNucleus(Mark::Breve)
+                              .value_or(DiacriticResult::NotDiacritic);  // ă
+        case U'9': return SetMarkOrToggle(Mark::Dyet);                   // đ (lên 'd' đầu)
         default:   return DiacriticResult::NotDiacritic;
     }
 }
 
+// Tìm CỤM NGUYÊN ÂM (nucleus) của âm tiết: quét NGƯỢC từ cuối, BỎ QUA phụ âm cuối,
+// lấy run nguyên âm liền nhau. Trả (start, end) chỉ số trong letters_, hoặc nullopt
+// nếu âm tiết chưa có nguyên âm.
+//
+// Đây là chìa khoá để dấu/biến âm đặt ĐÚNG kể cả khi người dùng gõ phím-dấu SAU phụ
+// âm cuối — vd "đuoc" rồi gõ "w" vẫn móc được cụm "uo" -> "đươc".
+std::optional<std::pair<int, int>> VietEngine::VowelNucleusRange() const {
+    int end = static_cast<int>(letters_.size()) - 1;
+    while (end >= 0 && !IsVietVowel(letters_[end].base)) --end;
+    if (end < 0) return std::nullopt;
+    int start = end;
+    while (start - 1 >= 0 && IsVietVowel(letters_[start - 1].base)) --start;
+    return std::make_pair(start, end);
+}
+
+// w trong Telex: a->ă, o->ơ, u->ư (móc/trăng đặt lên CỤM NGUYÊN ÂM, không chỉ chữ
+// cuối — nên "đuoc"+w -> "đươc"). Nếu không áp được -> gõ tắt -> 'ư'.
 VietEngine::DiacriticResult VietEngine::ApplyHornOrBreve() {
-    const size_t n = letters_.size();
+    auto r = ApplyHornToNucleus(/*allow_breve=*/true);
+    return r ? *r : InsertStandaloneW();
+}
 
-    // "uo" + w -> "ươ": móc cả hai nguyên âm.
-    if (n >= 2 && ToLower(letters_[n - 2].base) == U'u' &&
-        ToLower(letters_[n - 1].base) == U'o') {
-        if (letters_[n - 1].mark == Mark::Horn && letters_[n - 2].mark == Mark::Horn) {
-            letters_[n - 2].mark = Mark::None;
-            letters_[n - 1].mark = Mark::None;
-            return DiacriticResult::Cancelled;
+// 7 trong VNI: o->ơ, u->ư (KHÔNG có trăng 'ă', KHÔNG có gõ tắt ->'ư').
+VietEngine::DiacriticResult VietEngine::ApplyHornVni() {
+    return ApplyHornToNucleus(/*allow_breve=*/false).value_or(DiacriticResult::NotDiacritic);
+}
+
+// LÕI CHUNG đặt móc (và tuỳ chọn trăng) lên CỤM NGUYÊN ÂM. Trả nullopt nếu không áp
+// được (caller tự fallback: Telex -> 'ư', VNI -> giữ thô). Tìm cụm qua
+// VowelNucleusRange nên hoạt động kể cả khi phím-móc gõ SAU phụ âm cuối.
+std::optional<VietEngine::DiacriticResult> VietEngine::ApplyHornToNucleus(bool allow_breve) {
+    auto range = VowelNucleusRange();
+    if (!range) return std::nullopt;
+    const int v_start = range->first;
+    const int v_end = range->second;
+
+    // Cụm 2+ nguyên âm bắt đầu bằng "uo"/"ua" -> luật ươ/ưa riêng.
+    if (v_end - v_start >= 1) {
+        const char32_t a = ToLower(letters_[v_start].base);
+        const char32_t b = ToLower(letters_[v_start + 1].base);
+        const bool is_part_of_qu = v_start >= 1 && ToLower(letters_[v_start - 1].base) == U'q';
+
+        // "uo" -> "ươ": móc CẢ HAI nguyên âm.
+        if (a == U'u' && b == U'o' && !is_part_of_qu) {
+            // "thuo": LUÔN móc 'o', và móc THÊM 'u' nếu có phụ âm cuối sau cụm
+            // (thương). Không có phụ âm cuối thì chỉ móc 'o' (thuở).
+            const bool is_thuo = v_start >= 2 &&
+                                 ToLower(letters_[v_start - 2].base) == U't' &&
+                                 ToLower(letters_[v_start - 1].base) == U'h';
+            if (is_thuo) {
+                if (letters_[v_start + 1].mark == Mark::Horn) {
+                    letters_[v_start].mark = Mark::None;
+                    letters_[v_start + 1].mark = Mark::None;
+                    return DiacriticResult::Cancelled;
+                }
+                letters_[v_start + 1].mark = Mark::Horn;
+                const bool has_final = v_end < static_cast<int>(letters_.size()) - 1;
+                if (has_final) letters_[v_start].mark = Mark::Horn;
+                return DiacriticResult::Applied;
+            }
+            // Gõ lại khi đã là "ươ" -> bỏ móc cả hai.
+            if (letters_[v_start].mark == Mark::Horn && letters_[v_start + 1].mark == Mark::Horn) {
+                letters_[v_start].mark = Mark::None;
+                letters_[v_start + 1].mark = Mark::None;
+                return DiacriticResult::Cancelled;
+            }
+            letters_[v_start].mark = Mark::Horn;
+            letters_[v_start + 1].mark = Mark::Horn;
+            return DiacriticResult::Applied;
         }
-        letters_[n - 2].mark = Mark::Horn;
-        letters_[n - 1].mark = Mark::Horn;
-        return DiacriticResult::Applied;
+
+        // "ua" -> "ưa": chỉ móc 'u'.
+        if (a == U'u' && b == U'a' && !is_part_of_qu) {
+            if (letters_[v_start].mark == Mark::Horn) {
+                letters_[v_start].mark = Mark::None;
+                return DiacriticResult::Cancelled;
+            }
+            letters_[v_start].mark = Mark::Horn;
+            return DiacriticResult::Applied;
+        }
     }
 
-    if (!letters_.empty()) {
-        char32_t last = ToLower(letters_.back().base);
-        if (last == U'a') {
-            return letters_.back().mark == Mark::Breve ? RemoveMarkOnLast()
-                                                       : SetMarkOnLast(Mark::Breve);
-        }
-        if (last == U'o' || last == U'u') {
-            return letters_.back().mark == Mark::Horn ? RemoveMarkOnLast()
-                                                      : SetMarkOnLast(Mark::Horn);
+    // Một nguyên âm trong cụm nhận móc/trăng: ưu tiên nguyên âm hợp GẦN CUỐI cụm.
+    // BỎ 'u' sau 'q' (và 'i' sau 'g') — bán phụ âm của phụ âm đầu (qua7 KHÔNG thành qưa).
+    int target_start = v_start;
+    if (v_start >= 1) {
+        const char32_t semivowel = ToLower(letters_[v_start].base);
+        const char32_t prev = ToLower(letters_[v_start - 1].base);
+        if ((semivowel == U'u' && prev == U'q') || (semivowel == U'i' && prev == U'g')) {
+            target_start = v_start + 1;
         }
     }
+    if (target_start > v_end) return std::nullopt;
+    auto target = HornBreveTargetIndex(target_start, v_end, allow_breve);
+    if (!target) return std::nullopt;
+    switch (ToLower(letters_[*target].base)) {
+        case U'a':
+            return letters_[*target].mark == Mark::Breve ? RemoveMarkAt(*target)
+                                                         : SetMarkAt(Mark::Breve, *target);
+        case U'o':
+        case U'u':
+            return letters_[*target].mark == Mark::Horn ? RemoveMarkAt(*target)
+                                                        : SetMarkAt(Mark::Horn, *target);
+        default:
+            return std::nullopt;
+    }
+}
 
-    // GÕ TẮT 'w' -> 'ư': khi 'w' không áp được móc/trăng cho chữ cuối (chữ cuối
-    // không phải a/o/u, hoặc âm tiết chưa có nguyên âm), 'w' tự tạo nguyên âm 'ư'.
-    // Ví dụ: "tw"->tư, "mwf"->mừ, "w"->ư. Cách gõ tắt Telex phổ biến.
-    // Ngoại lệ: nếu chữ NGAY TRƯỚC thuộc nhóm không-ghép-được thì 'w' giữ thô.
-    // (Nhóm chữ không ghép 'w': w e y f j k z.)
+// Chọn nguyên âm trong cụm [start..end] nhận móc/trăng đơn: nguyên âm phù hợp GẦN
+// CUỐI cụm nhất. Telex (allow_breve) nhận a/o/u; VNI '7' chỉ nhận o/u.
+std::optional<int> VietEngine::HornBreveTargetIndex(int start, int end, bool allow_breve) const {
+    for (int i = end; i >= start; --i) {
+        const char32_t l = ToLower(letters_[i].base);
+        if (l == U'o' || l == U'u' || (allow_breve && l == U'a')) return i;
+    }
+    return std::nullopt;
+}
+
+// Đặt MŨ (â/ê/ô) hoặc TRĂNG (ă) của VNI lên CỤM NGUYÊN ÂM (không chỉ chữ cuối) — nên
+// gõ "6"/"8" SAU phụ âm cuối / sau bán nguyên âm 'i' vẫn đúng: "muoi"+6 -> "muôi",
+// "tang"+8 -> "tăng". Toggle: chữ đích đã mang đúng mark -> gỡ + số thô. Trả nullopt
+// nếu cụm không có nguyên âm nào áp được.
+std::optional<VietEngine::DiacriticResult> VietEngine::SetMarkOnNucleus(Mark mark) {
+    auto range = VowelNucleusRange();
+    if (!range) return std::nullopt;
+    int start = range->first;
+    const int end = range->second;
+
+    // Bỏ 'u' sau 'q' / 'i' sau 'g' — bán phụ âm của phụ âm đầu, không nhận mũ/trăng.
+    if (start >= 1) {
+        const char32_t semivowel = ToLower(letters_[start].base);
+        const char32_t prev = ToLower(letters_[start - 1].base);
+        if ((semivowel == U'u' && prev == U'q') || (semivowel == U'i' && prev == U'g')) {
+            start = start + 1;
+        }
+    }
+    if (start > end) return std::nullopt;
+
+    // Tìm nguyên âm GẦN CUỐI cụm nhận được mark.
+    for (int i = end; i >= start; --i) {
+        if (VietTable::Compose(letters_[i].base, mark, Tone::None) == 0) continue;
+        if (letters_[i].mark == mark) return RemoveMarkAt(i);  // trùng -> gỡ + số thô
+        return SetMarkAt(mark, i);
+    }
+    return std::nullopt;
+}
+
+// GÕ TẮT 'w' -> 'ư': khi 'w' không áp được móc/trăng cho cụm nguyên âm (âm tiết chưa
+// có nguyên âm, hoặc cụm không có a/o/u), 'w' tự tạo nguyên âm 'ư'.
+// Ví dụ: "tw"->tư, "mwf"->mừ, "w"->ư. Cách gõ tắt Telex phổ biến.
+// Ngoại lệ: nếu chữ NGAY TRƯỚC thuộc nhóm không-ghép-được thì 'w' giữ thô.
+// (Nhóm chữ không ghép 'w': w e y f j k z.)
+VietEngine::DiacriticResult VietEngine::InsertStandaloneW() {
     if (!letters_.empty()) {
         char32_t prev = ToLower(letters_.back().base);
         if (prev == U'w' || prev == U'e' || prev == U'y' || prev == U'f' ||
@@ -315,6 +490,28 @@ VietEngine::DiacriticResult VietEngine::SetMarkOrToggle(Mark mark) {
 VietEngine::DiacriticResult VietEngine::RemoveMarkOnLast() {
     if (letters_.empty()) return DiacriticResult::NotDiacritic;
     letters_.back().mark = Mark::None;
+    return DiacriticResult::Cancelled;
+}
+
+// Đặt dấu biến âm cho chữ tại VỊ TRÍ bất kỳ (không chỉ chữ cuối) — cần khi móc/trăng
+// đặt lên nguyên âm nằm TRƯỚC phụ âm cuối (vd "muon"+w -> 'o' móc).
+VietEngine::DiacriticResult VietEngine::SetMarkAt(Mark mark, int index) {
+    if (index < 0 || index >= static_cast<int>(letters_.size())) {
+        return DiacriticResult::NotDiacritic;
+    }
+    if (VietTable::Compose(letters_[index].base, mark, Tone::None) == 0) {
+        return DiacriticResult::NotDiacritic;
+    }
+    letters_[index].mark = mark;
+    return DiacriticResult::Applied;
+}
+
+// Gỡ dấu biến âm tại vị trí bất kỳ (gõ lại trùng móc/trăng để hủy).
+VietEngine::DiacriticResult VietEngine::RemoveMarkAt(int index) {
+    if (index < 0 || index >= static_cast<int>(letters_.size())) {
+        return DiacriticResult::NotDiacritic;
+    }
+    letters_[index].mark = Mark::None;
     return DiacriticResult::Cancelled;
 }
 

@@ -11,6 +11,7 @@
 
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "viet_model.h"
@@ -55,10 +56,17 @@ private:
     std::optional<std::u32string> Step(char32_t ch);
     void ResetSyllable();
 
+    bool StartsWithNonVietCluster(char32_t ch) const;
     DiacriticResult ApplyAsDiacritic(char32_t ch);
     DiacriticResult ApplyTelex(char32_t ch);
     DiacriticResult ApplyVni(char32_t ch);
     DiacriticResult ApplyHornOrBreve();
+    DiacriticResult ApplyHornVni();
+    std::optional<DiacriticResult> ApplyHornToNucleus(bool allow_breve);
+    std::optional<int> HornBreveTargetIndex(int start, int end, bool allow_breve) const;
+    DiacriticResult InsertStandaloneW();
+    std::optional<DiacriticResult> SetMarkOnNucleus(Mark mark);
+    std::optional<std::pair<int, int>> VowelNucleusRange() const;
     DiacriticResult ApplyCircumflexRepeat(char32_t lower);
     int TrailingVowelPressCount(char32_t lower) const;
 
@@ -66,6 +74,8 @@ private:
     DiacriticResult SetMarkOnLast(Mark mark);
     DiacriticResult SetMarkOrToggle(Mark mark);
     DiacriticResult RemoveMarkOnLast();
+    DiacriticResult SetMarkAt(Mark mark, int index);
+    DiacriticResult RemoveMarkAt(int index);
 
     void PropagateUoHorn();
     bool HasVowel() const;
