@@ -275,7 +275,7 @@ final class SettingsStore {
                 let backup = url.appendingPathExtension("bak")
                 try? FileManager.default.removeItem(at: backup)
                 try? FileManager.default.moveItem(at: url, to: backup)
-                NSLog("[Settings] settings.json hỏng, đã cất sang \(backup.lastPathComponent).")
+                bowLog("[Settings] settings.json hỏng, đã cất sang \(backup.lastPathComponent).")
             }
         } else {
             // Lần chạy đầu: thư mục BowGo có thể chưa tồn tại -> ghi sẽ hỏng im lặng.

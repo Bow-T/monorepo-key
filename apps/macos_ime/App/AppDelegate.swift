@@ -25,6 +25,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var healthCheckTimer: Timer?
     /// Đếm nhịp health check (1 nhịp = 1 giây) — việc nặng chỉ chạy mỗi 5 nhịp.
     private var healthTick = 0
+    /// Nhập bảo mật bật lâu = bộ gõ "chết" im lặng -> báo (xem SecureInput.swift).
+    private var secureInputMonitor = SecureInputMonitor()
     /// Timer riêng ghi status.json mỗi ~1s cho app Cài đặt (Flutter) đọc — để UI
     /// phản ánh quyền gần như tức thì mà KHÔNG cần app Flutter tự gọi TCC API
     /// (việc đó khiến nó xuất hiện trong danh sách quyền như một entry thừa).
@@ -74,7 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.applyAIConfig(cfg)
 
             self.updateMenuTitle()
-            NSLog("[App] Đã áp cấu hình mới từ UI.")
+            bowLog("[App] Đã áp cấu hình mới từ UI.")
         }
         // Phím tắt ⌃⌥ Space bật/tắt -> cập nhật icon + ghi lại file để UI đồng bộ,
         // và để Smart Switch ghi nhớ lựa chọn cho app đang focus.
@@ -111,6 +113,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 self.healthTick += 1
                 let heavyTick = self.healthTick % 5 == 0
+                if self.secureInputMonitor.update(isOn: SecureInput.isOn) == .stuck {
+                    let who = SecureInput.ownerName() ?? "Một ứng dụng"
+                    bowLog("[SecureInput] \(who) bật Nhập bảo mật quá \(Int(SecureInputMonitor.stuckAfter))s — event tap không nhận phím.")
+                    ToastHUD.show("\(who.uppercased()) ĐANG BẬT NHẬP BẢO MẬT — BOW GO TẠM KHÔNG GÕ ĐƯỢC")
+                }
                 if heavyTick {
                     // Cập nhật trạng thái quyền cho app UI (Flutter) đọc.
                     Permissions.writeStatus()
@@ -123,7 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.tapController.ensureAlive()
                 } else if heavyTick, Permissions.ready() {
                     if self.launchedWithoutPermissions {
-                        NSLog("[App] Phát hiện quyền mới được cấp. Tự động relaunch để macOS áp dụng quyền.")
+                        bowLog("[App] Phát hiện quyền mới được cấp. Tự động relaunch để macOS áp dụng quyền.")
                         self.relaunchApp()
                     } else {
                         self.startTyping()
@@ -174,7 +181,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func startTyping() {
         if tapController.start() {
-            NSLog("[App] Bộ gõ đã sẵn sàng.")
+            bowLog("[App] Bộ gõ đã sẵn sàng.")
         }
         updateMenuTitle()
     }
@@ -284,8 +291,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .item("Sửa lỗi quyền (gõ không được)…", symbol: "lock.shield") { [weak self] in self?.repairPermissions() },
         ]
 
+        // Nhập bảo mật đang bật -> mọi phím bị chặn khỏi bộ gõ: nói rõ lý do ngay đầu menu.
+        var secureInputNotice: [PixelMenuItem] = []
+        if SecureInput.isOn {
+            let who = SecureInput.ownerName() ?? "Một ứng dụng"
+            secureInputNotice = [
+                .header("🔒 \(who) đang bật Nhập bảo mật"),
+                .header("Bow Go tạm không gõ được — đóng ô mật khẩu hoặc mở lại \(who)"),
+                .separator,
+            ]
+        }
+
         // Menu gốc
-        let items: [PixelMenuItem] = [
+        let items: [PixelMenuItem] = secureInputNotice + [
             .header("Chế độ gõ (⌃ + ⇧)"),
             .item("Ⓥ  Tiếng Việt", checked: on) { [weak self] in self?.enableVietnamese() },
             .item("Ⓔ  Tiếng Anh", checked: !on) { [weak self] in self?.enableEnglish() },
@@ -341,13 +359,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let fontFiles = ["PressStart2P-Regular", "VT323-Regular"]
         for name in fontFiles {
             guard let url = Bundle.main.url(forResource: name, withExtension: "ttf") else {
-                NSLog("[Font] Không tìm thấy \(name).ttf trong bundle")
+                bowLog("[Font] Không tìm thấy \(name).ttf trong bundle")
                 continue
             }
             var error: Unmanaged<CFError>?
             if !CTFontManagerRegisterFontsForURL(url as CFURL, .process, &error) {
                 // Bỏ qua lỗi "đã đăng ký" — không nghiêm trọng.
-                NSLog("[Font] Đăng ký \(name) lỗi (có thể đã đăng ký): \(String(describing: error))")
+                bowLog("[Font] Đăng ký \(name) lỗi (có thể đã đăng ký): \(String(describing: error))")
             }
         }
     }
@@ -621,21 +639,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let config = NSWorkspace.OpenConfiguration()
             NSWorkspace.shared.openApplication(at: helperURL, configuration: config, completionHandler: { _, error in
                 if let error = error {
-                    NSLog("[App] Lỗi mở helper app nhúng: \(error)")
+                    bowLog("[App] Lỗi mở helper app nhúng: \(error)")
                 }
             })
-            NSLog("[App] Đã mở app cài đặt Flutter nhúng: \(helperURL.path)")
+            bowLog("[App] Đã mở app cài đặt Flutter nhúng: \(helperURL.path)")
         }
         // 2. Nếu không tìm thấy hoặc chưa cài đặt nhúng, thử qua Bundle ID
         else if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.bowgo.app") {
             let config = NSWorkspace.OpenConfiguration()
             NSWorkspace.shared.openApplication(at: appURL, configuration: config, completionHandler: nil)
-            NSLog("[App] Đã mở app cài đặt Flutter qua Bundle ID.")
+            bowLog("[App] Đã mở app cài đặt Flutter qua Bundle ID.")
         }
         // 3. Fallback cuối cùng là mở System Settings
         else {
             Permissions.openSettings(.accessibility)
-            NSLog("[App] Không tìm thấy app cài đặt, fallback mở System Settings.")
+            bowLog("[App] Không tìm thấy app cài đặt, fallback mở System Settings.")
         }
     }
 
@@ -646,7 +664,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func relaunchApp() {
         let bundleURL = Bundle.main.bundleURL
         guard bundleURL.pathExtension == "app" else {
-            NSLog("[App] Không thể relaunch: không phải app bundle (\(bundleURL.path))")
+            bowLog("[App] Không thể relaunch: không phải app bundle (\(bundleURL.path))")
             return
         }
 
@@ -667,10 +685,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         do {
             try task.run()
-            NSLog("[App] Đang đóng app hiện tại để relaunch...")
+            bowLog("[App] Đang đóng app hiện tại để relaunch...")
             NSApp.terminate(nil)
         } catch {
-            NSLog("[App] Khởi động helper relaunch thất bại: \(error)")
+            bowLog("[App] Khởi động helper relaunch thất bại: \(error)")
         }
     }
 
@@ -683,7 +701,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Mức NHẸ: tắt/bật lại event tap + đọc lại config, rồi relaunch app.
     /// Dùng khi bộ gõ "đơ" (macOS treo tap) nhưng quyền vẫn còn — không đụng quyền.
     @objc private func restartEngine() {
-        NSLog("[Fix] Khởi động lại bộ gõ…")
+        bowLog("[Fix] Khởi động lại bộ gõ…")
         tapController.stop()
         // Đọc lại cấu hình mới nhất rồi áp.
         if let cfg = settingsStore.read() {
@@ -731,7 +749,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             try? task.run()
             task.waitUntilExit()
         }
-        NSLog("[Fix] Đã reset quyền cho \(bundleId).")
+        bowLog("[Fix] Đã reset quyền cho \(bundleId).")
 
         // Mở các trang Settings để người dùng cấp lại. System Settings chỉ hiện
         // 1 trang mỗi lúc — mở Screen Recording TRƯỚC để 2 quyền gõ phím (quan
