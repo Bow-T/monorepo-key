@@ -110,6 +110,31 @@ void Check(const std::string& keys, const std::string& expect,
     }
 }
 
+// Gõ cả CÂU (nhiều từ): văn bản = các từ đã chốt + ký tự ngắt + âm tiết đang gõ.
+void CheckText(const std::string& keys, const std::string& expect,
+               InputMethod method = InputMethod::Telex) {
+    VietEngine engine(method);
+    std::u32string text, current;
+    for (char32_t ch : U8(keys)) {
+        auto r = engine.Process(ch);
+        if (r) {
+            current = *r;
+        } else {
+            text += current;
+            text.push_back(ch);
+            current.clear();
+        }
+    }
+    std::u32string got = text + current;
+    if (got == U8(expect)) {
+        ++g_pass;
+    } else {
+        ++g_fail;
+        std::cout << "  FAIL: text(\"" << keys << "\") = \"" << ToU8(got)
+                  << "\"  (mong đợi \"" << expect << "\")\n";
+    }
+}
+
 void CheckBack(const std::string& keys, int n, const std::string& expect,
                InputMethod method = InputMethod::Telex) {
     std::u32string got = TypeThenBackspace(keys, n, method);
@@ -162,6 +187,16 @@ int main() {
     Check("sai", "sai"); Check("xin", "xin"); Check("rum", "rum");
     Check("fan", "fan"); Check("zap", "zap");
 
+    // ── Cụm phụ âm đầu phi-Việt (bl br cl cr dr fl fr gl gr pl pr sc sk sl sm sn sp st)
+    // -> KHÔNG phím nào là phím-dấu (Telex lẫn VNI). Cụm chứa 'w' (sw, tw) KHÔNG bị chặn.
+    Check("class", "class"); Check("clear", "clear"); Check("free", "free");
+    Check("frooch", "frooch"); Check("print", "print"); Check("string", "string");
+    Check("Class", "Class"); Check("STRESS", "STRESS");
+    CheckText("class Test", "class Tét");          // "Test" không phải cụm phi-Việt
+    Check("sw", "sư"); Check("tw", "tư");          // gõ tắt 'w' vẫn chạy
+    Check("cl1", "cl1", InputMethod::Vni); Check("pra1", "pra1", InputMethod::Vni);
+    Check("tra1", "trá", InputMethod::Vni);        // "tr" là phụ âm đầu tiếng Việt
+
     // ── Gõ tắt 'w' ────────────────────────────────────────────────────────
     Check("w", "ư"); Check("tw", "tư"); Check("cw", "cư"); Check("qw", "qư");
     Check("mwf", "mừ"); Check("dwfng", "dừng"); Check("mwfng", "mừng");
@@ -169,6 +204,16 @@ int main() {
     Check("huwong", "hương"); Check("huwongs", "hướng"); Check("tuwong", "tương");
     Check("thuwong", "thương"); Check("nuwocs", "nước");
     Check("uw", "ư"); Check("huowng", "hương"); Check("huow", "hươ");
+
+    // ── 'w' đặt móc/trăng lên CỤM NGUYÊN ÂM (kể cả gõ sau phụ âm cuối / sau i,u) ──
+    Check("muonw", "mươn"); Check("dduocw", "đươc"); Check("duocwj", "dược");
+    Check("nguoiwf", "người"); Check("ruouwj", "rượu");
+    Check("muaw", "mưa");                          // ua + w -> ưa (không phải uă)
+    Check("thuow", "thuơ"); Check("thuowr", "thuở"); Check("thuowng", "thương");
+    Check("quwutj", "quựut");                      // 'u' sau 'q' không nhận móc
+    // ww -> w (huỷ gõ tắt 'ư'), www -> ww; hoa/thường lẫn lộn
+    Check("ww", "w"); Check("www", "ww"); Check("tww", "tw"); Check("xwWw", "xWw");
+    CheckBack("ww", 1, "ư");
 
     // ── Gõ lại để bỏ/đổi dấu ──────────────────────────────────────────────
     Check("hoaf", "hoà"); Check("hoaff", "hoaf"); Check("ass", "as");
@@ -192,6 +237,12 @@ int main() {
     Check("a66", "a6", InputMethod::Vni); Check("o77", "o7", InputMethod::Vni);
     Check("a88", "a8", InputMethod::Vni); Check("d99", "d9", InputMethod::Vni);
     Check("a16", "ấ", InputMethod::Vni); Check("a61", "ấ", InputMethod::Vni);
+    // 6/7/8 áp lên CỤM NGUYÊN ÂM kể cả khi gõ muộn (sau phụ âm cuối / sau i,u)
+    Check("muon7", "mươn", InputMethod::Vni); Check("mua7", "mưa", InputMethod::Vni);
+    Check("tang8", "tăng", InputMethod::Vni); Check("muoi6", "muôi", InputMethod::Vni);
+    Check("ruou75", "rượu", InputMethod::Vni); Check("ot17", "ớt", InputMethod::Vni);
+    Check("thuo7", "thuơ", InputMethod::Vni); Check("qua7", "qua7", InputMethod::Vni);
+    CheckText("Toi6 la2", "Tôi là", InputMethod::Vni);
 
     // ── Kéo dài nguyên âm + chu kỳ mũ ─────────────────────────────────────
     // Chu kỳ mũ theo số lần gõ nguyên âm, KHÔNG tạo lại mũ sau khi đã gỡ.
