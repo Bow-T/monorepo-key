@@ -14,7 +14,7 @@ apps/windows_ime/
 │   ├── macro.h/.cpp         # gõ tắt (vn -> Việt Nam), tĩnh + động
 │   ├── auto_correct.h/.cpp  # tự sửa lỗi gõ nhanh (giừo -> giờ)
 │   ├── text_converter.h/.cpp# bỏ dấu / đổi hoa-thường / TCVN3 / VNI
-│   └── test_engine.cpp      # 180 ca test chuẩn (khớp Dart/Swift)
+│   └── test_engine.cpp      # 218 ca test chuẩn (khớp Dart/Swift)
 ├── common/                  # TẦNG DÙNG CHUNG — ĐÃ KIỂM CHỨNG (đa nền)
 │   ├── text_codec.h/.cpp    # UTF-8 <-> UTF-16 <-> UTF-32
 │   ├── bow_config.h/.cpp    # đọc settings.json (dùng chung với app Flutter)
@@ -33,7 +33,7 @@ apps/windows_ime/
 
 | Phần | Trạng thái |
 |---|---|
-| Engine C++ (Telex/VNI, đặt dấu, backspace, macro, tự sửa lỗi, chuyển mã) | ✅ **180/180 ca test xanh** (khớp Dart/Swift) |
+| Engine C++ (Telex/VNI, đặt dấu, backspace, macro, tự sửa lỗi, chuyển mã) | ✅ **218/218 ca test xanh** (khớp Dart/Swift) |
 | Tầng common (controller + đọc settings.json + chuyển mã) | ✅ **66/66 ca test xanh** (đa nền) |
 | Cầu nối phím → controller (`ImeController`) | ✅ Bám sát `EventTapController.swift`, test đa nền |
 | Ghi văn bản qua `ITfEditSession` (`ReplaceText`) | ✅ Viết xong (xoá N ký tự + chèn chuỗi mới) |
@@ -59,7 +59,7 @@ Không cần Windows. Đây là spec chung, phải vượt **cùng bộ ca test*
 ```bash
 cd apps/windows_ime
 cmake -S . -B build && cmake --build build
-./build/bowgo_engine_tests    # in "180 pass, 0 fail."
+./build/bowgo_engine_tests    # in "218 pass, 0 fail."
 ./build/bowgo_common_tests    # in "66 pass, 0 fail."
 # hoặc: cd build && ctest
 ```

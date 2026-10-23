@@ -19,6 +19,12 @@ project(bowgo_windows_ime CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Mã nguồn là UTF-8 không BOM, chứa chữ Việt trong U"..." — thiếu /utf-8 thì MSVC
+# đọc theo codepage máy (1252) và dựng sai chuỗi.
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
 # ── Thư viện engine (thuần, đa nền) ──────────────────────────────────────────
 add_library(bowgo_engine STATIC
     engine/engine.cpp
