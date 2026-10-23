@@ -4,6 +4,8 @@
 
 #include "lang_bar.h"
 
+#include <olectl.h>  // CONNECT_E_*
+
 #include <new>
 
 #include "badge_icon.h"
