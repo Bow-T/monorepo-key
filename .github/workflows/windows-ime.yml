@@ -17,7 +17,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Configure
-        run: cmake -S apps/windows_ime -B build -G "Visual Studio 17 2022" -A x64
+        # Không ghim -G: để CMake chọn bản Visual Studio có trên image runner.
+        run: cmake -S apps/windows_ime -B build -A x64
       - name: Build
         run: cmake --build build --config Release
       - name: Test
