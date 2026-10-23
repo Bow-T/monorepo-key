@@ -98,15 +98,7 @@ final class ClipboardManager {
     /// ⌘C thực sự đã đổi nó); chép được thì trả lại khi `restoreAfter`.
     func copySelection(restoreAfter: Bool) -> String? {
         let pasteboard = NSPasteboard.general
-        // Sao lưu toàn bộ item hiện có để khôi phục nguyên vẹn (kể cả ảnh/định dạng).
-        let savedItems = pasteboard.pasteboardItems?.compactMap { item -> NSPasteboardItem? in
-            let copy = NSPasteboardItem()
-            var wroteAny = false
-            for type in item.types {
-                if let data = item.data(forType: type) { copy.setData(data, forType: type); wroteAny = true }
-            }
-            return wroteAny ? copy : nil
-        } ?? []
+        let savedItems = Self.snapshot(pasteboard)
 
         readingSelection = true
         defer {
@@ -131,6 +123,36 @@ final class ClipboardManager {
             pasteboard.writeObjects(savedItems)
         }
         return ok ? text : nil
+    }
+
+    /// Dán `text` vào app phía trước bằng ⌘V rồi TRẢ LẠI clipboard cũ nguyên vẹn
+    /// (kể cả file / chữ có định dạng). Nội dung tạm và lần trả lại không vào lịch sử.
+    func pasteKeepingClipboard(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        let savedItems = Self.snapshot(pasteboard)
+        readingSelection = true
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+        KeyOutput.simulatePaste()
+        // Chờ app đích đọc xong mới trả — trả sớm thì nó dán nhầm nội dung cũ.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [self] in
+            pasteboard.clearContents()
+            if !savedItems.isEmpty { pasteboard.writeObjects(savedItems) }
+            lastChangeCount = pasteboard.changeCount
+            readingSelection = false
+        }
+    }
+
+    /// Sao lưu toàn bộ item hiện có để khôi phục nguyên vẹn (kể cả ảnh/định dạng).
+    private static func snapshot(_ pasteboard: NSPasteboard) -> [NSPasteboardItem] {
+        pasteboard.pasteboardItems?.compactMap { item -> NSPasteboardItem? in
+            let copy = NSPasteboardItem()
+            var wroteAny = false
+            for type in item.types {
+                if let data = item.data(forType: type) { copy.setData(data, forType: type); wroteAny = true }
+            }
+            return wroteAny ? copy : nil
+        } ?? []
     }
 
     func checkClipboard() {
