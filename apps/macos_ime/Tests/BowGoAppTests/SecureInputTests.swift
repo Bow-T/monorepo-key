@@ -39,8 +39,18 @@ struct SecureInputTests {
         let name = SecureInput.ownerName()
         print("Secure Input đang do: \(name ?? "nil")")
         // Trạng thái THẬT của máy: app kia có thể vừa nhả giữa lúc kiểm điều kiện
-        // và lúc đọc -> chỉ fail khi VẪN đang bật mà không đọc được tên.
-        if name == nil { #expect(!SecureInput.isOn, "đang bật mà không đọc được app giữ") }
+        // và lúc đọc, hoặc đã tắt mà macOS vẫn kẹt PID cũ -> chỉ fail khi VẪN đang
+        // bật, app giữ còn sống mà không đọc được tên.
+        if name == nil {
+            let ownerAlive = SecureInput.ownerPID().map { kill($0, 0) == 0 } ?? true
+            #expect(!SecureInput.isOn || !ownerAlive, "đang bật mà không đọc được app giữ")
+        }
+    }
+
+    @Test("nút \"Khoá màn hình ngay\" có hàm hệ thống để gọi")
+    func lockScreenFunctionResolves() {
+        // Private API: bản macOS mới mà bỏ nó thì nút thành vô dụng -> test này báo.
+        #expect(SecureInput.lockScreenFunction != nil)
     }
 
     @Test("phát hiện thật: tiến trình bật Secure Input -> isOn và đúng app giữ",

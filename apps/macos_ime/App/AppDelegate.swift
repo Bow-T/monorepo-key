@@ -116,7 +116,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if self.secureInputMonitor.update(isOn: SecureInput.heldByOtherApp) == .stuck {
                     let who = SecureInput.ownerName() ?? "Một ứng dụng"
                     bowLog("[SecureInput] \(who) bật Nhập bảo mật quá \(Int(SecureInputMonitor.stuckAfter))s — event tap không nhận phím.")
-                    ToastHUD.show("\(who.uppercased()) ĐANG BẬT NHẬP BẢO MẬT — BOW GO TẠM KHÔNG GÕ ĐƯỢC")
+                    // Câu dài + cách gỡ -> để lâu hơn 1.8s mặc định cho kịp đọc.
+                    ToastHUD.show("\(who.uppercased()) ĐANG BẬT NHẬP BẢO MẬT — BOW GO TẠM KHÔNG GÕ ĐƯỢC\n"
+                                  + SecureInput.fixHint.uppercased(), duration: 8)
                 }
                 if heavyTick {
                     // Cập nhật trạng thái quyền cho app UI (Flutter) đọc.
@@ -297,7 +299,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let who = SecureInput.ownerName() ?? "Một ứng dụng"
             secureInputNotice = [
                 .header("🔒 \(who) đang bật Nhập bảo mật"),
-                .header("Bow Go tạm không gõ được — đóng ô mật khẩu hoặc mở lại \(who)"),
+                .header("Bow Go tạm không gõ được — \(SecureInput.fixHint)"),
+                .item("Khoá màn hình ngay", symbol: "lock") { SecureInput.lockScreen() },
                 .separator,
             ]
         }

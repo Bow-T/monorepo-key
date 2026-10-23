@@ -371,7 +371,7 @@ final class ScreenshotController {
 enum ToastHUD {
     private static var panel: NSPanel?
 
-    static func show(_ message: String) {
+    static func show(_ message: String, duration: TimeInterval = 1.8) {
         panel?.orderOut(nil)
 
         let host = NSHostingView(rootView: ScreenshotToastView(message: message))
@@ -403,7 +403,7 @@ enum ToastHUD {
         toast.orderFrontRegardless()
         panel = toast
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
             guard panel === toast else { return }
             toast.orderOut(nil)
             panel = nil

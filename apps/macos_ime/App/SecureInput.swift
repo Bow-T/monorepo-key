@@ -6,7 +6,9 @@
 // "chết": không gõ tiếng Việt, mọi phím tắt (⌃S chụp màn hình…) không ăn — người
 // dùng tưởng Bow Go hỏng. Đo thực tế: Edge giữ Secure Input -> tap nhận 0/5 phím.
 //
-// Ta không tắt được nó (chỉ app giữ mới tắt), nên chỉ phát hiện và BÁO rõ app nào.
+// Ta không tắt được nó (chỉ app giữ mới tắt), nên phát hiện, BÁO rõ app nào, và chỉ
+// cách gỡ: khoá màn hình rồi mở khoá. Đo thực tế: thoát hẳn Edge xong macOS vẫn kẹt
+// Secure Input dưới PID cũ đã chết — mở lại app KHÔNG gỡ, khoá + mở khoá thì gỡ.
 
 import AppKit
 import Carbon.HIToolbox
@@ -36,9 +38,29 @@ enum SecureInput {
             .first
     }
 
-    /// Tên app đang giữ (nil nếu không xác định được).
+    /// Tên app đang giữ (nil nếu không xác định được, kể cả khi app giữ đã tắt).
     static func ownerName() -> String? {
         ownerPID().flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName }
+    }
+
+    /// Cách gỡ hiển thị cho người dùng (toast + menu).
+    static let fixHint = "khoá màn hình (⌃⌘Q) rồi mở khoá để gỡ"
+
+    /// `SACLockScreenImmediate` (login.framework, private) — hàm mà mục "Khoá màn hình"
+    /// trong menu Apple gọi. nil nếu bản macOS nào đó bỏ nó.
+    static let lockScreenFunction: (@convention(c) () -> Int32)? = {
+        let login = dlopen("/System/Library/PrivateFrameworks/login.framework/Versions/Current/login", RTLD_LAZY)
+        guard let sym = dlsym(login, "SACLockScreenImmediate") else { return nil }
+        return unsafeBitCast(sym, to: (@convention(c) () -> Int32).self)
+    }()
+
+    /// Khoá màn hình ngay, như ⌃⌘Q.
+    static func lockScreen() {
+        guard let lock = lockScreenFunction else {
+            bowLog("[SecureInput] Không tìm thấy SACLockScreenImmediate — không khoá được màn hình.")
+            return
+        }
+        _ = lock()
     }
 }
 
