@@ -229,7 +229,9 @@ void main() {
 
     test('Telex consecutive w collapsing', () {
       expect(type('ww'), 'w');
-      expect(type('uww'), 'ưw');
+      expect(type('uww'), 'uw');
+      expect(type('aww'), 'aw');
+      expect(type('owwo'), 'owo');
       expect(type('tww'), 'tw');
     });
   });
@@ -248,7 +250,7 @@ void main() {
 
     test('Gõ lại trùng biến âm -> bỏ biến âm', () {
       expect(type('aaa'), 'aa'); // mũ bị huỷ, a hiện ra
-      expect(type('oww'), 'ơw'); // oww -> ơw (standard Telex/Unikey)
+      expect(type('oww'), 'ow'); // oww -> ow (standard Telex/Unikey)
       expect(type('ddd'), 'dd'); // đ bị huỷ, d hiện ra (đối xứng aaa)
     });
 

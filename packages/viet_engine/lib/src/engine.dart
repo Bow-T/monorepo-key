@@ -250,21 +250,19 @@ class VietEngine {
       // w: ă/ơ/ư tuỳ chữ cái cuối; dd -> đ
       case 'w':
         // Xử lý ww -> w: nếu phím trước là w và không có nguyên âm trước w đó
+        // thì 'ư' (do w gõ tắt tạo ra) trở về 'w' thô. Có nguyên âm (uww, oww)
+        // thì đi tiếp _applyHornOrBreve -> gỡ móc/trăng như Unikey (oww -> ow).
         final rawLen = _rawKeys.length;
         final isConsecutiveW = rawLen >= 2 && _rawKeys[rawLen - 2].toLowerCase() == 'w';
         if (isConsecutiveW) {
           final hasVowelBeforePrevW = rawLen >= 3 && 'uoa'.contains(_rawKeys[rawLen - 3].toLowerCase());
-          if (!hasVowelBeforePrevW) {
-            if (_syllable.letters.isNotEmpty) {
-              final last = _syllable.letters.last;
-              if (last.mark == Mark.horn && (last.base == 'u' || last.base == 'U')) {
-                last.base = ch;
-                last.mark = Mark.none;
-                return _DiacriticResult.applied;
-              }
+          if (!hasVowelBeforePrevW && _syllable.letters.isNotEmpty) {
+            final last = _syllable.letters.last;
+            if (last.mark == Mark.horn && (last.base == 'u' || last.base == 'U')) {
+              last.base = ch;
+              last.mark = Mark.none;
+              return _DiacriticResult.applied;
             }
-          } else {
-            return _DiacriticResult.notDiacritic;
           }
         }
         return _applyHornOrBreve();
