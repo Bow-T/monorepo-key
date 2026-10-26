@@ -113,12 +113,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 self.healthTick += 1
                 let heavyTick = self.healthTick % 5 == 0
-                if self.secureInputMonitor.update(isOn: SecureInput.heldByOtherApp) == .stuck {
+                if let change = self.secureInputMonitor.update(isOn: SecureInput.heldByOtherApp,
+                                                               screenLocked: SecureInput.screenIsLocked) {
                     let who = SecureInput.ownerName() ?? "Một ứng dụng"
-                    bowLog("[SecureInput] \(who) bật Nhập bảo mật quá \(Int(SecureInputMonitor.stuckAfter))s — event tap không nhận phím.")
+                    let afterUnlock = change == .stillStuckAfterUnlock
+                    bowLog("[SecureInput] \(who) bật Nhập bảo mật "
+                           + (afterUnlock ? "sau khi mở khoá màn hình" : "quá \(Int(SecureInputMonitor.stuckAfter))s")
+                           + " — event tap không nhận phím.")
                     // Câu dài + cách gỡ -> để lâu hơn 1.8s mặc định cho kịp đọc.
-                    ToastHUD.show("\(who.uppercased()) ĐANG BẬT NHẬP BẢO MẬT — BOW GO TẠM KHÔNG GÕ ĐƯỢC\n"
-                                  + SecureInput.fixHint.uppercased(), duration: 8)
+                    let lines = ["\(who) đang bật Nhập bảo mật — Bow Go tạm không gõ được"]
+                        + (afterUnlock ? SecureInput.afterUnlockSteps : SecureInput.fixSteps)
+                    ToastHUD.show(lines.joined(separator: "\n").uppercased(), duration: 8)
                 }
                 if heavyTick {
                     // Cập nhật trạng thái quyền cho app UI (Flutter) đọc.
@@ -297,12 +302,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         var secureInputNotice: [PixelMenuItem] = []
         if SecureInput.heldByOtherApp {
             let who = SecureInput.ownerName() ?? "Một ứng dụng"
+            // Vừa khoá/mở khoá mà vẫn bật -> đừng gợi lại bước khoá màn hình.
+            let lockDidNotHelp = secureInputMonitor.lockDidNotHelp
             secureInputNotice = [
                 .header("🔒 \(who) đang bật Nhập bảo mật"),
-                .header("Bow Go tạm không gõ được — \(SecureInput.fixHint)"),
-                .item("Khoá màn hình ngay", symbol: "lock") { SecureInput.lockScreen() },
-                .separator,
-            ]
+                .header("Bow Go tạm không gõ được"),
+            ] + (lockDidNotHelp ? SecureInput.afterUnlockSteps : SecureInput.fixSteps).map { .header($0) }
+            if !lockDidNotHelp {
+                secureInputNotice.append(.item("Khoá màn hình ngay", symbol: "lock") { SecureInput.lockScreen() })
+            }
+            secureInputNotice.append(.separator)
         }
 
         // Menu gốc
