@@ -160,6 +160,10 @@ final class ScreenshotController {
 
     private func presentOverlay(screenshot: CGImage, screenFrame: NSRect) {
         teardownOverlay()  // không bao giờ để 2 overlay chồng nhau
+        // Panel mở ra TRONG LÚC chờ ảnh (bấm icon menu bar khi ScreenCaptureKit chậm)
+        // lọt qua lần đóng ở beginCapture: overlay giật key -> panel tự đóng bằng
+        // NSApp.hide ngay khi overlay vừa hiện. Đóng lại trước khi hiện overlay.
+        Self.closeTransientPanels()
         // Đang ở panel của chính Bow Go (vừa bị đóng ở beginCapture) thì "app trước"
         // là Bow Go — trả focus về đó là kẹt. Để nil -> dismiss dùng NSApp.hide.
         let front = NSWorkspace.shared.frontmostApplication
@@ -207,10 +211,16 @@ final class ScreenshotController {
         overlayObservers = watched.map { name, object in
             // Chỉ gỡ overlay, KHÔNG trả focus như dismiss(): panel vừa giật key cần
             // giữ focus, kéo app cũ lên lúc này sẽ đóng luôn panel đó.
-            center.addObserver(forName: name, object: object, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated {
-                    self?.teardownOverlay()
-                    self?.previousApp = nil
+            // Gỡ ở vòng lặp SAU: mất key vì NSApp.hide thì thông báo tới GIỮA lúc hide,
+            // AppKit đã ghi overlay vào danh sách hiện-lại-khi-unhide nên orderOut/close
+            // lúc đó không ăn -> overlay mồ côi mang ảnh CŨ tự hiện lại mỗi lần kích hoạt.
+            center.addObserver(forName: name, object: object, queue: .main) { [weak self, weak window] _ in
+                DispatchQueue.main.async { [weak self, weak window] in
+                    MainActor.assumeIsolated {
+                        guard let self, let window, self.overlayWindow === window else { return }
+                        self.teardownOverlay()
+                        self.previousApp = nil
+                    }
                 }
             }
         }
