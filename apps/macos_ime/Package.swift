@@ -28,7 +28,8 @@ let package = Package(
             path: "App"
         ),
         // Test phần THUẦN của tầng App (đồng bộ settings.json, cờ dò nền…) qua
-        // `@testable import BowGoApp`. Không đụng event tap / cửa sổ.
+        // `@testable import BowGoApp`. Không đụng event tap; riêng
+        // ScreenshotOverlayLifecycleTests mở cửa sổ thật (cần phiên đồ hoạ).
         .testTarget(
             name: "BowGoAppTests",
             dependencies: ["BowGoApp"]
