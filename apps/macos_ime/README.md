@@ -12,7 +12,8 @@ apps/macos_ime/
 │   └── VietEngine/          # ENGINE Swift thuần — logic gõ + tiện ích, KHÔNG đụng macOS
 │       ├── VietModel.swift  # mô hình: Tone (thanh), Mark (mũ/móc/trăng), InputMethod
 │       ├── VietTable.swift  # bảng tra (chữ gốc + mark + tone) -> ký tự Unicode
-│       ├── Engine.swift     # bộ não: nhận phím -> trả chữ tiếng Việt
+│       ├── Engine.swift     # bộ não: bọc core Rust (gõ âm tiết) + macro/auto-correct
+│   └── CVietCore/           # module C trỏ tới header core Rust packages/viet_core
 │       └── AIProvider.swift # logic THUẦN của Trợ lý AI + chat (dựng request/parse)
 ├── App/                     # APP macOS — CGEvent tap + menu bar + UI pixel-art
 │   ├── main.swift               # điểm vào (app accessory, ẩn Dock)
@@ -56,14 +57,19 @@ apps/macos_ime/
     └── build-icons.sh       # SVG -> PNG -> AppIcon.icns + menubar.png
 ```
 
-> **Engine Swift ở đây và engine Dart ở [`packages/viet_engine`](../../packages/viet_engine)
-> phải cho ra kết quả GIỐNG HỆT** — cùng một bộ ca test chuẩn (golden cases).
+> **`VietEngine` ở đây bọc core Rust [`packages/viet_core`](../../packages/viet_core)**
+> (module C `Sources/CVietCore`, link tĩnh `libviet_core.a`). Core, engine Dart và lớp
+> bọc này cùng chạy bộ ca chuẩn [`typing_cases.tsv`](../../packages/viet_engine/spec/typing_cases.tsv).
 
 ## Chạy thử engine (không cần quyền gì)
 
+Cần Rust (`brew install rustup && rustup default stable`). Build core trước (đổi core thì
+chạy lại — SwiftPM không tự link lại khi chỉ `libviet_core.a` đổi), rồi test:
+
 ```bash
 cd apps/macos_ime
-swift test          # 252 test — KHÔNG cần Xcode, KHÔNG cần quyền macOS
+bash scripts/build-core.sh
+swift test          # KHÔNG cần Xcode, KHÔNG cần quyền macOS
 ```
 
 ## Chạy app thật trên máy

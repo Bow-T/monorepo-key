@@ -33,7 +33,7 @@ apps/windows_ime/
 
 | Phần | Trạng thái |
 |---|---|
-| Engine C++ (Telex/VNI, đặt dấu, backspace, macro, tự sửa lỗi, chuyển mã) | ✅ **218/218 ca test xanh** (khớp Dart/Swift) |
+| Engine (gõ: core Rust qua C ABI; macro, tự sửa lỗi, chuyển mã: C++) | ✅ Ca riêng + bộ ca chuẩn dùng chung xanh |
 | Tầng common (controller + đọc settings.json + chuyển mã) | ✅ **66/66 ca test xanh** (đa nền) |
 | Cầu nối phím → controller (`ImeController`) | ✅ Bám sát `EventTapController.swift`, test đa nền |
 | Ghi văn bản qua `ITfEditSession` (`ReplaceText`) | ✅ Viết xong (xoá N ký tự + chèn chuỗi mới) |
@@ -53,13 +53,14 @@ apps/windows_ime/
 
 ## Engine + common — chạy & test (mọi nền, gồm macOS)
 
-Không cần Windows. Đây là spec chung, phải vượt **cùng bộ ca test** với bản Dart
-(`packages/viet_engine`) và Swift (`apps/macos_ime`).
+Không cần Windows. `engine/engine.cpp` chỉ bọc core Rust
+[`packages/viet_core`](../../packages/viet_core); CMake tự gọi `cargo` (cần Rust: `rustup`).
+Test chạy cả bộ ca chuẩn dùng chung [`typing_cases.tsv`](../../packages/viet_engine/spec/typing_cases.tsv).
 
 ```bash
 cd apps/windows_ime
 cmake -S . -B build && cmake --build build
-./build/bowgo_engine_tests    # in "218 pass, 0 fail."
+./build/bowgo_engine_tests    # in "N pass, 0 fail."
 ./build/bowgo_common_tests    # in "66 pass, 0 fail."
 # hoặc: cd build && ctest
 ```

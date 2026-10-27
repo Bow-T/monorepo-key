@@ -1,0 +1,14 @@
+[package]
+name = "viet_core"
+version = "0.1.0"
+edition = "2021"
+description = "Engine gõ tiếng Việt (Telex/VNI) dùng chung cho bộ gõ macOS/Windows qua C ABI."
+publish = false
+
+[lib]
+# staticlib: link vào app Swift/C++; rlib: cho `cargo test`.
+crate-type = ["staticlib", "rlib"]
+
+[profile.release]
+# Engine chạy trong tiến trình app khác (DLL TSF): panic thì dừng hẳn, không unwind qua FFI.
+panic = "abort"

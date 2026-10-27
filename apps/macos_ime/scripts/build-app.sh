@@ -22,6 +22,7 @@ RES_DIR="$APP_DIR/Contents/Resources"
 
 echo "==> 1/4  Build (release)…"
 cd "$ROOT"
+bash "$ROOT/scripts/build-core.sh"   # core gõ Rust, VietEngine link tĩnh
 swift build -c release --product "BowGo"
 BIN="$ROOT/.build/release/BowGo"
 

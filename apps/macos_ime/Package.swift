@@ -1,6 +1,10 @@
 // swift-tools-version: 6.0
 import PackageDescription
 
+// Core gõ Rust (packages/viet_core). Build trước khi `swift build`/`swift test`:
+//   bash scripts/build-core.sh   (cargo build + buộc link lại khi core đổi)
+let vietCoreLibDir = Context.packageDirectory + "/../../packages/viet_core/target/release"
+
 let package = Package(
     name: "monorepo-key",
     platforms: [
@@ -10,10 +14,16 @@ let package = Package(
         .executable(name: "BowGo", targets: ["BowGoApp"]),
     ],
     targets: [
+        // C ABI của core Rust (header + link "viet_core").
+        .systemLibrary(
+            name: "CVietCore"
+        ),
         // ENGINE thuần: chỉ chứa logic gõ tiếng Việt, KHÔNG import AppKit/CGEvent.
         // Nhờ vậy có thể test toàn bộ bằng `swift test` trong terminal.
         .target(
-            name: "VietEngine"
+            name: "VietEngine",
+            dependencies: ["CVietCore"],
+            linkerSettings: [.unsafeFlags(["-L", vietCoreLibDir])]
         ),
         // Bộ test cho engine: gõ "tieengs" -> "tiếng" có đúng không?
         .testTarget(

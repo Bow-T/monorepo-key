@@ -1,20 +1,20 @@
 // engine.h
 // --------
-// Bộ não bộ gõ — bản C++ của Engine.swift. Nhận từng ký tự (char32_t) người dùng
-// gõ, trả về chuỗi hiển thị (std::u32string) của âm tiết hiện tại, hoặc báo "ngắt
-// từ" để caller xuất ký tự nguyên bản.
-//
-// Đây là phần SPEC CHUNG: phải cho kết quả GIỐNG HỆT engine Dart/Swift trên cùng
-// bộ ca test chuẩn (golden cases).
+// Bộ não bộ gõ — lớp bọc C++ quanh core Rust packages/viet_core (C ABI ở
+// viet_core.h). Nhận từng ký tự (char32_t) người dùng gõ, trả về chuỗi hiển thị
+// (std::u32string) của âm tiết hiện tại, hoặc báo "ngắt từ" để caller xuất ký tự
+// nguyên bản. Hành vi gõ do core quyết định, kiểm bằng bộ ca chuẩn dùng chung
+// packages/viet_engine/spec/typing_cases.tsv.
 
 #pragma once
 
+#include <memory>
 #include <optional>
 #include <string>
-#include <utility>
-#include <vector>
 
 #include "viet_model.h"
+
+struct BowEngine;
 
 namespace bowgo {
 
@@ -35,52 +35,12 @@ public:
     void Clear();
 
 private:
-    struct Letter {
-        char32_t base;
-        Mark mark = Mark::None;
+    struct CoreDeleter {
+        void operator()(BowEngine* core) const;
     };
+    std::unique_ptr<BowEngine, CoreDeleter> core_;
 
-    enum class DiacriticResult {
-        Applied,       // đã áp dấu/biến âm
-        Cancelled,     // gõ lại trùng -> đã gỡ dấu; trả ký tự thô cho caller
-        NotDiacritic,  // không phải phím-dấu -> nối như chữ thường
-    };
-
-    InputMethod method_;
-    ToneStyle tone_style_;
-
-    std::vector<Letter> letters_;
-    Tone tone_ = Tone::None;
-    std::vector<char32_t> raw_keys_;  // lịch sử phím thô, để replay
-
-    std::optional<std::u32string> Step(char32_t ch);
-    void ResetSyllable();
-
-    bool StartsWithNonVietCluster(char32_t ch) const;
-    DiacriticResult ApplyAsDiacritic(char32_t ch);
-    DiacriticResult ApplyTelex(char32_t ch);
-    DiacriticResult ApplyVni(char32_t ch);
-    DiacriticResult ApplyHornOrBreve();
-    DiacriticResult ApplyHornVni();
-    std::optional<DiacriticResult> ApplyHornToNucleus(bool allow_breve);
-    std::optional<int> HornBreveTargetIndex(int start, int end, bool allow_breve) const;
-    DiacriticResult InsertStandaloneW();
-    std::optional<DiacriticResult> SetMarkOnNucleus(Mark mark);
-    std::optional<std::pair<int, int>> VowelNucleusRange() const;
-    DiacriticResult ApplyCircumflexRepeat(char32_t lower);
-    int TrailingVowelPressCount(char32_t lower) const;
-
-    DiacriticResult SetTone(Tone tone);
-    DiacriticResult SetMarkOnLast(Mark mark);
-    DiacriticResult SetMarkOrToggle(Mark mark);
-    DiacriticResult RemoveMarkOnLast();
-    DiacriticResult SetMarkAt(Mark mark, int index);
-    DiacriticResult RemoveMarkAt(int index);
-
-    void PropagateUoHorn();
-    bool HasVowel() const;
-    std::u32string Render() const;
-    int ToneTargetIndex() const;
+    std::u32string Text() const;
 };
 
 }  // namespace bowgo

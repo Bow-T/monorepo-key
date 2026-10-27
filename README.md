@@ -5,9 +5,10 @@ Một monorepo cho bộ gõ tiếng Việt (Telex/VNI) chạy trên **macOS, Win
 Triết lý cốt lõi: **một engine, nhiều bộ gõ native.**
 
 Logic gõ (bỏ dấu, đặt dấu đúng chính tả, gõ lại bỏ dấu, backspace) là phần khó &
-giá trị nhất — nó được viết **một lần** và dùng làm **spec chuẩn**. Phần "chặn phím
-toàn hệ thống" thì mỗi OS bắt buộc một công nghệ native riêng (xem bảng bên dưới),
-nên mỗi nền tảng có một app native bám theo cùng spec đó.
+giá trị nhất — nó được viết **một lần** thành core Rust (`packages/viet_core`) và mọi
+bộ gõ native gọi nó qua C ABI. Phần "chặn phím toàn hệ thống" thì mỗi OS bắt buộc một
+công nghệ native riêng (xem bảng bên dưới), nên mỗi nền tảng có một app native bọc
+quanh cùng core đó.
 
 ---
 
@@ -35,10 +36,11 @@ Tổ chức theo Monorepo (giống `monorepo-remote`), Dart workspace cho phần
 ```
 monorepo-key/
 ├── packages/
-│   └── viet_engine/        # Engine gõ tiếng Việt thuần Dart + BỘ CA TEST CHUẨN
+│   ├── viet_core/          # Core gõ Rust + C ABI — engine thật của bộ gõ macOS/Windows
+│   └── viet_engine/        # Engine Dart (spec + UI Flutter) + BỘ CA TEST CHUẨN
 ├── apps/
 │   ├── macos_ime/          # macOS — CGEvent tap (Swift) — ✅ chạy được
-│   ├── windows_ime/        # Windows — TSF (C++) — 🟨 engine xong (81 test), TSF skeleton
+│   ├── windows_ime/        # Windows — TSF (C++) — 🟨 engine xong, TSF skeleton
 │   ├── android_ime/        # Android — InputMethodService (Kotlin) — ⬜ chưa làm
 │   ├── ios_keyboard/       # iOS — Keyboard Extension (Swift) — ⬜ chưa làm
 │   └── settings_ui/        # Flutter — UI cài đặt pixel (Telex/VNI…) — ✅ chạy được (macOS)
@@ -75,10 +77,16 @@ fvm dart test packages/viet_engine   # gồm bộ ca chuẩn dùng chung spec/ty
 
 ### 2. App macOS (Swift) — bộ gõ thật trên máy
 
+Cần Rust (`brew install rustup && rustup default stable`; rustup của Homebrew là keg-only,
+muốn gọi `cargo` trực tiếp thì thêm `/opt/homebrew/opt/rustup/bin` vào PATH — các script
+tự thêm). Engine Swift link tĩnh core Rust nên phải build core trước `swift test` (đổi core
+thì chạy lại); `build-app.sh` tự build.
+
 ```bash
 cd apps/macos_ime
-swift test                       # 84 test engine Swift (khớp bản Dart)
-bash scripts/build-app.sh        # build + ký -> "build/Bow Go.app"
+bash scripts/build-core.sh       # cargo build core + buộc SwiftPM link lại khi core đổi
+swift test                       # test engine + tầng App (chạy trên core Rust)
+bash scripts/build-app.sh        # build core + app + ký -> "build/Bow Go.app"
 open "build/Bow Go.app"
 ```
 
@@ -101,14 +109,18 @@ thay đổi **auto-save** ra file JSON dùng chung; bộ gõ Swift đọc & áp 
 
 ## 🧠 Engine chung & "bộ ca test chuẩn"
 
-`packages/viet_engine` là nguồn chân lý cho logic gõ. Mỗi bộ gõ native (Swift/C++)
-**phải vượt qua cùng một bộ ca test**: [`packages/viet_engine/spec/typing_cases.tsv`](packages/viet_engine/spec/typing_cases.tsv)
-(vd `tieengs → tiếng`, `hoaf → hoà`, `quys → quý`). Engine Dart, Swift và C++ cùng nạp
-file này trong bộ test của mình; CI (`engine-parity.yml`, `windows-ime.yml`) đỏ nếu một
-bản lệch. Thêm ca cho luật gõ thì thêm vào file đó.
+Engine gõ của bộ gõ native là **core Rust** [`packages/viet_core`](packages/viet_core)
+(C ABI: [`include/viet_core.h`](packages/viet_core/include/viet_core.h)). Lớp `VietEngine`
+của Swift (macOS) và C++ (Windows) chỉ bọc quanh core này; Android/iOS sẽ gọi đúng
+core đó. Engine Dart `packages/viet_engine` giữ vai spec + phục vụ UI Flutter.
 
-Vì sao chưa tách engine thành core Rust dùng chung, và khi nào nên làm:
-[docs/adr/0001-engine-core-dung-chung.md](docs/adr/0001-engine-core-dung-chung.md).
+Hành vi gõ được khoá bằng **một bộ ca test chung**:
+[`packages/viet_engine/spec/typing_cases.tsv`](packages/viet_engine/spec/typing_cases.tsv)
+(vd `tieengs → tiếng`, `hoaf → hoà`, `quys → quý`). Core Rust (`cargo test`), engine Dart
+và hai lớp bọc Swift/C++ cùng nạp file này; CI (`engine-parity.yml`, `windows-ime.yml`)
+đỏ nếu một bản lệch. Thêm ca cho luật gõ thì thêm vào file đó.
+
+Vì sao chọn core Rust: [docs/adr/0002-engine-core-rust.md](docs/adr/0002-engine-core-rust.md).
 
 Tính năng engine đã có:
 - Telex + VNI: dấu thanh, mũ, móc, trăng, đ
@@ -133,9 +145,9 @@ Tính năng engine đã có:
 
 | Phần | Công nghệ | Trạng thái |
 |---|---|---|
-| Engine gõ | Dart (`viet_engine`) | ✅ 74 test xanh (gõ + macro + chuyển mã + chính tả) |
-| macOS IME | Swift + CGEvent tap | ✅ Chạy được (84 test engine) |
-| Windows IME | C++ + TSF | 🟨 Engine C++ xong (114 test xanh); TSF text service mới ở skeleton |
+| Engine gõ | Rust (`viet_core`) + spec Dart (`viet_engine`) | ✅ Bộ ca chung xanh trên Rust, Dart, Swift, C++ |
+| macOS IME | Swift + CGEvent tap (bọc core Rust) | ✅ Chạy được |
+| Windows IME | C++ + TSF (bọc core Rust) | 🟨 Engine xong; TSF text service mới ở skeleton |
 | Android IME | Kotlin + InputMethodService | ⬜ Chưa làm |
 | iOS keyboard | Swift + Keyboard Extension | ⬜ Chưa làm |
 | UI cài đặt | Flutter (`settings_ui`) | ✅ Chạy được (macOS), pixel UI |
@@ -245,6 +257,6 @@ file JSON làm "hợp đồng":
 - Phím tắt (hoặc menu bar) bật/tắt cũng **ghi ngược** `enabled` vào file để UI đồng bộ.
 - Các khoá JSON phải KHỚP hai bên; đổi tên một bên phải đổi bên kia.
 
-> **Cân nhắc kỹ thuật:** để 4 nền tảng dùng *chung một* engine biên dịch (thay vì port
-> lại logic sang C++/Kotlin), một hướng là tách engine thành **core Rust** gọi qua FFI.
-> Hiện tại engine Dart đóng vai spec + phục vụ UI Flutter; native mỗi OS bám theo spec đó.
+> **Core dùng chung:** 4 nền tảng dùng *chung một* engine biên dịch — core Rust
+> `packages/viet_core` gọi qua FFI (C ABI), không port lại logic sang từng ngôn ngữ.
+> Engine Dart đóng vai spec + phục vụ UI Flutter. Xem [ADR 0002](docs/adr/0002-engine-core-rust.md).

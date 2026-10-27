@@ -1,0 +1,4 @@
+# super_clipboard -> super_native_extensions build bằng Cargokit. Có rustup trên máy
+# (repo cần Rust cho core gõ packages/viet_core) thì Cargokit mặc định tự build Rust từ
+# mã nguồn; giữ dùng bản biên dịch sẵn để build UI không phụ thuộc toolchain Rust.
+use_precompiled_binaries: true

@@ -1,15 +1,16 @@
 # Build bộ gõ Windows trên máy Windows thật của GitHub: engine + common + DLL TSF,
 # rồi chạy 2 bộ test C++. Trên macOS chỉ build được engine/common, nên đây là nơi
-# duy nhất `tsf/` được biên dịch. Test engine nạp cả bộ ca gõ chuẩn dùng chung với
-# Dart/Swift nên đổi file đó cũng chạy lại job này.
+# duy nhất `tsf/` được biên dịch. Engine là lớp bọc core Rust packages/viet_core (CMake
+# gọi cargo, image Windows có sẵn Rust), test nạp cả bộ ca gõ chuẩn dùng chung — đổi
+# core hoặc file ca cũng chạy lại job này.
 name: windows-ime
 
 on:
   push:
     branches: [main]
-    paths: ['apps/windows_ime/**', 'packages/viet_engine/spec/**', '.github/workflows/windows-ime.yml']
+    paths: ['apps/windows_ime/**', 'packages/viet_core/**', 'packages/viet_engine/spec/**', '.github/workflows/windows-ime.yml']
   pull_request:
-    paths: ['apps/windows_ime/**', 'packages/viet_engine/spec/**', '.github/workflows/windows-ime.yml']
+    paths: ['apps/windows_ime/**', 'packages/viet_core/**', 'packages/viet_engine/spec/**', '.github/workflows/windows-ime.yml']
   workflow_dispatch:
 
 jobs:

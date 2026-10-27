@@ -1,0 +1,7 @@
+// C ABI của core Rust packages/viet_core. Thư viện tĩnh libviet_core.a do cargo build
+// ra (xem Package.swift: -L tới packages/viet_core/target/release).
+module CVietCore {
+    header "../../../../packages/viet_core/include/viet_core.h"
+    link "viet_core"
+    export *
+}
