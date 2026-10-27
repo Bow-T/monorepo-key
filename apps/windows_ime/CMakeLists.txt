@@ -2,8 +2,8 @@
 # --------------------------------------
 # Hai mục tiêu:
 #   1. bowgo_engine_tests  — chạy MỌI NỀN (macOS/Linux/Windows). Đây là phần ĐÃ
-#      kiểm chứng: engine C++ + 81 ca test chuẩn. Build & chạy để bảo đảm khớp
-#      bản Dart/Swift.
+#      kiểm chứng: engine C++ + ca riêng + bộ ca chuẩn dùng chung với Dart/Swift
+#      (packages/viet_engine/spec/typing_cases.tsv).
 #   2. BowGoTSF (DLL)      — CHỈ trên Windows. Text service TSF (skeleton, chưa
 #      hoàn thiện) — cần Windows SDK (msctf).
 #
@@ -48,6 +48,9 @@ target_link_libraries(bowgo_common PUBLIC bowgo_engine)
 # ── Test engine + test common (đa nền) ───────────────────────────────────────
 add_executable(bowgo_engine_tests engine/test_engine.cpp)
 target_link_libraries(bowgo_engine_tests PRIVATE bowgo_engine)
+# Bộ ca gõ chuẩn dùng chung với engine Dart/Swift.
+target_compile_definitions(bowgo_engine_tests PRIVATE
+    BOWGO_TYPING_CASES="${CMAKE_CURRENT_SOURCE_DIR}/../../packages/viet_engine/spec/typing_cases.tsv")
 
 add_executable(bowgo_common_tests common/test_common.cpp)
 target_link_libraries(bowgo_common_tests PRIVATE bowgo_common)

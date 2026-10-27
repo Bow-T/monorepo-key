@@ -70,7 +70,7 @@ Dự án Dart dùng **fvm** (Flutter version đã pin trong `.fvmrc`).
 
 ```bash
 fvm dart pub get                     # resolve workspace (từ thư mục gốc)
-fvm dart test packages/viet_engine   # 25 ca test chuẩn
+fvm dart test packages/viet_engine   # gồm bộ ca chuẩn dùng chung spec/typing_cases.tsv
 ```
 
 ### 2. App macOS (Swift) — bộ gõ thật trên máy
@@ -101,10 +101,14 @@ thay đổi **auto-save** ra file JSON dùng chung; bộ gõ Swift đọc & áp 
 
 ## 🧠 Engine chung & "bộ ca test chuẩn"
 
-`packages/viet_engine` là nguồn chân lý cho logic gõ. Mỗi bộ gõ native (Swift/C++/Kotlin)
-**phải vượt qua cùng một bộ ca test** (vd `tieengs → tiếng`, `hoaf → hoà`, `quys → quý`)
-để đảm bảo gõ giống hệt nhau trên mọi nền tảng. Hiện engine Dart (74 test), engine
-Swift macOS (84 test) và engine C++ Windows (114 test) đều xanh trên cùng bộ ca này.
+`packages/viet_engine` là nguồn chân lý cho logic gõ. Mỗi bộ gõ native (Swift/C++)
+**phải vượt qua cùng một bộ ca test**: [`packages/viet_engine/spec/typing_cases.tsv`](packages/viet_engine/spec/typing_cases.tsv)
+(vd `tieengs → tiếng`, `hoaf → hoà`, `quys → quý`). Engine Dart, Swift và C++ cùng nạp
+file này trong bộ test của mình; CI (`engine-parity.yml`, `windows-ime.yml`) đỏ nếu một
+bản lệch. Thêm ca cho luật gõ thì thêm vào file đó.
+
+Vì sao chưa tách engine thành core Rust dùng chung, và khi nào nên làm:
+[docs/adr/0001-engine-core-dung-chung.md](docs/adr/0001-engine-core-dung-chung.md).
 
 Tính năng engine đã có:
 - Telex + VNI: dấu thanh, mũ, móc, trăng, đ

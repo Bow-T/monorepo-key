@@ -3,9 +3,9 @@
 // Test engine bằng cách "gõ" một chuỗi phím rồi xem kết quả âm tiết cuối cùng.
 // Chạy: dart test  (hoặc: fvm dart test)
 //
-// ĐÂY LÀ BỘ CA CHUẨN (golden cases). Engine Dart và các bộ gõ native phải cho
-// ra KẾT QUẢ GIỐNG HỆT trên cùng bộ ca này. Port 1:1 từ bản Swift
-// (apps/macos_ime/Tests/VietEngineTests).
+// Port 1:1 từ bản Swift (apps/macos_ime/Tests/VietEngineTests). Bộ ca chuẩn mà
+// cả ba engine Dart/Swift/C++ cùng chạy nằm ở spec/typing_cases.tsv
+// (golden_cases_test.dart) — ca gõ mới thêm vào đó.
 
 import 'package:test/test.dart';
 import 'package:viet_engine/viet_engine.dart';
