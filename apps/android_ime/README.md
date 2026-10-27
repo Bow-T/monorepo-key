@@ -6,11 +6,12 @@ API Android cho bàn phím ảo / bộ gõ; nó hiển thị bàn phím và đ�
 
 ## Cách phần này dùng lại engine
 - Logic gõ (Telex/VNI, đặt dấu) là **spec chung** ở [`packages/viet_engine`](../../packages/viet_engine).
-- Bản native Kotlin ở đây **bám sát spec đó** và phải vượt qua **cùng bộ ca test**
-  (golden cases) trong `packages/viet_engine/test/engine_test.dart`.
+- **Không port engine sang Kotlin**: dùng lại engine C++ ở
+  [`apps/windows_ime/engine`](../windows_ime/engine) qua NDK/JNI (xem
+  [ADR 0001](../../docs/adr/0001-engine-core-dung-chung.md)). Engine đó đã chạy
+  [bộ ca chuẩn dùng chung](../../packages/viet_engine/spec/typing_cases.tsv).
 
 ## Việc cần làm khi bắt đầu
 - [ ] Dựng skeleton `InputMethodService` + layout bàn phím
 - [ ] Khai báo bộ gõ trong AndroidManifest (`android.view.InputMethod`)
-- [ ] Port engine sang Kotlin theo spec `viet_engine` (hoặc gọi core Rust nếu tách core)
-- [ ] Chạy bộ ca test chuẩn để đảm bảo khớp bản Dart/Swift
+- [ ] Build engine C++ cho Android (CMake + NDK) và bọc JNI cho `InputMethodService`

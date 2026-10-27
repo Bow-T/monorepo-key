@@ -9,9 +9,12 @@
 // In ra số ca pass/fail; exit code != 0 nếu có ca fail.
 
 #include <cstdint>
+#include <fstream>
 #include <iostream>
 #include <optional>
+#include <sstream>
 #include <string>
+#include <vector>
 
 #include "auto_correct.h"
 #include "engine.h"
@@ -148,7 +151,60 @@ void CheckBack(const std::string& keys, int n, const std::string& expect,
     }
 }
 
+// Bộ ca gõ chuẩn dùng chung với Dart/Swift (packages/viet_engine/spec/typing_cases.tsv).
+// Mỗi dòng: method<TAB>style<TAB>keys<TAB>expected; '<' trong keys = Backspace, '∅' = rỗng.
+void CheckSharedCases(const char* path) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) {
+        ++g_fail;
+        std::cout << "  FAIL: không mở được bộ ca chung " << path << "\n";
+        return;
+    }
+    int count = 0;
+    std::string line;
+    while (std::getline(in, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();  // checkout CRLF trên Windows
+        if (line.rfind("\xEF\xBB\xBF", 0) == 0) line.erase(0, 3);   // BOM do editor thêm (Dart/Swift tự bỏ)
+        if (line.empty() || line[0] == '#') continue;
+        std::vector<std::string> cols;
+        std::stringstream ss(line);
+        for (std::string col; std::getline(ss, col, '\t');) cols.push_back(col);
+        // getline nuốt cột rỗng cuối dòng -> chặn riêng tab thừa để khớp runner Dart/Swift.
+        bool valid = cols.size() == 4 && line.back() != '\t';
+        for (const auto& col : cols) valid = valid && !col.empty();
+        if (!valid || (cols[0] != "telex" && cols[0] != "vni") ||
+            (cols[1] != "modern" && cols[1] != "old")) {
+            ++g_fail;
+            std::cout << "  FAIL: typing_cases.tsv sai định dạng: \"" << line << "\"\n";
+            continue;
+        }
+        ++count;
+        VietEngine engine(cols[0] == "vni" ? InputMethod::Vni : InputMethod::Telex,
+                          cols[1] == "old" ? ToneStyle::Old : ToneStyle::Modern);
+        std::u32string got;
+        for (char32_t ch : U8(cols[2])) {
+            got = (ch == U'<' ? engine.Backspace() : engine.Process(ch)).value_or(U"");
+        }
+        if (got == (cols[3] == "∅" ? U"" : U8(cols[3]))) {
+            ++g_pass;
+        } else {
+            ++g_fail;
+            std::cout << "  FAIL: spec " << cols[0] << "/" << cols[1] << " \"" << cols[2]
+                      << "\" = \"" << ToU8(got) << "\"  (mong đợi \"" << cols[3] << "\")\n";
+        }
+    }
+    if (count == 0) {
+        ++g_fail;
+        std::cout << "  FAIL: bộ ca chung rỗng: " << path << "\n";
+    }
+}
+
 }  // namespace
+
+// CMake truyền đường dẫn tuyệt đối; build tay thì chạy từ thư mục engine/.
+#ifndef BOWGO_TYPING_CASES
+#define BOWGO_TYPING_CASES "../../../packages/viet_engine/spec/typing_cases.tsv"
+#endif
 
 int main() {
     // ── Telex cơ bản ──────────────────────────────────────────────────────
@@ -453,6 +509,8 @@ int main() {
     checkCorrect("hòa", "hoà", AutoCorrectResult::Reason::ToneReposition);
     checkCorrect("giừo", "giờ", AutoCorrectResult::Reason::Dictionary);
     checkCorrect("nhièu", "nhiều", AutoCorrectResult::Reason::Dictionary);
+
+    CheckSharedCases(BOWGO_TYPING_CASES);
 
     std::cout << "\n" << g_pass << " pass, " << g_fail << " fail.\n";
     return g_fail == 0 ? 0 : 1;
