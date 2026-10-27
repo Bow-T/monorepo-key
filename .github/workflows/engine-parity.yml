@@ -1,6 +1,7 @@
-# Cổng khớp engine: engine Dart và Swift cùng chạy bộ ca gõ chuẩn dùng chung
-# (packages/viet_engine/spec/typing_cases.tsv) cùng bộ test riêng của chúng. Engine
-# C++ chạy cùng file đó trong windows-ime.yml. Sửa luật gõ mà sót một bản là đỏ.
+# Cổng khớp engine: core Rust (packages/viet_core), engine Dart (spec + UI Flutter) và
+# lớp bọc Swift của bộ gõ macOS cùng chạy bộ ca gõ chuẩn dùng chung
+# (packages/viet_engine/spec/typing_cases.tsv) cùng bộ test riêng. Lớp bọc C++ chạy
+# file đó trong windows-ime.yml. Sửa luật gõ mà sót một bản là đỏ.
 name: engine-parity
 
 on:
@@ -10,22 +11,34 @@ on:
       - 'pubspec.yaml'
       - 'pubspec.lock'
       - 'packages/viet_engine/**'
+      - 'packages/viet_core/**'
       - 'apps/macos_ime/Sources/VietEngine/**'
+      - 'apps/macos_ime/Sources/CVietCore/**'
       - 'apps/macos_ime/Tests/VietEngineTests/**'
       - 'apps/macos_ime/Package.swift'
+      - 'apps/macos_ime/scripts/build-core.sh'
       - '.github/workflows/engine-parity.yml'
   pull_request:
     paths:
       - 'pubspec.yaml'
       - 'pubspec.lock'
       - 'packages/viet_engine/**'
+      - 'packages/viet_core/**'
       - 'apps/macos_ime/Sources/VietEngine/**'
+      - 'apps/macos_ime/Sources/CVietCore/**'
       - 'apps/macos_ime/Tests/VietEngineTests/**'
       - 'apps/macos_ime/Package.swift'
+      - 'apps/macos_ime/scripts/build-core.sh'
       - '.github/workflows/engine-parity.yml'
   workflow_dispatch:
 
 jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo test --manifest-path packages/viet_core/Cargo.toml
+
   dart:
     runs-on: ubuntu-latest
     steps:
@@ -43,6 +56,8 @@ jobs:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
+      - name: Build core Rust
+        run: bash apps/macos_ime/scripts/build-core.sh
       - name: Test engine Swift
         # Chỉ target VietEngineTests: BowGoAppTests cần phiên đồ hoạ.
         working-directory: apps/macos_ime

@@ -1,6 +1,7 @@
 # ADR 0001 — Engine gõ dùng chung: chưa tách core Rust, khoá hành vi bằng bộ ca chuẩn
 
-- **Trạng thái:** Chấp nhận — 2026-10-27
+- **Trạng thái:** Bị thay thế bởi [ADR 0002](0002-engine-core-rust.md) — 2026-10-27
+  (giữ phần bộ ca chuẩn + CI; bỏ quyết định hoãn core Rust)
 - **Phạm vi:** logic gõ (Telex/VNI, đặt dấu, gõ lại bỏ dấu, backspace). Các tiện ích
   chỉ có ở Swift (Calculator, EmojiShortcodes, AIProvider…) không thuộc ADR này.
 

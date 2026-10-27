@@ -16,8 +16,9 @@
 // LƯU Ý: đây là bản TỐI GIẢN để bạn học cơ chế. Bộ gõ thật còn xử lý
 // đặt dấu thanh đúng vị trí theo quy tắc chính tả, gõ lại để bỏ dấu, undo, v.v.
 //
-// Đây là bản port sang Dart của engine Swift (apps/macos_ime/Sources/VietEngine).
-// Hai bản phải cho ra KẾT QUẢ GIỐNG HỆT trên cùng bộ ca test.
+// Đây là bản Dart (spec + UI Flutter) của engine gõ; bộ gõ native dùng core Rust
+// packages/viet_core/src/engine.rs. Hai bản phải cho ra KẾT QUẢ GIỐNG HỆT trên bộ ca
+// chuẩn spec/typing_cases.tsv.
 
 import 'viet_model.dart';
 import 'viet_table.dart';
@@ -70,7 +71,8 @@ class VietEngine {
     this.autoCorrect = false,
   });
 
-  /// TỰ KHÔI PHỤC TIẾNG ANH (thuần, không trạng thái) — port từ Engine.swift.
+  /// TỰ KHÔI PHỤC TIẾNG ANH (thuần, không trạng thái) — khớp
+  /// `VietEngine.englishRestoreKeys` của bản Swift.
   /// Trả `rawKeys` để khôi phục, hoặc null nếu nên giữ nguyên dạng tiếng Việt.
   ///   - rawKeys: chuỗi phím thô ASCII của cả từ (vd "terminal").
   ///   - display: chuỗi đang hiển thị (có thể đã bị biến dạng, vd "terminäl").
@@ -198,7 +200,7 @@ class VietEngine {
   /// ngữ: blue, clear, drop, flag, print, string...). Âm tiết mở đầu bằng một cụm
   /// này chắc chắn là từ phi-Việt -> KHÔNG coi phím nào là phím-dấu (tránh
   /// "clear"->"clẻa", "class"->"clas"). Không đưa cụm chứa 'w' (sw, tw, wr) vào:
-  /// trong Telex 'w' là phím gõ tắt ("tw"->tư). Khớp Swift `nonVietInitialClusters`.
+  /// trong Telex 'w' là phím gõ tắt ("tw"->tư). Khớp Rust `NON_VIET_INITIAL_CLUSTERS`.
   static const Set<String> _nonVietInitialClusters = {
     'bl', 'br', 'cl', 'cr', 'dr', 'fl', 'fr', 'gl', 'gr', 'pl', 'pr',
     'sc', 'sk', 'sl', 'sm', 'sn', 'sp', 'st',
@@ -363,8 +365,8 @@ class VietEngine {
   /// hoặc null nếu âm tiết chưa có nguyên âm.
   ///
   /// Đây là chìa khoá để dấu/biến âm đặt ĐÚNG kể cả khi người dùng gõ phím-dấu SAU
-  /// phụ âm cuối — vd "đuoc" rồi gõ "w" vẫn móc được cụm "uo" -> "đươc". (Port từ
-  /// Engine.swift `vowelNucleusRange`.)
+  /// phụ âm cuối — vd "đuoc" rồi gõ "w" vẫn móc được cụm "uo" -> "đươc". (Khớp Rust
+  /// `vowel_nucleus_range`.)
   (int start, int end)? _vowelNucleusRange() {
     final letters = _syllable.letters;
     var end = letters.length - 1;
@@ -392,7 +394,7 @@ class VietEngine {
 
   /// LÕI CHUNG đặt móc (và tuỳ chọn trăng) lên CỤM NGUYÊN ÂM. Trả null nếu không áp
   /// được (caller tự fallback). Tìm cụm qua [_vowelNucleusRange] nên hoạt động kể cả
-  /// khi phím-móc gõ SAU phụ âm cuối. (Port từ Engine.swift `applyHornToNucleus`.)
+  /// khi phím-móc gõ SAU phụ âm cuối. (Khớp Rust `apply_horn_to_nucleus`.)
   _DiacriticResult? _applyHornToNucleus({required bool allowBreve}) {
     final range = _vowelNucleusRange();
     if (range == null) return null;
@@ -505,7 +507,7 @@ class VietEngine {
   /// Đặt MŨ (â/ê/ô) hoặc TRĂNG (ă) của VNI lên CỤM NGUYÊN ÂM (không chỉ chữ cuối) —
   /// nên gõ "6"/"8" SAU phụ âm cuối / sau bán nguyên âm 'i' vẫn đúng: "muoi"+6 ->
   /// "muôi", "tang"+8 -> "tăng". Toggle: chữ đích đã mang đúng mark -> gỡ + số thô.
-  /// Trả null nếu cụm không có nguyên âm nào áp được. (Port từ `setMarkOnNucleus`.)
+  /// Trả null nếu cụm không có nguyên âm nào áp được. (Khớp Rust `set_mark_on_nucleus`.)
   _DiacriticResult? _setMarkOnNucleus(Mark mark) {
     final range = _vowelNucleusRange();
     if (range == null) return null;

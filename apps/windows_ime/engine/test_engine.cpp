@@ -1,10 +1,10 @@
 // test_engine.cpp
 // ---------------
-// Bộ ca test chuẩn cho engine C++ — port 1-1 từ VietEngineTests.swift. Phải khớp
-// HỆT bản Dart/Swift. KHÔNG cần Windows: biên dịch bằng clang/g++ trên macOS/Linux:
+// Bộ ca test chuẩn cho engine C++ (lớp bọc core Rust) — port 1-1 từ
+// VietEngineTests.swift, cộng bộ ca chung typing_cases.tsv. KHÔNG cần Windows: build
+// bằng CMake trên macOS/Linux (CMake tự gọi cargo build core Rust):
 //
-//   c++ -std=c++17 engine.cpp viet_table.cpp test_engine.cpp -o test_engine
-//   ./test_engine
+//   cmake -S .. -B ../build && cmake --build ../build && ../build/bowgo_engine_tests
 //
 // In ra số ca pass/fail; exit code != 0 nếu có ca fail.
 
@@ -201,10 +201,7 @@ void CheckSharedCases(const char* path) {
 
 }  // namespace
 
-// CMake truyền đường dẫn tuyệt đối; build tay thì chạy từ thư mục engine/.
-#ifndef BOWGO_TYPING_CASES
-#define BOWGO_TYPING_CASES "../../../packages/viet_engine/spec/typing_cases.tsv"
-#endif
+// BOWGO_TYPING_CASES: đường dẫn tuyệt đối do CMake truyền (target_compile_definitions).
 
 int main() {
     // ── Telex cơ bản ──────────────────────────────────────────────────────
@@ -511,6 +508,26 @@ int main() {
     checkCorrect("nhièu", "nhiều", AutoCorrectResult::Reason::Dictionary);
 
     CheckSharedCases(BOWGO_TYPING_CASES);
+
+    // ── Lớp bọc FFI: chữ ngoài BMP (UTF-8 4 byte) đi nguyên vẹn; scalar không hợp lệ
+    //    là phím ngắt từ ──────────────────────────────────────────────────────────────
+    {
+        auto expect = [](bool ok, const char* what) {
+            if (ok) {
+                ++g_pass;
+            } else {
+                ++g_fail;
+                std::cout << "  FAIL: " << what << "\n";
+            }
+        };
+        VietEngine e;
+        auto astral = e.Process(U'\U0001D400');
+        expect(astral && *astral == U"\U0001D400", "Process(U+1D400) giữ nguyên chữ 4 byte");
+        expect(!e.Process(char32_t(0xD800)), "Process(U+D800) là phím ngắt từ");
+        expect(!e.Process(char32_t(0x110000)), "Process(0x110000) là phím ngắt từ");
+        auto han = e.Process(U'一');
+        expect(han && *han == U"一", "Process(U+4E00) giữ nguyên chữ 3 byte");
+    }
 
     std::cout << "\n" << g_pass << " pass, " << g_fail << " fail.\n";
     return g_fail == 0 ? 0 : 1;
