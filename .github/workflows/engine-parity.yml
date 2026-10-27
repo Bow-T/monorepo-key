@@ -38,7 +38,9 @@ jobs:
       - run: dart test packages/viet_engine
 
   swift:
-    runs-on: macos-15
+    # `swift test` build cả target App: Swift của macos-15 báo lỗi concurrency VisionKit
+    # mà Xcode 26 (toolchain team dùng) không báo.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - name: Test engine Swift
