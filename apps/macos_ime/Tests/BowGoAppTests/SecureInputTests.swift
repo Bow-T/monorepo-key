@@ -178,9 +178,12 @@ struct SecureInputTests {
         let loginwindow = try #require(
             NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.loginwindow").first)
         #expect(SecureInput.appName(pid: loginwindow.processIdentifier) == nil)
+        // Cũng không mời "Thoát loginwindow" (thoát nó = đăng xuất).
+        #expect(SecureInput.runningApp(pid: loginwindow.processIdentifier) == nil)
         let finder = try #require(
             NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.finder").first)
         #expect(SecureInput.appName(pid: finder.processIdentifier) == finder.localizedName)
+        #expect(SecureInput.runningApp(pid: finder.processIdentifier) == finder)
         #expect(finder.localizedName != nil)
     }
 
@@ -199,6 +202,17 @@ struct SecureInputTests {
             } ?? true
             #expect(!SecureInput.isOn || !ownerNameable, "đang bật mà không đọc được app giữ")
         }
+    }
+
+    @Test("nút \"Thoát <app>\": nhả trước hạn báo ngay; hết hạn phân biệt app đã thoát / chưa thoát")
+    func quitHolderResult() {
+        #expect(SecureInput.quitResult(released: true, holderQuit: true, timedOut: false) == .released)
+        #expect(SecureInput.quitResult(released: true, holderQuit: false, timedOut: true) == .released)
+        // App đã thoát nhưng macOS chưa kịp nhả -> còn chờ, chưa kết luận ghi nhầm.
+        #expect(SecureInput.quitResult(released: false, holderQuit: true, timedOut: false) == nil)
+        #expect(SecureInput.quitResult(released: false, holderQuit: false, timedOut: false) == nil)
+        #expect(SecureInput.quitResult(released: false, holderQuit: true, timedOut: true) == .quitButStillOn)
+        #expect(SecureInput.quitResult(released: false, holderQuit: false, timedOut: true) == .notQuit)
     }
 
     @Test("nút \"Khoá màn hình ngay\" có hàm hệ thống để gọi")

@@ -301,13 +301,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Nhập bảo mật đang bật -> mọi phím bị chặn khỏi bộ gõ: nói rõ lý do ngay đầu menu.
         var secureInputNotice: [PixelMenuItem] = []
         if SecureInput.heldByOtherApp {
-            let who = SecureInput.ownerName() ?? "Một ứng dụng"
+            let holder = SecureInput.ownerApp()
+            let who = holder?.localizedName ?? "Một ứng dụng"
             // Vừa khoá/mở khoá mà vẫn bật -> đừng gợi lại bước khoá màn hình.
             let lockDidNotHelp = secureInputMonitor.lockDidNotHelp
             secureInputNotice = [
                 .header("🔒 \(who) đang bật Nhập bảo mật"),
                 .header("Bow Go tạm không gõ được"),
             ] + (lockDidNotHelp ? SecureInput.afterUnlockSteps : SecureInput.fixSteps).map { .header($0) }
+            if let holder {
+                secureInputNotice.append(.item("Thoát \(who) để gỡ", symbol: "xmark.app") { [weak self] in
+                    self?.confirmQuitSecureInputHolder(holder)
+                })
+            }
             if !lockDidNotHelp {
                 secureInputNotice.append(.item("Khoá màn hình ngay", symbol: "lock") { SecureInput.lockScreen() })
             }
@@ -787,6 +793,76 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 },
             ]
         )
+    }
+
+    // MARK: - Gỡ Nhập bảo mật
+
+    /// Nút "Thoát <app>" (khối 🔒 đầu menu): macOS chỉ cho app giữ tự tắt Nhập bảo mật,
+    /// nên cách gỡ từ Bow Go là thoát app đó — hỏi trước vì là app của người dùng.
+    private func confirmQuitSecureInputHolder(_ app: NSRunningApplication) {
+        let name = app.localizedName ?? "app này"
+        PixelAlertWindow.present(
+            title: "Thoát \(name)?",
+            message: """
+            \(name) đang bật Nhập bảo mật nên Bow Go không gõ được tiếng Việt. macOS chỉ cho app đang giữ tự tắt nó, nên cách gỡ là thoát \(name).
+
+            Thoát như ⌘Q: \(name) vẫn hỏi lưu nếu còn việc chưa lưu.
+            """,
+            buttons: [
+                PixelAlertButton("HUỶ", kind: .normal) {},
+                PixelAlertButton("THOÁT", kind: .destructive) { [weak self] in
+                    self?.quitSecureInputHolder(app, force: false)
+                },
+            ]
+        )
+    }
+
+    /// Thoát êm (như ⌘Q) hoặc buộc thoát app giữ, rồi chờ Nhập bảo mật tắt.
+    private func quitSecureInputHolder(_ app: NSRunningApplication, force: Bool) {
+        let sent = force ? app.forceTerminate() : app.terminate()
+        bowLog("[SecureInput] \(force ? "Buộc thoát" : "Thoát") \(app.localizedName ?? "app giữ") để gỡ Nhập bảo mật"
+               + (sent ? "." : " — macOS từ chối."))
+        // Không gửi được lệnh thì khỏi chờ: báo kết quả ngay.
+        let deadline = Date().addingTimeInterval(sent ? SecureInput.quitTimeout : 0)
+        awaitSecureInputRelease(after: app, force: force, deadline: deadline)
+    }
+
+    private func awaitSecureInputRelease(after app: NSRunningApplication, force: Bool, deadline: Date) {
+        let name = app.localizedName ?? "App giữ"
+        switch SecureInput.quitResult(released: !SecureInput.heldByOtherApp,
+                                      holderQuit: app.isTerminated,
+                                      timedOut: Date() >= deadline) {
+        case nil:
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.awaitSecureInputRelease(after: app, force: force, deadline: deadline)
+            }
+        case .released:
+            ToastHUD.show("ĐÃ GỠ NHẬP BẢO MẬT — GÕ TIẾNG VIỆT LẠI ĐƯỢC", duration: 3)
+        case .quitButStillOn:
+            let lines = [
+                "\(name) đã thoát nhưng Nhập bảo mật vẫn bật",
+                "mở lại menu Bow Go xem app nào đang giữ",
+                "vẫn kẹt: khoá màn hình rồi mở, hoặc đăng xuất",
+            ]
+            ToastHUD.show(lines.joined(separator: "\n").uppercased(), duration: 8)
+        case .notQuit where !force:
+            PixelAlertWindow.present(
+                title: "\(name) chưa thoát",
+                message: """
+                Có thể \(name) đang hỏi lưu — xem cửa sổ của nó.
+
+                Buộc thoát gỡ được ngay nhưng MẤT phần chưa lưu trong \(name).
+                """,
+                buttons: [
+                    PixelAlertButton("ĐỂ SAU", kind: .normal) {},
+                    PixelAlertButton("BUỘC THOÁT", kind: .destructive) { [weak self] in
+                        self?.quitSecureInputHolder(app, force: true)
+                    },
+                ]
+            )
+        case .notQuit:
+            ToastHUD.show("KHÔNG THOÁT ĐƯỢC \(name.uppercased())", duration: 3)
+        }
     }
 
     // MARK: - Clipboard History HUD
