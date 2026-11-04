@@ -21,3 +21,5 @@ apps/macos_ime/Assets/AppIcon.iconset/
 
 # === Chung ===
 .DS_Store
+
+.claude/

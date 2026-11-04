@@ -8,7 +8,7 @@
 //
 // Ta không tắt được nó (chỉ app giữ mới tắt), nên phát hiện, BÁO, và chỉ cách gỡ. Đo
 // 26/10: tiến trình khác bật-rồi-tắt Secure Input KHÔNG gỡ được phần của app đang giữ,
-// nên không có cách tự gỡ từ Bow Go.
+// nên không có cách tự gỡ từ Bow Go — menu chỉ mời THOÁT app đang giữ (như ⌘Q).
 //
 // PID macOS ghi lại (IOConsoleUsers) là app ĐANG Ở TRƯỚC lúc Secure Input bật, chưa
 // chắc là app giữ (đo 26/10: tiến trình nền bật -> ghi "Microsoft Edge" đang ở trước).
@@ -54,12 +54,30 @@ enum SecureInput {
 
     /// Tên app đang giữ (nil nếu không xác định được, kể cả khi app giữ đã tắt, hoặc
     /// macOS ghi loginwindow — xem đầu file).
-    static func ownerName() -> String? { ownerPID().flatMap(appName) }
+    static func ownerName() -> String? { ownerApp()?.localizedName }
 
-    static func appName(pid: pid_t) -> String? {
+    /// App đang giữ còn chạy — đích của nút "Thoát <app>" trong menu. nil như `ownerName`.
+    static func ownerApp() -> NSRunningApplication? { ownerPID().flatMap(runningApp) }
+
+    static func appName(pid: pid_t) -> String? { runningApp(pid: pid)?.localizedName }
+
+    static func runningApp(pid: pid_t) -> NSRunningApplication? {
         guard let app = NSRunningApplication(processIdentifier: pid),
               app.bundleIdentifier != "com.apple.loginwindow" else { return nil }
-        return app.localizedName
+        return app
+    }
+
+    /// Chờ tối đa bấy nhiêu giây sau khi gửi lệnh thoát app giữ.
+    static let quitTimeout: TimeInterval = 5
+
+    enum QuitResult: Equatable { case released, quitButStillOn, notQuit }
+
+    /// Kết quả nút "Thoát <app>", xét mỗi nhịp chờ; nil = còn chờ. App đã thoát mà hết
+    /// hạn vẫn bật = macOS ghi nhầm app giữ (xem đầu file) hoặc còn app khác giữ.
+    static func quitResult(released: Bool, holderQuit: Bool, timedOut: Bool) -> QuitResult? {
+        if released { return .released }
+        guard timedOut else { return nil }
+        return holderQuit ? .quitButStillOn : .notQuit
     }
 
     /// Cách gỡ chắc nhất: app thật sự giữ tự nhả.
