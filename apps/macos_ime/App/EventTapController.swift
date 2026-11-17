@@ -254,29 +254,39 @@ final class EventTapController: @unchecked Sendable {
         return false
     }
 
-    /// Cửa sổ này có phải MÁY ẢO / SIMULATOR không (Parallels/VMware/UTM/VirtualBox/
-    /// iOS Simulator)? Các app này xử lý sự kiện phím khác app native: gõ cả cụm Unicode
-    /// một lần quá nhanh -> guest OS rớt ký tự (mất chữ). Với chúng ta gõ TỪNG KÝ TỰ +
-    /// delay + precomposed (xem `eraseStrategy` -> `.stepByStep`). Khớp theo TIỀN TỐ
-    /// bundle id để bắt mọi biến thể phiên bản.
-    private func isVirtualMachineApp(_ bundleID: String) -> Bool {
-        let prefixes = [
-            "com.parallels.",              // Parallels Desktop
-            "com.vmware.fusion",           // VMware Fusion
-            "com.utmapp.",                 // UTM (App Store)
-            "com.osy.UTM",                 // UTM (bản ngoài App Store)
-            "org.virtualbox.",             // VirtualBox
-        ]
-        return prefixes.contains { bundleID.hasPrefix($0) }
+    /// App chỉ đọc MÃ PHÍM của sự kiện, bỏ qua chuỗi Unicode kèm theo — mọi ký tự ta
+    /// gõ thay (gửi với keyCode 0 = phím A) đều thành "a" (gõ "as" hay bung tự sửa khi
+    /// nhấn Space đều ra "aaa"). Gõ từng ký tự chậm lại cũng không cứu: ký tự có dấu
+    /// không có mã phím nào để gửi. Nên ở đây bộ gõ NHẢ TAY: phím đi nguyên bản, tiếng
+    /// Việt gõ bằng bộ gõ của chính máy ảo / máy ở xa. Khớp theo TIỀN TỐ bundle id để
+    /// bắt mọi biến thể phiên bản.
+    static func passesKeysThrough(_ bundleID: String) -> Bool {
+        keycodeOnlyAppPrefixes.contains { bundleID.hasPrefix($0) }
     }
 
-    /// App chỉ đọc MÃ PHÍM của sự kiện, bỏ qua chuỗi Unicode kèm theo — mọi ký tự ta
-    /// gõ thay (gửi với keyCode 0 = phím A) đều thành "a". Ký tự có dấu cũng không có
-    /// mã phím nào để gửi, nên ở đây bộ gõ NHẢ TAY: phím đi nguyên bản, tiếng Việt
-    /// gõ bằng bàn phím Tiếng Việt của chính thiết bị ảo.
-    static func passesKeysThrough(_ bundleID: String) -> Bool {
-        bundleID == "com.apple.iphonesimulator"   // iOS Simulator (Xcode)
-    }
+    private static let keycodeOnlyAppPrefixes = [
+        "com.apple.iphonesimulator",   // iOS Simulator (Xcode)
+        // Máy ảo
+        "com.parallels.",              // Parallels Desktop
+        "com.vmware.fusion",           // VMware Fusion
+        "com.utmapp.",                 // UTM (App Store)
+        "com.osy.UTM",                 // UTM (bản ngoài App Store)
+        "org.virtualbox.",             // VirtualBox
+        "codes.rambo.VirtualBuddy",    // VirtualBuddy
+        // Điều khiển máy từ xa
+        "com.microsoft.rdc.",          // Microsoft Remote Desktop / Windows App
+        "com.apple.ScreenSharing",     // Chia sẻ màn hình của macOS
+        "com.apple.RemoteDesktop",     // Apple Remote Desktop
+        "com.philandro.anydesk",       // AnyDesk
+        "com.teamviewer.",             // TeamViewer
+        "com.carriez.rustdesk",        // RustDesk
+        "tv.parsec.",                  // Parsec
+        "com.p5sys.jump.",             // Jump Desktop
+        "com.edovia.screens",          // Screens
+        "com.realvnc.",                // RealVNC Viewer
+        "com.citrix.receiver",         // Citrix Workspace
+        "com.vmware.horizon",          // VMware Horizon Client
+    ]
 
     private func isBrowserApp(_ bundleID: String) -> Bool {
         let browsers: Set<String> = [
@@ -375,9 +385,8 @@ final class EventTapController: @unchecked Sendable {
         ensureAlive()
     }
 
-    /// Chọn CÁCH XOÁ ký tự cũ khi gõ thay, theo ô nhập liệu đang focus:
-    ///   • MÁY ẢO / SIMULATOR -> gõ lại TỪNG KÝ TỰ + delay (chống rớt ký tự khi gõ cả
-    ///     cụm quá nhanh). Ưu tiên tuyệt đối.
+    /// Chọn CÁCH XOÁ ký tự cũ khi gõ thay, theo ô nhập liệu đang focus (máy ảo / remote
+    /// không tới đây — bộ gõ nhả tay ở đó, xem `passesKeysThrough`):
     ///   • Spotlight đang hiện -> bôi đen bằng Shift+Mũi-tên-trái (ký tự rỗng không
     ///     phá được highlight Spotlight, dễ để lại vệt).
     ///   • App khác + bật fix + không bị loại trừ -> phá highlight bằng ký tự rỗng
@@ -385,11 +394,6 @@ final class EventTapController: @unchecked Sendable {
     ///   • Còn lại -> Backspace thường.
     /// Mẹo này vô hại ở ô THƯỜNG vì chỉ kích hoạt khi CÓ ký tự cần xoá (backspaces>0).
     private func eraseStrategy() -> KeyOutput.EraseStrategy {
-        // MÁY ẢO: kiểm TRƯỚC mọi thứ (kể cả `fixBrowserDoubleType`, không liên quan) —
-        // đây là điều kiện gõ được-hay-không, không phải một mẹo tuỳ chọn.
-        if let app = frontAppBundleID, isVirtualMachineApp(app) {
-            return .stepByStep
-        }
         guard fixBrowserDoubleType else { return .backspace }
         if isSpotlightVisible() { return .selectionReplacement }
         if let app = frontAppBundleID {
@@ -989,7 +993,7 @@ final class EventTapController: @unchecked Sendable {
     private func handle(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         // Callback chạy trên THREAD TAP; cấu hình/menu tới từ main -> khoá trạng thái.
         // Nhưng POST nằm NGOÀI khoá: đường AX (Spotlight/Raycast) có thể chặn tới vài
-        // giây, máy ảo thì usleep giữa từng ký tự — giữ khoá lúc đó là chặn luôn main
+        // giây — giữ khoá lúc đó là chặn luôn main
         // (health check, menu, apply config) -> beachball.
         stateLock.lock()
         let result = handleLocked(proxy: proxy, type: type, event: event)
@@ -1156,11 +1160,12 @@ final class EventTapController: @unchecked Sendable {
             return Unmanaged.passUnretained(event)
         }
 
-        // iOS SIMULATOR: đặt SAU các phím tắt (⌃⇧, chụp màn hình… vẫn chạy) nhưng
+        // SIMULATOR / MÁY ẢO / REMOTE: đặt SAU các phím tắt (⌃⇧, chụp màn hình… vẫn chạy) nhưng
         // TRƯỚC mọi xử lý gõ — xem `passesKeysThrough`.
         if let app = frontAppBundleID, Self.passesKeysThrough(app) {
             if committedLength != 0 || !wordRawKeys.isEmpty { resetSyllable() }
             emojiMatcher.reset()
+            expansionUndo.disarm()   // quay lại app thường, Backspace không bung nhầm undo cũ
             return Unmanaged.passUnretained(event)
         }
 
