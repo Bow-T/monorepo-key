@@ -216,7 +216,7 @@ final class EventTapController: @unchecked Sendable {
     /// phím). Cùng lắm trễ một lần đổi app (không ảnh hưởng đúng/sai gõ, chỉ ảnh
     /// hưởng có-phá-highlight-hay-không). Dùng CLASS BOX `@unchecked Sendable` để observer
     /// `@Sendable` capture được box (Sendable) thay vì `self` (non-Sendable).
-    private final class FrontAppBox: @unchecked Sendable {
+    final class FrontAppBox: @unchecked Sendable {
         // Ghi trên main, đọc trên thread tap: String không đọc/ghi nguyên tử được
         // (đọc trúng lúc đang ghi = crash hiếm), nên phải qua khoá.
         private let lock = NSLock()
@@ -226,7 +226,8 @@ final class EventTapController: @unchecked Sendable {
             set { lock.lock(); _bundleID = newValue; lock.unlock() }
         }
     }
-    private let frontAppBox = FrontAppBox()
+    /// Test đặt được app đang focus qua `frontAppBox.bundleID`.
+    let frontAppBox = FrontAppBox()
     private var frontAppBundleID: String? { frontAppBox.bundleID }
 
     /// Observer theo dõi app focus để cập nhật `frontAppBundleID`.
@@ -416,8 +417,9 @@ final class EventTapController: @unchecked Sendable {
 
     /// CACHE quyền Accessibility — `AXIsProcessTrusted()` là một chuyến IPC sang
     /// tccd, không được nằm trên đường phím. Làm mới NGẦM mỗi 2 giây; khởi đầu là
-    /// `true` vì tap chỉ được bật khi đã đủ quyền.
-    private let accessFlag = BackgroundFlag(ttl: 2.0, initial: true) {
+    /// `true` vì tap chỉ được bật khi đã đủ quyền. Test thay được (tiến trình test
+    /// không có quyền Accessibility).
+    var accessFlag = BackgroundFlag(ttl: 2.0, initial: true) {
         Permissions.hasAccessibility()
     }
 
@@ -984,7 +986,7 @@ final class EventTapController: @unchecked Sendable {
     // MARK: - Xử lý sự kiện
 
     /// Lượt gõ-thay chờ post SAU khi nhả `stateLock` (xem `handle`).
-    private var pendingOutput: (backspaces: Int, text: String, erase: KeyOutput.EraseStrategy)?
+    private(set) var pendingOutput: (backspaces: Int, text: String, erase: KeyOutput.EraseStrategy)?
 
     private func queueOutput(backspaces: Int, text: String) {
         pendingOutput = (backspaces, text, eraseStrategy())
@@ -1007,7 +1009,8 @@ final class EventTapController: @unchecked Sendable {
         return result
     }
 
-    private func handleLocked(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+    /// Internal để test lái thẳng luồng phím (không cần tap thật).
+    func handleLocked(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .keyDown {
             checkAndRecover()
         }
